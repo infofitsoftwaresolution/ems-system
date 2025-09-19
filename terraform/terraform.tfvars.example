@@ -1,0 +1,31 @@
+# Copy this file to terraform.tfvars and fill in your values
+
+# AWS Region
+aws_region = "us-east-1"
+
+# Database password (use a strong password)
+db_password = "your-strong-db-password"
+
+# JWT secret (use a strong secret)
+jwt_secret = "your-super-secret-jwt-key"
+
+# SSL Certificate ARN (optional - for HTTPS)
+# certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/your-cert-id"
+
+# Domain name (optional)
+# domain_name = "your-domain.com"
+
+# Environment
+environment = "production"
+
+
+
+
+
+
+
+
+
+
+
+

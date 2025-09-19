@@ -1,0 +1,65 @@
+name: Deploy to AWS ECR
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Login to Amazon ECR
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ap-south-1
+      run: |
+        echo "Logging into ECR..."
+        aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 777555685730.dkr.ecr.ap-south-1.amazonaws.com
+
+    - name: Build and push frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: Dockerfile.frontend
+        push: true
+        tags: |
+          777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-frontend:latest
+          777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-frontend:${{ github.sha }}
+
+    - name: Build and push backend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./server
+        file: ./server/Dockerfile
+        push: true
+        tags: |
+          777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-backend:latest
+          777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-backend:${{ github.sha }}
+
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ec2-user
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Login to ECR
+          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 777555685730.dkr.ecr.ap-south-1.amazonaws.com
+          
+          # Pull latest images
+          docker pull 777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-frontend:latest
+          docker pull 777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-backend:latest
+          
+          # Stop existing containers
+          docker-compose down
+          
+          # Start with new images
+          docker-compose up -d
+          
+          # Clean up old images
+          docker image prune -f

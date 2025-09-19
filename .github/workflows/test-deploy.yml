@@ -1,0 +1,57 @@
+name: Test Deploy Components
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test-components:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Test AWS credentials
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ap-south-1
+      run: |
+        echo "Testing AWS credentials..."
+        if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+          echo "❌ AWS_ACCESS_KEY_ID is empty"
+          exit 1
+        fi
+        if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+          echo "❌ AWS_SECRET_ACCESS_KEY is empty"
+          exit 1
+        fi
+        echo "✅ AWS credentials are set"
+        aws sts get-caller-identity
+
+    - name: Test ECR login
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ap-south-1
+      run: |
+        echo "Testing ECR login..."
+        aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 777555685730.dkr.ecr.ap-south-1.amazonaws.com
+
+    - name: Test Docker builds
+      run: |
+        echo "Testing Docker builds..."
+        docker build -f Dockerfile.frontend -t test-frontend . --no-cache
+        docker build -f server/Dockerfile -t test-backend ./server --no-cache
+        echo "✅ Docker builds successful"
+
+    - name: Test EC2 connection
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ec2-user
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          echo "✅ EC2 connection successful"
+          echo "Current user: $(whoami)"
+          echo "Docker version: $(docker --version)"

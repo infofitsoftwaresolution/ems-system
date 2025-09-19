@@ -1,0 +1,442 @@
+.attendance-management-container {
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.attendance-management-header {
+  margin-bottom: 2rem;
+}
+
+.attendance-management-header h1 {
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.attendance-management-header p {
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+}
+
+.filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.filter-controls label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.filter-select {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.refresh-btn {
+  padding: 0.5rem 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.refresh-btn:hover {
+  background: #2563eb;
+}
+
+.loading {
+  text-align: center;
+  padding: 3rem;
+  font-size: 1.1rem;
+  color: #6b7280;
+}
+
+.no-records {
+  text-align: center;
+  padding: 3rem;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.no-records-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.no-records h3 {
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.no-records p {
+  color: #6b7280;
+}
+
+.records-table-container {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.attendance-table th {
+  background: #f9fafb;
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.9rem;
+}
+
+.attendance-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: top;
+}
+
+.attendance-table tr:hover {
+  background: #f9fafb;
+}
+
+.employee-info {
+  min-width: 200px;
+}
+
+.employee-name {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+.employee-email {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.time-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.time {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.location-preview {
+  font-size: 0.8rem;
+  color: #6b7280;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-data {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.location-btn {
+  padding: 0.4rem 0.8rem;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background-color 0.2s;
+}
+
+.location-btn:hover:not(:disabled) {
+  background: #059669;
+}
+
+.location-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.view-details-btn {
+  padding: 0.4rem 0.8rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background-color 0.2s;
+}
+
+.view-details-btn:hover {
+  background: #2563eb;
+}
+
+/* Location Modal */
+.location-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.location-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: slideIn 0.3s ease-out;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 1.25rem;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.close-btn:hover {
+  background: #f3f4f6;
+}
+
+.modal-content {
+  padding: 1.5rem;
+}
+
+.employee-info {
+  background: #f9fafb;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.employee-info h4 {
+  margin: 0 0 0.5rem 0;
+  color: #1f2937;
+  font-size: 1.1rem;
+}
+
+.employee-info p {
+  margin: 0.25rem 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.location-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.check-in-details,
+.check-out-details {
+  background: #f9fafb;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #10b981;
+}
+
+.check-out-details {
+  border-left-color: #ef4444;
+}
+
+.check-in-details h4,
+.check-out-details h4 {
+  margin: 0 0 1rem 0;
+  color: #1f2937;
+  font-size: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+  gap: 1rem;
+}
+
+.detail-item:last-child {
+  margin-bottom: 0;
+}
+
+.detail-item .label {
+  font-weight: 600;
+  color: #374151;
+  min-width: 100px;
+  font-size: 0.9rem;
+}
+
+.detail-item .value {
+  color: #1f2937;
+  text-align: right;
+  word-break: break-word;
+  font-size: 0.9rem;
+}
+
+.notes-section {
+  background: #fef3c7;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #f59e0b;
+}
+
+.notes-section h4 {
+  margin: 0 0 0.5rem 0;
+  color: #92400e;
+  font-size: 1rem;
+}
+
+.notes-section p {
+  margin: 0;
+  color: #92400e;
+  font-size: 0.9rem;
+}
+
+.modal-actions {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.close-modal-btn {
+  padding: 0.75rem 1.5rem;
+  background: #6b7280;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.close-modal-btn:hover {
+  background: #4b5563;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .attendance-management-container {
+    padding: 1rem;
+  }
+  
+  .filter-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  
+  .records-table-container {
+    overflow-x: auto;
+  }
+  
+  .attendance-table {
+    min-width: 800px;
+  }
+  
+  .location-modal {
+    width: 95%;
+    margin: 1rem;
+  }
+  
+  .detail-item {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .detail-item .value {
+    text-align: left;
+  }
+}

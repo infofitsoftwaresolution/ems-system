@@ -1,0 +1,11 @@
+.notifications-page{padding:1.5rem}
+.np-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+.np-btn{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.5rem .9rem;cursor:pointer}
+.np-empty{color:#6b7280;padding:1rem}
+.np-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem}
+.np-item{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:.9rem}
+.np-item.unread{background:#eff6ff}
+.np-title{font-weight:600;color:#111827;margin-bottom:.25rem}
+.np-msg{color:#4b5563;margin-bottom:.25rem}
+.np-meta{color:#9ca3af;font-size:.85rem}
+

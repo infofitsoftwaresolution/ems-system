@@ -1,0 +1,31 @@
+# Build stage
+FROM node:18-alpine AS build
+WORKDIR /app
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/src ./src
+COPY frontend/public ./public
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+
+# Install envsubst
+RUN apk add --no-cache gettext
+
+# Copy built app and nginx template
+COPY --from=build /app/build /usr/share/nginx/html
+COPY nginx-ssl.conf.template /etc/nginx/nginx.conf.template
+
+# Script to substitute environment variables
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 80 443
+ENTRYPOINT ["/entrypoint.sh"]
+
+
+
+
+
+
