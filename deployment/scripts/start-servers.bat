@@ -4,7 +4,7 @@ echo.
 
 echo Starting Backend Server...
 cd ../../backend
-start "Backend Server" powershell -NoExit -Command "$env:PORT='3001'; $env:CLIENT_ORIGIN='http://localhost:3000'; $env:POSTGRES_HOST='localhost'; $env:POSTGRES_PORT='5432'; $env:POSTGRES_DB='ems'; $env:POSTGRES_USER='postgres'; $env:POSTGRES_PASSWORD='root'; $env:JWT_SECRET='dev-secret'; node src/server.js"
+start "Backend Server" powershell -NoExit -Command "='3001'; ='http://localhost:3000'; ='localhost'; ='5432'; ='ems'; ='postgres'; ='root'; ='dev-secret'; ='s24346379@gmail.com'; ='edufxpcbkumsnsyo'; node src/server.js"
 cd ../deployment/scripts
 
 echo Starting Frontend Server...

@@ -1,0 +1,39 @@
+﻿# EMS Deployment Commands
+Write-Host " EMS Deployment to EC2" -ForegroundColor Green
+Write-Host "=========================" -ForegroundColor Green
+Write-Host ""
+Write-Host "Your EC2 Instance Details:" -ForegroundColor Yellow
+Write-Host "- Instance ID: i-0b1ded0f2dbc2eab1" -ForegroundColor Cyan
+Write-Host "- Public IP: 13.233.73.43" -ForegroundColor Cyan
+Write-Host "- Region: ap-south-1" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Docker images ready for deployment:" -ForegroundColor Green
+Write-Host "- backend-image.tar (78MB)" -ForegroundColor Cyan
+Write-Host "- frontend-image.tar (25MB)" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "To deploy, run these commands:" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "1. Find your SSH key file:" -ForegroundColor White
+Write-Host "   Get-ChildItem -Path C:\Users\ -Name 'r-samridhi.pem' -Recurse" -ForegroundColor Gray
+Write-Host ""
+Write-Host "2. Transfer images to EC2:" -ForegroundColor White
+Write-Host "   scp -i 'PATH_TO_YOUR_KEY\r-samridhi.pem' backend-image.tar frontend-image.tar ec2-user@13.233.73.43:/home/ec2-user/" -ForegroundColor Gray
+Write-Host ""
+Write-Host "3. SSH into EC2:" -ForegroundColor White
+Write-Host "   ssh -i 'PATH_TO_YOUR_KEY\r-samridhi.pem' ec2-user@13.233.73.43" -ForegroundColor Gray
+Write-Host ""
+Write-Host "4. Deploy on EC2:" -ForegroundColor White
+Write-Host "   docker load -i backend-image.tar" -ForegroundColor Gray
+Write-Host "   docker load -i frontend-image.tar" -ForegroundColor Gray
+Write-Host "   docker stop \$(docker ps -q) 2>/dev/null || true" -ForegroundColor Gray
+Write-Host "   docker rm \$(docker ps -aq) 2>/dev/null || true" -ForegroundColor Gray
+Write-Host "   docker run -d --name ems-backend -p 3001:3001 -e NODE_ENV=production -e DB_HOST=localhost -e DB_PORT=5432 -e DB_NAME=employee_management -e DB_USER=postgres -e DB_PASSWORD=root -e JWT_SECRET=your-super-secret-jwt-key docker-backend:latest" -ForegroundColor Gray
+Write-Host "   docker run -d --name ems-frontend -p 80:80 -e BACKEND_URL=http://13.233.73.43:3001 docker-frontend:latest" -ForegroundColor Gray
+Write-Host ""
+Write-Host "5. Verify deployment:" -ForegroundColor White
+Write-Host "   docker ps" -ForegroundColor Gray
+Write-Host "   curl http://13.233.73.43:3001/api/health" -ForegroundColor Gray
+Write-Host ""
+Write-Host "Your app will be available at:" -ForegroundColor Green
+Write-Host "- Frontend: http://13.233.73.43" -ForegroundColor Cyan
+Write-Host "- Backend: http://13.233.73.43:3001" -ForegroundColor Cyan

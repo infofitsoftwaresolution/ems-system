@@ -41,6 +41,7 @@ app.use(
           "blob:",
           "http://localhost:3000",
           "http://localhost:3001",
+          "http://13.233.73.43.nip.io",
         ],
         frameSrc: ["'self'"],
         objectSrc: ["'none'"],
@@ -58,6 +59,7 @@ app.use(
       "http://localhost:3003",
       "http://localhost:3004",
       "http://localhost:3005",
+      "http://13.233.73.43.nip.io",
     ],
     credentials: true,
   })
