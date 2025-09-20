@@ -110,7 +110,7 @@ jobs:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
-        source: "deployment/docker/docker-compose.yml,deployment/docker/nginx.conf,deployment/docker/entrypoint.sh"
+        source: "deployment/docker/docker-compose.yml,deployment/docker/nginx.conf,deployment/docker/nginx-simple.conf,deployment/docker/entrypoint.sh"
         target: "/home/ec2-user/app/"
 
     - name: Copy built images to EC2
@@ -148,6 +148,17 @@ jobs:
           
           # Set environment variables
           export BACKEND_URL=http://backend:3001
+          
+          # Create environment file if it doesn't exist
+          if [ ! -f .env ]; then
+            cat > .env << EOF
+NODE_ENV=production
+DB_PATH=/app/database.sqlite
+JWT_SECRET=${{ secrets.JWT_SECRET || 'your-super-secret-jwt-key' }}
+PORT=3001
+BACKEND_URL=http://backend:3001
+EOF
+          fi
           
           # Start containers
           docker-compose up -d
