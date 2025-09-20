@@ -1,62 +1,51 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: ems-postgres
-    environment:
-      POSTGRES_DB: employee_management
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-root}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   # Backend API
   backend:
-    build:
-      context: ../..
-      dockerfile: deployment/docker/Dockerfile.backend
+    image: backend:latest
     container_name: ems-backend
     environment:
       NODE_ENV: production
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: employee_management
-      DB_USER: postgres
-      DB_PASSWORD: ${DB_PASSWORD:-root}
+      DB_PATH: /app/database.sqlite
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
       PORT: 3001
     ports:
       - "3001:3001"
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
-      - ../../backend/uploads:/app/uploads
+      - ./uploads:/app/uploads
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
 
   # Frontend React App
   frontend:
-    build:
-      context: ../..
-      dockerfile: deployment/docker/Dockerfile.frontend
+    image: frontend:latest
     container_name: ems-frontend
+    environment:
+      BACKEND_URL: http://backend:3001
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl-certs:/etc/ssl/certs
     restart: unless-stopped
+    networks:
+      - app-network
 
-volumes:
-  postgres_data:
+networks:
+  app-network:
+    driver: bridge
 
 
 
