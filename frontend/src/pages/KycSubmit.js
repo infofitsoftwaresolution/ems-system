@@ -292,7 +292,7 @@ const KycSubmit = () => {
     };
 
     checkExistingKyc();
-  }, [user?.email]);
+  }, [user]);
 
   // Cleanup preview URLs on component unmount
   useEffect(() => {

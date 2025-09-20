@@ -49,10 +49,10 @@ import AttendanceManagement from "./pages/AttendanceManagement";
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [notifications, setNotifications] = useState({
+  const notifications = {
     messages: 2,
     notifications: 1,
-  });
+  };
 
   const isAuthenticated = () => {
     return localStorage.getItem("token") !== null;

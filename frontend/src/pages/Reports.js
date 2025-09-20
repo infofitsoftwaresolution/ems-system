@@ -83,7 +83,14 @@ const Reports = () => {
     };
 
     loadEmployees();
-  }, [isAdmin, currentUser.email]);
+  }, [
+    isAdmin,
+    currentUser.email,
+    currentUser.department,
+    currentUser.name,
+    currentUser.role,
+    currentUser.salary,
+  ]);
 
   // Handle employee selection for admin
   const handleEmployeeChange = (employeeId) => {
