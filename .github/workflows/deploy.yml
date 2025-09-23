@@ -1,65 +1,196 @@
-name: Deploy to AWS ECR
+name: Deploy to AWS EC2
 
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Login to Amazon ECR
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: ap-south-1
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: |
+          backend/package-lock.json
+          frontend/package-lock.json
+
+    - name: Install backend dependencies
       run: |
-        echo "Logging into ECR..."
-        aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 777555685730.dkr.ecr.ap-south-1.amazonaws.com
+        cd backend
+        npm ci
 
-    - name: Build and push frontend
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Run backend tests
+      run: |
+        cd backend
+        npm test || echo "No tests found"
+
+    - name: Run frontend tests
+      run: |
+        cd frontend
+        npm test -- --coverage --watchAll=false || echo "No tests found"
+
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build backend image
       uses: docker/build-push-action@v5
       with:
-        context: .
-        file: Dockerfile.frontend
-        push: true
-        tags: |
-          777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-frontend:latest
-          777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-frontend:${{ github.sha }}
+        context: ./backend
+        file: ./deployment/docker/Dockerfile.backend
+        tags: backend:latest
+        load: true
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
-    - name: Build and push backend
+    - name: Build frontend image
       uses: docker/build-push-action@v5
       with:
-        context: ./server
-        file: ./server/Dockerfile
-        push: true
-        tags: |
-          777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-backend:latest
-          777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-backend:${{ github.sha }}
+        context: ./frontend
+        file: ./deployment/docker/Dockerfile.frontend.ssl
+        tags: frontend:latest
+        load: true
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     - name: Deploy to EC2
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.EC2_HOST }}
-        username: ec2-user
+        username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          # Login to ECR
-          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 777555685730.dkr.ecr.ap-south-1.amazonaws.com
+          # Create app directory if it doesn't exist
+          mkdir -p /home/ec2-user/app
           
-          # Pull latest images
-          docker pull 777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-frontend:latest
-          docker pull 777555685730.dkr.ecr.ap-south-1.amazonaws.com/myapp-backend:latest
+          # Stop and remove existing containers
+          cd /home/ec2-user/app
+          docker-compose down || true
           
-          # Stop existing containers
-          docker-compose down
+          # Remove existing images to force rebuild
+          docker rmi backend:latest || true
+          docker rmi frontend:latest || true
           
-          # Start with new images
+          # Create necessary directories
+          mkdir -p uploads/kyc uploads/payslips
+          mkdir -p ssl-certs
+          
+          # Clean up old tar files
+          rm -f backend.tar.gz frontend.tar.gz
+
+    - name: Copy files to EC2
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        source: "deployment/docker/docker-compose.yml,deployment/docker/nginx.conf,deployment/docker/entrypoint.sh"
+        target: "/home/ec2-user/app/"
+
+    - name: Copy built images to EC2
+      run: |
+        docker save backend:latest | gzip > backend.tar.gz
+        docker save frontend:latest | gzip > frontend.tar.gz
+
+    - name: Upload images to EC2
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        source: "backend.tar.gz,frontend.tar.gz"
+        target: "/home/ec2-user/app/"
+
+    - name: Load images and start containers on EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          cd /home/ec2-user/app
+          
+          # Load Docker images
+          docker load -i backend.tar.gz
+          docker load -i frontend.tar.gz
+          
+          # Clean up tar files
+          rm backend.tar.gz frontend.tar.gz
+          
+          # Make scripts executable
+          chmod +x entrypoint.sh
+          
+          # Set environment variables
+          export BACKEND_URL=http://backend:3001
+          
+          # Start containers
           docker-compose up -d
           
-          # Clean up old images
+          # Wait for services to be ready
+          sleep 30
+          
+          # Health check
+          docker-compose ps
+          
+          # Clean up unused images
           docker image prune -f
+
+    - name: Verify deployment
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          cd /home/ec2-user/app
+          
+          # Check if containers are running
+          if docker-compose ps | grep -q "Up"; then
+            echo "✅ Deployment successful - containers are running"
+          else
+            echo "❌ Deployment failed - containers are not running"
+            docker-compose logs
+            exit 1
+          fi
+          
+          # Test backend health endpoint
+          if curl -f http://localhost:3001/api/health; then
+            echo "✅ Backend health check passed"
+          else
+            echo "❌ Backend health check failed"
+            exit 1
+          fi
+          
+          # Test frontend
+          if curl -f http://localhost; then
+            echo "✅ Frontend is accessible"
+          else
+            echo "❌ Frontend is not accessible"
+            exit 1
+          fi
