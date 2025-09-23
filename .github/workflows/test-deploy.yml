@@ -38,6 +38,9 @@ jobs:
         echo "Testing ECR login..."
         aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 777555685730.dkr.ecr.ap-south-1.amazonaws.com
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
     - name: Test Docker builds
       run: |
         echo "Testing Docker builds..."
