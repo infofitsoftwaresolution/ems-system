@@ -1,5 +1,5 @@
-import { DataTypes, Model } from 'sequelize';
-import { sequelize } from '../sequelize.js';
+import { DataTypes, Model } from "sequelize";
+import { sequelize } from "../config/sequelize.js";
 
 export class AccessLog extends Model {}
 
@@ -9,9 +9,12 @@ AccessLog.init(
     email: { type: DataTypes.STRING },
     action: { type: DataTypes.STRING }, // e.g., 'login','failed_login','view_report'
     ip: { type: DataTypes.STRING },
-    userAgent: { type: DataTypes.STRING }
+    userAgent: { type: DataTypes.STRING },
   },
-  { sequelize, modelName: 'AccessLog', tableName: 'access_logs', timestamps: true }
+  {
+    sequelize,
+    modelName: "AccessLog",
+    tableName: "access_logs",
+    timestamps: true,
+  }
 );
-
-

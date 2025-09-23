@@ -1,14 +1,12 @@
-import { DataTypes, Model } from 'sequelize';
-import { sequelize } from '../sequelize.js';
+import { DataTypes, Model } from "sequelize";
+import { sequelize } from "../config/sequelize.js";
 
 export class SiteSetting extends Model {}
 
 SiteSetting.init(
   {
     key: { type: DataTypes.STRING, primaryKey: true },
-    value: { type: DataTypes.JSONB }
+    value: { type: DataTypes.JSONB },
   },
-  { sequelize, modelName: 'SiteSetting', tableName: 'site_settings' }
+  { sequelize, modelName: "SiteSetting", tableName: "site_settings" }
 );
-
-

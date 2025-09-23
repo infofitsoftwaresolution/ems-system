@@ -1,12 +1,12 @@
 {
   "name": "employee-management-server",
   "version": "1.0.0",
-  "main": "src/server.js",
+  "main": "server.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
-    "test": "node src/test.js"
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "test": "node utils/test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

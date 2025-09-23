@@ -1,5 +1,5 @@
-import { DataTypes, Model } from 'sequelize';
-import { sequelize } from '../sequelize.js';
+import { DataTypes, Model } from "sequelize";
+import { sequelize } from "../config/sequelize.js";
 
 export class Payslip extends Model {}
 
@@ -17,9 +17,12 @@ Payslip.init(
     netSalary: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     workingDays: { type: DataTypes.INTEGER, allowNull: false },
     totalDays: { type: DataTypes.INTEGER, allowNull: false },
-    status: { type: DataTypes.ENUM('pending', 'generated', 'paid'), defaultValue: 'pending' },
+    status: {
+      type: DataTypes.ENUM("pending", "generated", "paid"),
+      defaultValue: "pending",
+    },
     generatedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-    paidAt: { type: DataTypes.DATE, allowNull: true }
+    paidAt: { type: DataTypes.DATE, allowNull: true },
   },
-  { sequelize, modelName: 'Payslip', tableName: 'payslips' }
+  { sequelize, modelName: "Payslip", tableName: "payslips" }
 );

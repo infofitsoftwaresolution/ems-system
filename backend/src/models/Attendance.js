@@ -1,5 +1,5 @@
-import { DataTypes, Model } from 'sequelize';
-import { sequelize } from '../sequelize.js';
+import { DataTypes, Model } from "sequelize";
+import { sequelize } from "../config/sequelize.js";
 
 export class Attendance extends Model {}
 
@@ -11,7 +11,10 @@ Attendance.init(
     date: { type: DataTypes.DATEONLY, allowNull: false },
     checkIn: { type: DataTypes.DATE },
     checkOut: { type: DataTypes.DATE },
-    status: { type: DataTypes.ENUM('present', 'absent', 'half-day'), defaultValue: 'present' },
+    status: {
+      type: DataTypes.ENUM("present", "absent", "half-day"),
+      defaultValue: "present",
+    },
     notes: { type: DataTypes.TEXT },
     // Location tracking fields
     checkInLatitude: { type: DataTypes.DECIMAL(10, 8), allowNull: true },
@@ -19,9 +22,7 @@ Attendance.init(
     checkInAddress: { type: DataTypes.TEXT, allowNull: true },
     checkOutLatitude: { type: DataTypes.DECIMAL(10, 8), allowNull: true },
     checkOutLongitude: { type: DataTypes.DECIMAL(11, 8), allowNull: true },
-    checkOutAddress: { type: DataTypes.TEXT, allowNull: true }
+    checkOutAddress: { type: DataTypes.TEXT, allowNull: true },
   },
-  { sequelize, modelName: 'Attendance', tableName: 'attendance' }
+  { sequelize, modelName: "Attendance", tableName: "attendance" }
 );
-
-
