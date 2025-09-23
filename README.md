@@ -1,4 +1,4 @@
-# Employee Management System
+# Employee Management System - CI/CD Test
 
 A full-stack employee management system with React frontend and Node.js/PostgreSQL backend.
 
