@@ -1,4 +1,4 @@
-# Employee Management System - CI/CD Fixed
+# Employee Management System - Docker Build Fixed
 
 A full-stack employee management system with React frontend and Node.js/PostgreSQL backend.
 
