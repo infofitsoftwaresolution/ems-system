@@ -3,12 +3,12 @@ FROM node:18-alpine AS build
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY frontend/package*.json ./
 RUN npm ci
 
 # Copy source code
-COPY src ./src
-COPY public ./public
+COPY frontend/src ./src
+COPY frontend/public ./public
 
 # Build the application
 RUN npm run build
@@ -21,17 +21,13 @@ RUN apk add --no-cache gettext
 
 # Copy built app and nginx template
 COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx-ssl.conf.template /etc/nginx/nginx.conf.template
+COPY deployment/docker/nginx-ssl.conf.template /etc/nginx/nginx.conf.template
 
 # Script to substitute environment variables
-COPY entrypoint.sh /entrypoint.sh
+COPY deployment/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Create nginx user and set permissions
-RUN addgroup -g 1001 -S nginx
-RUN adduser -S nginx -u 1001
-
-# Set proper permissions
+# Set proper permissions (nginx user already exists)
 RUN chown -R nginx:nginx /usr/share/nginx/html
 RUN chown -R nginx:nginx /var/cache/nginx
 RUN chown -R nginx:nginx /var/log/nginx

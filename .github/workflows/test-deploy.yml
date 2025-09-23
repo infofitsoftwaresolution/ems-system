@@ -41,8 +41,8 @@ jobs:
     - name: Test Docker builds
       run: |
         echo "Testing Docker builds..."
-        docker build -f Dockerfile.frontend -t test-frontend . --no-cache
-        docker build -f server/Dockerfile -t test-backend ./server --no-cache
+        docker build -f deployment/docker/Dockerfile.frontend.ssl -t test-frontend . --no-cache
+        docker build -f deployment/docker/Dockerfile.backend -t test-backend ./backend --no-cache
         echo "✅ Docker builds successful"
 
     - name: Test EC2 connection

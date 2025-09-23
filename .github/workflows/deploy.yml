@@ -72,7 +72,7 @@ jobs:
     - name: Build frontend image
       uses: docker/build-push-action@v5
       with:
-        context: ./frontend
+        context: .
         file: ./deployment/docker/Dockerfile.frontend.ssl
         tags: frontend:latest
         load: true
