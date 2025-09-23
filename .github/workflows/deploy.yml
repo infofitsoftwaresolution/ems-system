@@ -40,7 +40,7 @@ jobs:
     - name: Run frontend tests
       run: |
         cd frontend
-        npm test -- --coverage --watchAll=false || echo "No tests found"
+        npm test -- --watchAll=false --passWithNoTests || echo "No tests found"
 
     - name: Build frontend
       run: |
