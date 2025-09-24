@@ -233,7 +233,7 @@ export const employeeService = {
 
 // Real API configuration for future use
 export const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://localhost:3001/api";
+  process.env.REACT_APP_API_URL || "http://13.233.73.43:3001/api";
 
 export const apiClient = {
   get: async (endpoint) => {

@@ -114,7 +114,7 @@ const KycReview = () => {
 
       // Try multiple URL patterns to ensure file access works
       const urlsToTry = [
-        `http://localhost:3001${normalizedPath}`, // Direct backend URL (primary)
+        `http://13.233.73.43:3001${normalizedPath}`, // Direct backend URL (primary)
         normalizedPath, // Direct path through proxy (http://localhost:3000/uploads/...)
         `/api/kyc/file/${documentPath.split("/").pop()}`, // Secure file route
       ];
@@ -317,7 +317,7 @@ const KycReview = () => {
                               👁️ View
                             </button>
                             <a
-                              href={`http://localhost:3001${request.docFrontUrl}`}
+                              href={`http://13.233.73.43:3001${request.docFrontUrl}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="direct-link-btn"
@@ -344,7 +344,7 @@ const KycReview = () => {
                               👁️ View
                             </button>
                             <a
-                              href={`http://localhost:3001${request.docBackUrl}`}
+                              href={`http://13.233.73.43:3001${request.docBackUrl}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="direct-link-btn"
@@ -370,7 +370,7 @@ const KycReview = () => {
                               👁️ View
                             </button>
                             <a
-                              href={`http://localhost:3001${request.selfieUrl}`}
+                              href={`http://13.233.73.43:3001${request.selfieUrl}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="direct-link-btn"

@@ -39,8 +39,8 @@ app.use(
           "'self'",
           "data:",
           "blob:",
-          "http://localhost:3000",
-          "http://localhost:3001",
+          "http://13.233.73.43:80",
+          "http://13.233.73.43:3001",
           "http://13.233.73.43.nip.io",
         ],
         frameSrc: ["'self'"],
@@ -53,12 +53,9 @@ app.use(
 app.use(
   cors({
     origin: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:3002",
-      "http://localhost:3003",
-      "http://localhost:3004",
-      "http://localhost:3005",
+      "http://13.233.73.43:80",
+      "http://13.233.73.43:3001",
+      "http://13.233.73.43",
       "http://13.233.73.43.nip.io",
     ],
     credentials: true,

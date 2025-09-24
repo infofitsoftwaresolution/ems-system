@@ -25,7 +25,7 @@ const emailTemplates = {
           <h3 style="color: #2c3e50; margin-top: 0;">Your Temporary Credentials:</h3>
           <p><strong>Temporary Employee ID:</strong> ${employeeData.tempEmployeeId}</p>
           <p><strong>Temporary Password:</strong> ${employeeData.tempPassword}</p>
-          <p><strong>Login URL:</strong> <a href="http://localhost:3000/login">http://localhost:3000/login</a></p>
+          <p><strong>Login URL:</strong> <a href="http://13.233.73.43:80/login">http://13.233.73.43:80/login</a></p>
         </div>
         
         <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
@@ -57,7 +57,7 @@ const emailTemplates = {
           <h3 style="color: #155724; margin-top: 0;">Your Permanent Credentials:</h3>
           <p><strong>Permanent Employee ID:</strong> ${employeeData.permanentEmployeeId}</p>
           <p><strong>Password:</strong> ${employeeData.password}</p>
-          <p><strong>Login URL:</strong> <a href="http://localhost:3000/login">http://localhost:3000/login</a></p>
+          <p><strong>Login URL:</strong> <a href="http://13.233.73.43:80/login">http://13.233.73.43:80/login</a></p>
         </div>
         
         <div style="background-color: #e7f3ff; padding: 20px; border-radius: 8px; margin: 20px 0;">

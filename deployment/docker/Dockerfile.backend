@@ -13,6 +13,9 @@ RUN npm ci --only=production
 # Copy source code
 COPY src ./src
 
+# Copy environment file
+COPY .env ./
+
 # Create uploads directory if it doesn't exist
 RUN mkdir -p uploads/kyc uploads/payslips
 
