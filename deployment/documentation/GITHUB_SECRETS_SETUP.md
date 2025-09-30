@@ -57,13 +57,14 @@ This guide explains how to configure GitHub secrets for the EMS system CI/CD pip
   ```
 - **Example**: `aBcD1234EfGh5678IjKl9012MnOp3456QrSt7890UvWx`
 
-#### GITHUB_TOKEN
+#### GH_TOKEN
 - **Description**: GitHub personal access token
 - **How to create**:
   1. Go to GitHub → Settings → Developer settings → Personal access tokens
   2. Generate new token (classic)
   3. Select scopes: `repo`, `write:packages`, `read:packages`
   4. Copy the generated token
+- **Note**: Use `GH_TOKEN` instead of `GITHUB_TOKEN` to avoid GitHub naming restrictions
 
 ### 4. Optional Secrets
 
