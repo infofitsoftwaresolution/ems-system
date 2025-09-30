@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test KYC Popup</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 50%; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: black; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Test KYC Popup Flow</h1>
+    
+    <button onclick="simulatePasswordChange()">Simulate Password Change</button>
+    <button onclick="simulateLogin()">Simulate Employee Login</button>
+    <button onclick="closeKycModal()">Close KYC Modal</button>
+    
+    <div id="status"></div>
+    
+    <!-- KYC Modal -->
+    <div id="kycModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeKycModal()">&times;</span>
+            <h2>Complete Your KYC</h2>
+            <p>Please provide your KYC information to complete your profile setup.</p>
+            <form onsubmit="submitKyc(event)">
+                <div style="margin: 10px 0;">
+                    <label>PAN Number *</label><br>
+                    <input type="text" id="panNumber" required style="width: 100%; padding: 5px;">
+                </div>
+                <div style="margin: 10px 0;">
+                    <label>Aadhar Number *</label><br>
+                    <input type="text" id="aadharNumber" required style="width: 100%; padding: 5px;">
+                </div>
+                <div style="margin: 10px 0;">
+                    <label>Address *</label><br>
+                    <textarea id="address" required style="width: 100%; padding: 5px; height: 60px;"></textarea>
+                </div>
+                <button type="submit">Submit KYC</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function simulatePasswordChange() {
+            document.getElementById('status').innerHTML = '<p style="color: green;">Password changed successfully! KYC popup should appear...</p>';
+            setTimeout(() => {
+                showKycModal();
+            }, 1000);
+        }
+        
+        function simulateLogin() {
+            document.getElementById('status').innerHTML = '<p style="color: blue;">Employee logged in! KYC popup should appear...</p>';
+            setTimeout(() => {
+                showKycModal();
+            }, 1000);
+        }
+        
+        function showKycModal() {
+            document.getElementById('kycModal').style.display = 'block';
+            document.getElementById('status').innerHTML += '<p style="color: orange;">KYC Modal is now visible!</p>';
+        }
+        
+        function closeKycModal() {
+            document.getElementById('kycModal').style.display = 'none';
+            document.getElementById('status').innerHTML += '<p style="color: red;">KYC Modal closed!</p>';
+        }
+        
+        function submitKyc(event) {
+            event.preventDefault();
+            const panNumber = document.getElementById('panNumber').value;
+            const aadharNumber = document.getElementById('aadharNumber').value;
+            const address = document.getElementById('address').value;
+            
+            if (panNumber && aadharNumber && address) {
+                document.getElementById('status').innerHTML += '<p style="color: green;">KYC submitted successfully!</p>';
+                closeKycModal();
+            } else {
+                alert('Please fill in all required fields');
+            }
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('kycModal');
+            if (event.target == modal) {
+                closeKycModal();
+            }
+        }
+    </script>
+</body>
+</html>

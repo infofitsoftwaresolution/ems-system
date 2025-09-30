@@ -24,4 +24,6 @@ Attendance.init(
   { sequelize, modelName: 'Attendance', tableName: 'attendance' }
 );
 
+// Note: Association will be defined in sequelize.js or when needed
+
 

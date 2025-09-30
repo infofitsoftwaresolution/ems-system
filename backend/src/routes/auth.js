@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
+import { Employee } from '../models/Employee.js';
 
 const router = Router();
 
@@ -11,6 +12,14 @@ router.post('/login', async (req, res) => {
   if (!user) return res.status(401).json({ message: 'Invalid credentials' });
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+  
+  // Get employee KYC status
+  console.log('Looking up employee for email:', user.email);
+  const employee = await Employee.findOne({ where: { email: user.email } });
+  const kycStatus = employee ? employee.kycStatus : 'unknown';
+  console.log('Found employee:', employee ? 'Yes' : 'No', 'KYC Status:', kycStatus);
+  console.log('Full employee object:', employee);
+  
   const token = jwt.sign({ sub: user.id, role: user.role }, process.env.JWT_SECRET || 'dev-secret', {
     expiresIn: '2h'
   });
@@ -20,9 +29,11 @@ router.post('/login', async (req, res) => {
       email: user.email,
       name: user.name,
       role: user.role,
-      mustChangePassword: user.mustChangePassword
+      mustChangePassword: user.mustChangePassword,
+      kycStatus: kycStatus
     },
-    requirePasswordSetup: user.mustChangePassword
+    requirePasswordSetup: user.mustChangePassword,
+    debug: "KYC status included in response"
   });
 });
 
@@ -35,6 +46,42 @@ router.post('/update-password', async (req, res) => {
   user.mustChangePassword = false;
   await user.save();
   res.json({ success: true });
+});
+
+// Verify token endpoint
+router.get('/verify', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+    
+    const user = await User.findByPk(decoded.sub, {
+      attributes: ['id', 'name', 'email', 'role', 'active', 'mustChangePassword']
+    });
+
+    if (!user || !user.active) {
+      return res.status(401).json({ message: 'User not found or inactive' });
+    }
+
+    // Get employee KYC status
+    const employee = await Employee.findOne({ where: { email: user.email } });
+    const kycStatus = employee ? employee.kycStatus : 'unknown';
+
+    res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      mustChangePassword: user.mustChangePassword,
+      kycStatus: kycStatus
+    });
+  } catch (error) {
+    res.status(401).json({ message: 'Invalid token' });
+  }
 });
 
 // List all users (for debugging)

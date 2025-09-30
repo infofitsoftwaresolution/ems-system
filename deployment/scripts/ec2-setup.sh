@@ -1,196 +1,429 @@
 #!/bin/bash
-# EC2 Setup Script for EMS Application
-# Run this script on your EC2 instance to prepare it for deployment
+
+# EC2 Initial Setup Script for EMS
+# This script prepares an EC2 instance for EMS deployment
 
 set -e
 
-echo "🚀 Setting up EC2 instance for EMS deployment..."
+# Configuration
+LOG_FILE="/var/log/ec2-setup.log"
 
-# Update system packages
-echo "📦 Updating system packages..."
-sudo yum update -y
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Install Docker
-echo "🐳 Installing Docker..."
-sudo yum install docker -y
-sudo service docker start
-sudo usermod -a -G docker ec2-user
+# Logging function
+log() {
+    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
+}
 
-# Install Docker Compose
-echo "🔧 Installing Docker Compose..."
-sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-
-# Create app directory structure
-echo "📁 Creating application directories..."
-mkdir -p /home/ec2-user/app
-mkdir -p /home/ec2-user/app/uploads/kyc
-mkdir -p /home/ec2-user/app/uploads/payslips
-mkdir -p /home/ec2-user/app/ssl-certs
-mkdir -p /home/ec2-user/app/backups
-
-# Set proper permissions
-echo "🔐 Setting permissions..."
-chown -R ec2-user:ec2-user /home/ec2-user/app
-chmod 755 /home/ec2-user/app
-
-# Create environment file template
-echo "⚙️ Creating environment file template..."
-cat > /home/ec2-user/app/.env.example << EOF
-# Environment Configuration Template
-# Copy this file to .env and update the values
-
-# Application Environment
-NODE_ENV=production
-PORT=3001
-
-# Database Configuration
-DB_PATH=/app/database.sqlite
-
-# JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-
-# Email Configuration (Optional)
-EMAIL_HOST=
-EMAIL_PORT=587
-EMAIL_USER=
-EMAIL_PASS=
-EMAIL_FROM=noreply@yourdomain.com
-
-# SSL Configuration (Optional)
-SSL_ENABLED=false
-SSL_CERT_PATH=/etc/ssl/certs/cert.pem
-SSL_KEY_PATH=/etc/ssl/certs/key.pem
-
-# Backend URL for frontend
-BACKEND_URL=http://backend:3001
-EOF
-
-# Create a simple startup script
-echo "📝 Creating startup script..."
-cat > /home/ec2-user/app/start.sh << 'EOF'
-#!/bin/bash
-cd /home/ec2-user/app
-
-# Check if .env exists, if not create from template
-if [ ! -f .env ]; then
-    echo "Creating .env file from template..."
-    cp .env.example .env
-    echo "⚠️  Please update the .env file with your actual values!"
-fi
-
-# Start the application
-echo "🚀 Starting EMS application..."
-docker-compose up -d
-
-# Wait for services to start
-echo "⏳ Waiting for services to start..."
-sleep 30
-
-# Check status
-echo "📊 Application status:"
-docker-compose ps
-
-# Show logs
-echo "📋 Recent logs:"
-docker-compose logs --tail=20
-EOF
-
-chmod +x /home/ec2-user/app/start.sh
-
-# Create a stop script
-echo "📝 Creating stop script..."
-cat > /home/ec2-user/app/stop.sh << 'EOF'
-#!/bin/bash
-cd /home/ec2-user/app
-echo "🛑 Stopping EMS application..."
-docker-compose down
-echo "✅ Application stopped"
-EOF
-
-chmod +x /home/ec2-user/app/stop.sh
-
-# Create a restart script
-echo "📝 Creating restart script..."
-cat > /home/ec2-user/app/restart.sh << 'EOF'
-#!/bin/bash
-cd /home/ec2-user/app
-echo "🔄 Restarting EMS application..."
-docker-compose down
-docker-compose up -d
-echo "✅ Application restarted"
-EOF
-
-chmod +x /home/ec2-user/app/restart.sh
-
-# Create a logs script
-echo "📝 Creating logs script..."
-cat > /home/ec2-user/app/logs.sh << 'EOF'
-#!/bin/bash
-cd /home/ec2-user/app
-echo "📋 Showing EMS application logs..."
-docker-compose logs -f
-EOF
-
-chmod +x /home/ec2-user/app/logs.sh
-
-# Install curl for health checks
-echo "🔧 Installing curl..."
-sudo yum install curl -y
-
-# Create a health check script
-echo "📝 Creating health check script..."
-cat > /home/ec2-user/app/health-check.sh << 'EOF'
-#!/bin/bash
-cd /home/ec2-user/app
-
-echo "🏥 Running health checks..."
-
-# Check if containers are running
-if docker-compose ps | grep -q "Up"; then
-    echo "✅ Containers are running"
-else
-    echo "❌ Containers are not running"
+error() {
+    echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"
     exit 1
-fi
+}
 
-# Check backend health
-if curl -f http://localhost:3001/api/health > /dev/null 2>&1; then
-    echo "✅ Backend health check passed"
-else
-    echo "❌ Backend health check failed"
-    exit 1
-fi
+warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE"
+}
 
-# Check frontend
-if curl -f http://localhost > /dev/null 2>&1; then
-    echo "✅ Frontend is accessible"
-else
-    echo "❌ Frontend is not accessible"
-    exit 1
-fi
+success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1" | tee -a "$LOG_FILE"
+}
 
-echo "🎉 All health checks passed!"
+# Function to check if running as root
+check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        error "This script must be run as root"
+    fi
+}
+
+# Function to update system
+update_system() {
+    log "Updating system packages..."
+    
+    apt-get update -y
+    apt-get upgrade -y
+    apt-get autoremove -y
+    apt-get autoclean
+    
+    success "System updated successfully"
+}
+
+# Function to install essential packages
+install_essentials() {
+    log "Installing essential packages..."
+    
+    apt-get install -y \
+        curl \
+        wget \
+        git \
+        unzip \
+        htop \
+        vim \
+        nano \
+        ufw \
+        fail2ban \
+        logrotate \
+        cron \
+        software-properties-common \
+        apt-transport-https \
+        ca-certificates \
+        gnupg \
+        lsb-release \
+        jq \
+        tree \
+        net-tools
+    
+    success "Essential packages installed"
+}
+
+# Function to setup firewall
+setup_firewall() {
+    log "Setting up firewall..."
+    
+    # Reset UFW
+    ufw --force reset
+    
+    # Default policies
+    ufw default deny incoming
+    ufw default allow outgoing
+    
+    # Allow SSH
+    ufw allow ssh
+    
+    # Allow HTTP and HTTPS
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    
+    # Allow custom ports if needed
+    ufw allow 3001/tcp comment 'EMS Backend'
+    
+    # Enable firewall
+    ufw --force enable
+    
+    success "Firewall configured"
+}
+
+# Function to setup fail2ban
+setup_fail2ban() {
+    log "Setting up fail2ban..."
+    
+    # Create jail.local
+    cat > /etc/fail2ban/jail.local << EOF
+[DEFAULT]
+bantime = 3600
+findtime = 600
+maxretry = 3
+
+[sshd]
+enabled = true
+port = ssh
+logpath = /var/log/auth.log
+maxretry = 3
+
+[nginx-http-auth]
+enabled = true
+filter = nginx-http-auth
+port = http,https
+logpath = /var/log/nginx/error.log
+
+[nginx-limit-req]
+enabled = true
+filter = nginx-limit-req
+port = http,https
+logpath = /var/log/nginx/error.log
+maxretry = 10
 EOF
+    
+    # Restart fail2ban
+    systemctl enable fail2ban
+    systemctl restart fail2ban
+    
+    success "Fail2ban configured"
+}
 
-chmod +x /home/ec2-user/app/health-check.sh
+# Function to setup Docker
+setup_docker() {
+    log "Setting up Docker..."
+    
+    # Remove old Docker installations
+    apt-get remove -y docker docker-engine docker.io containerd runc || true
+    
+    # Install Docker
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    apt-get update -y
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    
+    # Start and enable Docker
+    systemctl enable docker
+    systemctl start docker
+    
+    # Add current user to docker group
+    usermod -aG docker $SUDO_USER
+    
+    success "Docker installed and configured"
+}
 
-echo ""
-echo "✅ EC2 setup completed successfully!"
-echo ""
-echo "📋 Next steps:"
-echo "1. Log out and log back in to apply Docker group changes"
-echo "2. Set up GitHub secrets in your repository"
-echo "3. Push your code to trigger the CI/CD pipeline"
-echo ""
-echo "📁 Application directory: /home/ec2-user/app"
-echo "🔧 Available scripts:"
-echo "   - start.sh: Start the application"
-echo "   - stop.sh: Stop the application"
-echo "   - restart.sh: Restart the application"
-echo "   - logs.sh: View application logs"
-echo "   - health-check.sh: Run health checks"
-echo ""
-echo "⚙️ Don't forget to update the .env file with your actual values!"
-echo ""
-echo "🚀 Your EC2 instance is now ready for EMS deployment!"
+# Function to setup Docker Compose
+setup_docker_compose() {
+    log "Setting up Docker Compose..."
+    
+    # Install Docker Compose
+    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    
+    # Create symlink
+    ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+    
+    success "Docker Compose installed"
+}
+
+# Function to setup monitoring
+setup_monitoring() {
+    log "Setting up system monitoring..."
+    
+    # Install htop and other monitoring tools
+    apt-get install -y htop iotop nethogs
+    
+    # Create monitoring script
+    cat > /usr/local/bin/system-monitor.sh << 'EOF'
+#!/bin/bash
+
+# System monitoring script
+LOG_FILE="/var/log/system-monitor.log"
+
+echo "=== System Status $(date) ===" >> "$LOG_FILE"
+echo "CPU Usage:" >> "$LOG_FILE"
+top -bn1 | grep "Cpu(s)" >> "$LOG_FILE"
+echo "Memory Usage:" >> "$LOG_FILE"
+free -h >> "$LOG_FILE"
+echo "Disk Usage:" >> "$LOG_FILE"
+df -h >> "$LOG_FILE"
+echo "Docker Status:" >> "$LOG_FILE"
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" >> "$LOG_FILE"
+echo "================================" >> "$LOG_FILE"
+EOF
+    
+    chmod +x /usr/local/bin/system-monitor.sh
+    
+    # Add to crontab
+    (crontab -l 2>/dev/null; echo "*/5 * * * * /usr/local/bin/system-monitor.sh") | crontab -
+    
+    success "Monitoring setup completed"
+}
+
+# Function to setup log rotation
+setup_log_rotation() {
+    log "Setting up log rotation..."
+    
+    # Create logrotate configuration
+    cat > /etc/logrotate.d/ems-system << EOF
+/var/log/ec2-setup.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 644 root root
+}
+
+/var/log/system-monitor.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 644 root root
+}
+
+/var/log/ems-deployment.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 644 root root
+}
+EOF
+    
+    success "Log rotation configured"
+}
+
+# Function to setup swap
+setup_swap() {
+    log "Setting up swap space..."
+    
+    # Check if swap already exists
+    if [ -f /swapfile ]; then
+        warning "Swap file already exists"
+        return
+    fi
+    
+    # Create swap file (2GB)
+    fallocate -l 2G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    
+    # Add to fstab
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    
+    # Configure swappiness
+    echo 'vm.swappiness=10' >> /etc/sysctl.conf
+    
+    success "Swap space configured"
+}
+
+# Function to optimize system
+optimize_system() {
+    log "Optimizing system settings..."
+    
+    # Update sysctl settings
+    cat >> /etc/sysctl.conf << EOF
+
+# Network optimizations
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 65536 16777216
+net.ipv4.tcp_wmem = 4096 65536 16777216
+net.core.netdev_max_backlog = 5000
+net.ipv4.tcp_congestion_control = bbr
+
+# File system optimizations
+fs.file-max = 2097152
+EOF
+    
+    # Apply settings
+    sysctl -p
+    
+    # Update limits
+    cat >> /etc/security/limits.conf << EOF
+
+# EMS System limits
+* soft nofile 65536
+* hard nofile 65536
+* soft nproc 32768
+* hard nproc 32768
+EOF
+    
+    success "System optimized"
+}
+
+# Function to create deployment user
+create_deployment_user() {
+    log "Creating deployment user..."
+    
+    # Create ems user
+    useradd -m -s /bin/bash ems || true
+    
+    # Add to docker group
+    usermod -aG docker ems
+    
+    # Create .ssh directory
+    mkdir -p /home/ems/.ssh
+    chmod 700 /home/ems/.ssh
+    chown ems:ems /home/ems/.ssh
+    
+    # Create deployment directory
+    mkdir -p /opt/ems-deployment
+    chown ems:ems /opt/ems-deployment
+    
+    success "Deployment user created"
+}
+
+# Function to setup SSL certificates (optional)
+setup_ssl() {
+    log "Setting up SSL certificates..."
+    
+    # Create SSL directory
+    mkdir -p /etc/ssl/certs
+    mkdir -p /etc/ssl/private
+    
+    # Generate self-signed certificate (for testing)
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout /etc/ssl/private/ems.key \
+        -out /etc/ssl/certs/ems.crt \
+        -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+    
+    chmod 600 /etc/ssl/private/ems.key
+    chmod 644 /etc/ssl/certs/ems.crt
+    
+    success "SSL certificates generated"
+}
+
+# Function to show system information
+show_system_info() {
+    log "System Information:"
+    echo "=================="
+    
+    echo "OS: $(lsb_release -d | cut -f2)"
+    echo "Kernel: $(uname -r)"
+    echo "Architecture: $(uname -m)"
+    echo "CPU: $(nproc) cores"
+    echo "Memory: $(free -h | awk '/^Mem:/ {print $2}')"
+    echo "Disk: $(df -h / | awk 'NR==2 {print $2}')"
+    echo "Docker: $(docker --version)"
+    echo "Docker Compose: $(docker-compose --version)"
+    
+    echo -e "\nNetwork Interfaces:"
+    ip addr show | grep -E "inet |UP"
+    
+    echo -e "\nFirewall Status:"
+    ufw status
+    
+    echo -e "\nServices Status:"
+    systemctl is-active docker
+    systemctl is-active fail2ban
+}
+
+# Main setup function
+main() {
+    log "Starting EC2 setup for EMS..."
+    
+    check_root
+    update_system
+    install_essentials
+    setup_firewall
+    setup_fail2ban
+    setup_docker
+    setup_docker_compose
+    setup_monitoring
+    setup_log_rotation
+    setup_swap
+    optimize_system
+    create_deployment_user
+    setup_ssl
+    
+    success "EC2 setup completed successfully!"
+    show_system_info
+    
+    log "Next steps:"
+    echo "1. Configure GitHub secrets in your repository"
+    echo "2. Run the deployment script: /opt/ems-deployment/deployment/scripts/deploy-to-ec2.sh"
+    echo "3. Access your application at http://$(curl -s ifconfig.me)"
+}
+
+# Handle command line arguments
+case "${1:-setup}" in
+    "setup")
+        main
+        ;;
+    "info")
+        show_system_info
+        ;;
+    "update")
+        update_system
+        ;;
+    *)
+        echo "Usage: $0 {setup|info|update}"
+        exit 1
+        ;;
+esac

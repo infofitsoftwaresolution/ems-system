@@ -1,38 +1,54 @@
-# Backend Dockerfile
-FROM node:18-alpine
+# Multi-stage build for backend
+FROM node:18-alpine AS base
 
-# Set working directory
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Create app directory
 WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
 
 # Copy package files
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+FROM base AS deps
+RUN npm ci --only=production && npm cache clean --force
 
-# Copy source code
+# Build stage
+FROM base AS builder
+COPY package*.json ./
+RUN npm ci
 COPY src ./src
+RUN npm run build || echo "No build script found, skipping..."
 
-# Copy environment file
-COPY .env ./
+# Production stage
+FROM base AS runner
 
-# Create uploads directory if it doesn't exist
-RUN mkdir -p uploads/kyc uploads/payslips
+# Copy built application
+COPY --from=deps --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nodejs:nodejs /app/src ./src
+COPY --chown=nodejs:nodejs package*.json ./
 
-# Create a non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+# Create necessary directories
+RUN mkdir -p uploads/kyc uploads/payslips && \
+    chown -R nodejs:nodejs uploads
 
-# Change ownership of the app directory
-RUN chown -R nodejs:nodejs /app
+# Switch to non-root user
 USER nodejs
 
 # Expose port
 EXPOSE 3001
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
 
 # Start the application
 CMD ["npm", "start"]

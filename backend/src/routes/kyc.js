@@ -2,6 +2,7 @@ import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
+import { Op } from 'sequelize';
 import { Kyc } from '../models/Kyc.js';
 import { Employee } from '../models/Employee.js';
 import { User } from '../models/User.js';
@@ -51,11 +52,17 @@ router.post('/', upload.fields([
   { name: 'docFront', maxCount: 1 },
   { name: 'docBack', maxCount: 1 },
   { name: 'selfie', maxCount: 1 },
+  { name: 'panCard', maxCount: 1 },
+  { name: 'aadharCard', maxCount: 1 },
   { name: 'additionalDocs', maxCount: 5 } // Allow multiple additional documents
 ]), async (req, res) => {
   try {
     const body = req.body;
     const files = req.files || {};
+    
+    console.log('KYC submission received:');
+    console.log('Body:', body);
+    console.log('Files:', Object.keys(files));
     
     // Check if employee already has a KYC submission (by employeeId or fullName)
     let existingKyc = null;
@@ -121,6 +128,22 @@ router.post('/', upload.fields([
       });
     }
     
+    if (files.panCard && files.panCard[0]) {
+      documents.push({
+        type: 'PAN Card',
+        path: `/uploads/kyc/${path.basename(files.panCard[0].path)}`,
+        originalName: files.panCard[0].originalname
+      });
+    }
+    
+    if (files.aadharCard && files.aadharCard[0]) {
+      documents.push({
+        type: 'Aadhar Card',
+        path: `/uploads/kyc/${path.basename(files.aadharCard[0].path)}`,
+        originalName: files.aadharCard[0].originalname
+      });
+    }
+    
     // Handle additional documents
     if (files.additionalDocs) {
       files.additionalDocs.forEach((file, index) => {
@@ -137,7 +160,7 @@ router.post('/', upload.fields([
     
     if (!body.employeeId || body.employeeId === 'undefined' || body.employeeId === 'null' || body.employeeId === '0') {
       // Try to find employee by fullName and get the correct employeeId
-      const employee = await Employee.findOne({ 
+      let employee = await Employee.findOne({ 
         where: { name: body.fullName }
       });
       
@@ -145,10 +168,19 @@ router.post('/', upload.fields([
         finalEmployeeId = employee.employeeId;
         console.log(`🔄 Auto-corrected employeeId for ${body.fullName}: ${body.employeeId} → ${finalEmployeeId}`);
       } else {
-        return res.status(400).json({ 
-          message: 'Invalid employee ID provided and could not find employee by name',
-          error: 'Employee ID is required and must be valid'
+        // If employee doesn't exist, try to find by email
+        employee = await Employee.findOne({ 
+          where: { email: body.email }
         });
+        
+        if (employee) {
+          finalEmployeeId = employee.employeeId;
+          console.log(`🔄 Found employee by email for ${body.fullName}: ${finalEmployeeId}`);
+        } else {
+          // If still not found, use the user ID as employee ID (for users not in employee table)
+          finalEmployeeId = body.employeeId || 'USER_' + Date.now();
+          console.log(`🔄 Using fallback employeeId for ${body.fullName}: ${finalEmployeeId}`);
+        }
       }
     } else {
       // Verify the provided employeeId matches the employee name
@@ -256,7 +288,7 @@ router.get('/', async (req, res) => {
       }
       
       if (!kycRequest) {
-        return res.json({ status: 'pending', message: 'No KYC request found' });
+        return res.json({ status: 'not_submitted', message: 'No KYC request found' });
       }
       
       return res.json({ 
@@ -362,12 +394,40 @@ router.post('/:id/review', async (req, res) => {
     if (status === 'approved') {
       try {
         console.log('Processing approval...');
-        // Find the employee by email (assuming KYC fullName matches employee name)
-        const employee = await Employee.findOne({ 
+        console.log('Looking for employee with KYC fullName:', item.fullName);
+        console.log('KYC item email:', item.email);
+        
+        // Find the employee by multiple criteria
+        let employee = await Employee.findOne({ 
           where: { 
             name: item.fullName 
           } 
         });
+        console.log('Employee found by exact name match:', !!employee);
+        
+        // If not found by exact name, try by email (if we have it)
+        if (!employee && item.email) {
+          console.log('Trying to find employee by email:', item.email);
+          employee = await Employee.findOne({ 
+            where: { 
+              email: item.email 
+            } 
+          });
+          console.log('Employee found by email match:', !!employee);
+        }
+        
+        // If still not found, try case-insensitive name match
+        if (!employee) {
+          console.log('Trying case-insensitive name match for:', item.fullName);
+          employee = await Employee.findOne({ 
+            where: { 
+              name: {
+                [Op.iLike]: item.fullName
+              }
+            } 
+          });
+          console.log('Employee found by case-insensitive name match:', !!employee);
+        }
         
         if (employee) {
           console.log('Found employee:', employee.toJSON());
