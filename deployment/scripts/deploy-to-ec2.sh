@@ -141,7 +141,7 @@ BACKEND_IMAGE=${BACKEND_IMAGE:-ghcr.io/infofitsoftwaresolution/ems-system-backen
 FRONTEND_IMAGE=${FRONTEND_IMAGE:-ghcr.io/infofitsoftwaresolution/ems-system-frontend:latest}
 
 # GitHub Container Registry
-GITHUB_TOKEN=${GITHUB_TOKEN}
+GITHUB_TOKEN=${GH_TOKEN}
 
 # SSL Configuration (optional)
 SSL_CERT_PATH=${SSL_CERT_PATH:-/etc/ssl/certs/cert.pem}
