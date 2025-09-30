@@ -1,0 +1,40 @@
+name: Diagnose Connection Issues
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Test SSH Connection
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        port: ${{ secrets.EC2_PORT }}
+        script: |
+          echo "=== Connection Test Successful ==="
+          echo "Host: $(hostname)"
+          echo "User: $(whoami)"
+          echo "Date: $(date)"
+          echo "Uptime: $(uptime)"
+          echo "Disk Usage:"
+          df -h
+          echo "Memory Usage:"
+          free -h
+          echo "Docker Status:"
+          docker --version || echo "Docker not installed"
+          docker ps || echo "Docker not running"
+          echo "Git Status:"
+          git --version || echo "Git not installed"
+          echo "Current Directory:"
+          pwd
+          echo "Directory Contents:"
+          ls -la
+          echo "=== Test Complete ==="
