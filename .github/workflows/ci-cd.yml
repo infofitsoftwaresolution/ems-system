@@ -5,6 +5,7 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -84,7 +85,7 @@ jobs:
       with:
         context: ./backend
         file: ./deployment/docker/Dockerfile.backend
-        push: true
+        push: false
         tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
@@ -97,7 +98,7 @@ jobs:
       with:
         context: .
         file: ./deployment/docker/Dockerfile.frontend
-        push: true
+        push: false
         tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
