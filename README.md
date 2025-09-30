@@ -317,4 +317,5 @@ docker-compose -f docker-compose.yml up -d --build
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License.#   C I / C D   T e s t   -   0 9 / 3 0 / 2 0 2 5   1 7 : 3 7 : 2 2  
+ 
