@@ -1,13 +1,21 @@
 {
-  "name": "my-project",
+  "name": "rural-samridhi-ems-frontend",
+  "description": "Frontend React application for Rural Samridhi Employee Management System",
+  "author": "InfoFit Software Solution",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/infofitsoftwaresolution/ems-system.git"
+  },
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "serve": "vite preview --port 4173"
   },
   "dependencies": {
     "react": "^19.1.1",

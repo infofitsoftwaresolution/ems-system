@@ -10,7 +10,7 @@ WORKDIR /app
 COPY frontend/Modern-EMS/package*.json ./
 
 # Install dependencies
-RUN npm ci --frozen-lockfile
+RUN npm ci --frozen-lockfile --legacy-peer-deps
 
 # Copy source code
 COPY frontend/Modern-EMS/src ./src
@@ -29,9 +29,7 @@ FROM nginx:alpine
 # Install envsubst and curl for health checks
 RUN apk add --no-cache gettext curl
 
-# Create nginx user and set permissions
-RUN addgroup -g 1001 -S nginx && \
-    adduser -S nginx -u 1001
+# Use existing nginx user
 
 # Copy built app
 COPY --from=build --chown=nginx:nginx /app/dist /usr/share/nginx/html

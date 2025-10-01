@@ -1,12 +1,33 @@
 {
-  "name": "employee-management-server",
+  "name": "rural-samridhi-ems-backend",
   "version": "1.0.0",
+  "description": "Backend API server for Rural Samridhi Employee Management System",
   "main": "src/server.js",
   "type": "module",
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "test": "node src/test.js"
+    "test": "node src/test.js",
+    "seed": "node src/seed.js",
+    "seed:kyc": "node src/seedKyc.js",
+    "setup": "npm run seed && npm run seed:kyc",
+    "reset-db": "rm -f database.sqlite && npm run setup"
+  },
+  "keywords": [
+    "employee-management",
+    "api",
+    "backend",
+    "express",
+    "sequelize",
+    "sqlite",
+    "kyc",
+    "attendance"
+  ],
+  "author": "InfoFit Software Solution",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/infofitsoftwaresolution/ems-system.git"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -25,5 +46,9 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }
