@@ -5,19 +5,19 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "install-all": "npm install && cd backend && npm install && cd ../frontend/Modern-EMS && npm install",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend/Modern-EMS && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
     "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "start:backend": "cd backend && npm start",
-    "start:frontend": "cd frontend/Modern-EMS && npm run build && npm run preview",
-    "build": "cd frontend/Modern-EMS && npm run build",
+    "start:frontend": "cd frontend && npm run build && npm run preview",
+    "build": "cd frontend && npm run build",
     "test": "cd backend && npm test",
     "seed": "cd backend && node src/seed.js",
     "seed:kyc": "cd backend && node src/seedKyc.js",
     "setup": "npm run install-all && npm run seed && npm run seed:kyc",
-    "clean": "rm -rf node_modules backend/node_modules frontend/Modern-EMS/node_modules",
+    "clean": "rm -rf node_modules backend/node_modules frontend/node_modules",
     "reset": "npm run clean && npm run setup"
   },
   "keywords": [
@@ -52,6 +52,6 @@
   },
   "workspaces": [
     "backend",
-    "frontend/Modern-EMS"
+    "frontend"
   ]
 }

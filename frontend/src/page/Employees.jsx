@@ -79,7 +79,7 @@ export default function Employees() {
     key: "name",
     direction: "asc",
   });
-  
+
   // Add Employee Form State
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [newEmployee, setNewEmployee] = useState({
@@ -89,7 +89,7 @@ export default function Employees() {
     position: "",
     role: "",
     joinDate: "",
-    isActive: true
+    isActive: true,
   });
 
   // Delete Employee State
@@ -106,8 +106,8 @@ export default function Employees() {
         const data = await apiService.getEmployees();
         setEmployees(data);
       } catch (err) {
-        setError('Failed to load employees');
-        console.error('Error loading employees:', err);
+        setError("Failed to load employees");
+        console.error("Error loading employees:", err);
       } finally {
         setLoading(false);
       }
@@ -157,37 +157,45 @@ export default function Employees() {
     setIsDeleting(true);
     try {
       const response = await apiService.deleteEmployee(deleteEmployeeId);
-      console.log('Delete response:', response);
-      
+      console.log("Delete response:", response);
+
       // Remove the employee from the list
-      setEmployees(employees.filter(emp => emp.id !== deleteEmployeeId));
-      
-      toast.success(`Employee ${deleteEmployeeName} and all associated data deleted successfully!`);
-      
+      setEmployees(employees.filter((emp) => emp.id !== deleteEmployeeId));
+
+      toast.success(
+        `Employee ${deleteEmployeeName} and all associated data deleted successfully!`
+      );
+
       // Show deletion summary if available
       if (response.deletionSummary) {
         const summary = response.deletionSummary;
         const summaryText = [
           summary.kycRecords > 0 && `${summary.kycRecords} KYC record(s)`,
-          summary.attendanceRecords > 0 && `${summary.attendanceRecords} attendance record(s)`,
+          summary.attendanceRecords > 0 &&
+            `${summary.attendanceRecords} attendance record(s)`,
           summary.leaveRecords > 0 && `${summary.leaveRecords} leave record(s)`,
-          summary.payslipRecords > 0 && `${summary.payslipRecords} payslip record(s)`,
+          summary.payslipRecords > 0 &&
+            `${summary.payslipRecords} payslip record(s)`,
           summary.accessLogs > 0 && `${summary.accessLogs} access log(s)`,
-          summary.userAccount && 'User account'
-        ].filter(Boolean).join(', ');
-        
+          summary.userAccount && "User account",
+        ]
+          .filter(Boolean)
+          .join(", ");
+
         if (summaryText) {
           toast.info(`Also deleted: ${summaryText}`);
         }
       }
-      
+
       // Close dialog
       setShowDeleteDialog(false);
       setDeleteEmployeeId(null);
       setDeleteEmployeeName("");
     } catch (err) {
       console.error("Error deleting employee:", err);
-      toast.error(`Failed to delete employee: ${err.message || 'Please try again.'}`);
+      toast.error(
+        `Failed to delete employee: ${err.message || "Please try again."}`
+      );
     } finally {
       setIsDeleting(false);
     }
@@ -208,11 +216,16 @@ export default function Employees() {
     setSortConfig({ key, direction });
   };
 
-  // Get department name by id
-  const getDepartmentName = (id) => {
-    if (!id) return "N/A";
-    const department = departments.find((dept) => dept.id === id);
-    return department ? department.name : "N/A";
+  // Get department name (handles both string names and IDs)
+  const getDepartmentName = (department) => {
+    if (!department) return "N/A";
+    // If it's already a string name, return it
+    if (typeof department === "string") {
+      return department;
+    }
+    // If it's an ID, look it up in the departments array
+    const dept = departments.find((dept) => dept.id === department);
+    return dept ? dept.name : "N/A";
   };
 
   // Get role name by id
@@ -238,16 +251,16 @@ export default function Employees() {
         department: getDepartmentName(newEmployee.department),
         role: getRoleName(newEmployee.role),
         hireDate: newEmployee.joinDate,
-        status: newEmployee.isActive ? "active" : "inactive"
+        status: newEmployee.isActive ? "active" : "inactive",
       };
 
-      console.log('Submitting employee data:', employeeData);
+      console.log("Submitting employee data:", employeeData);
       const createdEmployee = await apiService.createEmployee(employeeData);
-      console.log('Employee created successfully:', createdEmployee);
-      
+      console.log("Employee created successfully:", createdEmployee);
+
       // Add the new employee to the list
       setEmployees([...employees, createdEmployee]);
-      
+
       // Reset form
       setNewEmployee({
         name: "",
@@ -256,19 +269,23 @@ export default function Employees() {
         position: "",
         role: "",
         joinDate: "",
-        isActive: true
+        isActive: true,
       });
-      
+
       toast.success("Employee added successfully!");
-      
+
       // Close the dialog by triggering a click on the close button
-      const dialogCloseButton = document.querySelector('[data-state="open"] button[aria-label="Close"]');
+      const dialogCloseButton = document.querySelector(
+        '[data-state="open"] button[aria-label="Close"]'
+      );
       if (dialogCloseButton) {
         dialogCloseButton.click();
       }
     } catch (err) {
       console.error("Error adding employee:", err);
-      toast.error(`Failed to add employee: ${err.message || 'Please try again.'}`);
+      toast.error(
+        `Failed to add employee: ${err.message || "Please try again."}`
+      );
     } finally {
       setIsAddingEmployee(false);
     }
@@ -305,9 +322,7 @@ export default function Employees() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-red-500 mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>
-              Try Again
-            </Button>
+            <Button onClick={() => window.location.reload()}>Try Again</Button>
           </div>
         </div>
       </div>
@@ -346,15 +361,24 @@ export default function Employees() {
                     Create a new employee record in the system.
                   </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={(e) => { e.preventDefault(); handleAddEmployee(); }}>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAddEmployee();
+                  }}>
                   <div className="grid grid-cols-2 gap-4 py-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">Full Name *</Label>
-                      <Input 
-                        id="name" 
-                        placeholder="John Doe" 
+                      <Input
+                        id="name"
+                        placeholder="John Doe"
                         value={newEmployee.name}
-                        onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})}
+                        onChange={(e) =>
+                          setNewEmployee({
+                            ...newEmployee,
+                            name: e.target.value,
+                          })
+                        }
                         required
                       />
                     </div>
@@ -365,16 +389,22 @@ export default function Employees() {
                         type="email"
                         placeholder="john.doe@company.com"
                         value={newEmployee.email}
-                        onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
+                        onChange={(e) =>
+                          setNewEmployee({
+                            ...newEmployee,
+                            email: e.target.value,
+                          })
+                        }
                         required
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="department">Department</Label>
-                      <Select 
+                      <Select
                         value={newEmployee.department}
-                        onValueChange={(value) => setNewEmployee({...newEmployee, department: value})}
-                      >
+                        onValueChange={(value) =>
+                          setNewEmployee({ ...newEmployee, department: value })
+                        }>
                         <SelectTrigger>
                           <SelectValue placeholder="Select department" />
                         </SelectTrigger>
@@ -389,19 +419,25 @@ export default function Employees() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="position">Position</Label>
-                      <Input 
-                        id="position" 
-                        placeholder="Software Engineer" 
+                      <Input
+                        id="position"
+                        placeholder="Software Engineer"
                         value={newEmployee.position}
-                        onChange={(e) => setNewEmployee({...newEmployee, position: e.target.value})}
+                        onChange={(e) =>
+                          setNewEmployee({
+                            ...newEmployee,
+                            position: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="role">Role</Label>
-                      <Select 
+                      <Select
                         value={newEmployee.role}
-                        onValueChange={(value) => setNewEmployee({...newEmployee, role: value})}
-                      >
+                        onValueChange={(value) =>
+                          setNewEmployee({ ...newEmployee, role: value })
+                        }>
                         <SelectTrigger>
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
@@ -416,18 +452,25 @@ export default function Employees() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="join-date">Start Date</Label>
-                      <Input 
-                        id="join-date" 
-                        type="date" 
+                      <Input
+                        id="join-date"
+                        type="date"
                         value={newEmployee.joinDate}
-                        onChange={(e) => setNewEmployee({...newEmployee, joinDate: e.target.value})}
+                        onChange={(e) =>
+                          setNewEmployee({
+                            ...newEmployee,
+                            joinDate: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     <div className="col-span-2 flex items-center space-x-2">
-                      <Switch 
-                        id="active" 
+                      <Switch
+                        id="active"
                         checked={newEmployee.isActive}
-                        onCheckedChange={(checked) => setNewEmployee({...newEmployee, isActive: checked})}
+                        onCheckedChange={(checked) =>
+                          setNewEmployee({ ...newEmployee, isActive: checked })
+                        }
                       />
                       <Label htmlFor="active">
                         Employee is active and can access the system
@@ -435,15 +478,20 @@ export default function Employees() {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setNewEmployee({
-                      name: "",
-                      email: "",
-                      department: "",
-                      position: "",
-                      role: "",
-                      joinDate: "",
-                      isActive: true
-                    })}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        setNewEmployee({
+                          name: "",
+                          email: "",
+                          department: "",
+                          position: "",
+                          role: "",
+                          joinDate: "",
+                          isActive: true,
+                        })
+                      }>
                       Cancel
                     </Button>
                     <Button type="submit" disabled={isAddingEmployee}>
@@ -458,14 +506,19 @@ export default function Employees() {
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                  <DialogTitle className="text-red-600">Delete Employee</DialogTitle>
+                  <DialogTitle className="text-red-600">
+                    Delete Employee
+                  </DialogTitle>
                   <DialogDescription>
-                    This action cannot be undone. This will permanently delete the employee and all associated data.
+                    This action cannot be undone. This will permanently delete
+                    the employee and all associated data.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-red-800 mb-2">The following data will be deleted:</h4>
+                    <h4 className="font-semibold text-red-800 mb-2">
+                      The following data will be deleted:
+                    </h4>
                     <ul className="text-sm text-red-700 space-y-1">
                       <li>• Employee record and profile information</li>
                       <li>• User account and login credentials</li>
@@ -483,20 +536,18 @@ export default function Employees() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={handleDeleteCancel}
-                    disabled={isDeleting}
-                  >
+                    disabled={isDeleting}>
                     Cancel
                   </Button>
-                  <Button 
-                    type="button" 
-                    variant="destructive" 
+                  <Button
+                    type="button"
+                    variant="destructive"
                     onClick={handleDeleteConfirm}
-                    disabled={isDeleting}
-                  >
+                    disabled={isDeleting}>
                     {isDeleting ? "Deleting..." : "Delete Employee"}
                   </Button>
                 </DialogFooter>
@@ -627,11 +678,11 @@ export default function Employees() {
                     Position
                   </TableHead>
                   <TableHead
-                    onClick={() => handleSort("dateJoined")}
+                    onClick={() => handleSort("hireDate")}
                     className="cursor-pointer hover:text-primary hidden md:table-cell">
                     <div className="flex items-center gap-1">
                       Start Date
-                      {sortConfig?.key === "dateJoined" &&
+                      {sortConfig?.key === "hireDate" &&
                         (sortConfig.direction === "asc" ? (
                           <ChevronUp className="h-4 w-4" />
                         ) : (
@@ -668,10 +719,12 @@ export default function Employees() {
                       {getDepartmentName(employee.department)}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {employee.position}
+                      {employee.position || "N/A"}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {new Date(employee.dateJoined).toLocaleDateString()}
+                      {employee.hireDate
+                        ? new Date(employee.hireDate).toLocaleDateString()
+                        : "N/A"}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -701,10 +754,9 @@ export default function Employees() {
                             <MailIcon className="h-4 w-4" /> Email
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             className="text-red-600 gap-2"
-                            onClick={() => handleDeleteClick(employee)}
-                          >
+                            onClick={() => handleDeleteClick(employee)}>
                             <Trash2 className="h-4 w-4" /> Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
