@@ -19,10 +19,10 @@ export const sequelize = isDevelopment
         dialect: 'postgres',
         logging: false,
         dialectOptions: {
-          ssl: {
+          ssl: process.env.POSTGRES_SSL === 'true' ? {
             require: true,
             rejectUnauthorized: false
-          }
+          } : false
         }
       }
     );

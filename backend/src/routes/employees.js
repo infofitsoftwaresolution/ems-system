@@ -33,6 +33,27 @@ const generatePermanentEmployeeId = () => {
   return `EMP${year}${random}`;
 };
 
+// Helper functions to map IDs to names
+const getDepartmentName = (departmentId) => {
+  const departments = {
+    'd1': 'Engineering',
+    'd2': 'Human Resources',
+    'd3': 'Finance',
+    'd4': 'Marketing'
+  };
+  return departments[departmentId] || departmentId;
+};
+
+const getRoleName = (roleId) => {
+  const roles = {
+    'r1': 'Employee',
+    'r2': 'HR Manager',
+    'r3': 'Department Head',
+    'r4': 'Administrator'
+  };
+  return roles[roleId] || roleId;
+};
+
 router.get('/', async (_req, res) => {
   const employees = await Employee.findAll({ order: [['id', 'ASC']] });
   res.json(employees);
@@ -46,6 +67,15 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
+    // Check if employee with this email already exists
+    const existingEmployee = await Employee.findOne({ where: { email: req.body.email } });
+    if (existingEmployee) {
+      return res.status(400).json({ 
+        message: 'Employee with this email already exists',
+        error: 'DUPLICATE_EMAIL'
+      });
+    }
+
     // Generate unique employee ID and temporary password
     const uniqueEmployeeId = generateUniqueEmployeeId();
     const tempPassword = generateTempPassword();
@@ -55,7 +85,10 @@ router.post('/', async (req, res) => {
       ...req.body,
       name: req.body.name ? req.body.name.toUpperCase() : req.body.name,
       employeeId: uniqueEmployeeId,
-      kycStatus: 'pending'
+      kycStatus: 'pending',
+      department: getDepartmentName(req.body.department),
+      role: getRoleName(req.body.role),
+      position: req.body.position || 'N/A'
     };
     
     // Create employee with unique ID

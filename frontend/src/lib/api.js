@@ -234,20 +234,6 @@ class ApiService {
     });
   }
 
-  // Payslip endpoints
-  async getPayslips() {
-    return this.request('/api/payslips');
-  }
-
-  async getPayslip(id) {
-    return this.request(`/api/payslips/${id}`);
-  }
-
-  async downloadPayslip(id) {
-    return this.request(`/api/payslips/${id}/download`, {
-      method: 'GET',
-    });
-  }
 
   // Leave endpoints
   async getLeaves() {
@@ -272,12 +258,6 @@ class ApiService {
     return this.request('/api/leaves');
   }
 
-  async applyLeave(leaveData) {
-    return this.request('/api/leaves', {
-      method: 'POST',
-      body: JSON.stringify(leaveData),
-    });
-  }
 
   async reviewLeave(id, reviewData) {
     return this.request(`/api/leaves/${id}/review`, {
@@ -288,11 +268,41 @@ class ApiService {
 
   // Payslip endpoints
   async getPayslips() {
-    return this.request('/api/payslip');
+    return this.request('/api/payslip/all');
   }
 
   async getPayslip(id) {
     return this.request(`/api/payslip/${id}`);
+  }
+
+  async getEmployeePayslips(employeeId, month = null, year = null) {
+    const params = new URLSearchParams();
+    if (month) params.append('month', month);
+    if (year) params.append('year', year);
+    
+    const queryString = params.toString();
+    const endpoint = `/api/payslip/employee/${employeeId}${queryString ? `?${queryString}` : ''}`;
+    return this.request(endpoint);
+  }
+
+  async generatePayslip(payslipData) {
+    return this.request('/api/payslip/generate', {
+      method: 'POST',
+      body: JSON.stringify(payslipData),
+    });
+  }
+
+  async updatePayslipStatus(id, status) {
+    return this.request(`/api/payslip/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async deletePayslip(id) {
+    return this.request(`/api/payslip/${id}`, {
+      method: 'DELETE',
+    });
   }
 
   // Health check

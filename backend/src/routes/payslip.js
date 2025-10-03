@@ -1,210 +1,244 @@
 import { Router } from 'express';
-import { Payslip } from '../models/Payslip.js';
 import { Employee } from '../models/Employee.js';
+import { Payslip } from '../models/Payslip.js';
 import { Attendance } from '../models/Attendance.js';
-import { authenticateToken } from '../middleware/auth.js';
-import PDFDocument from 'pdfkit';
-import fs from 'fs';
-import path from 'path';
+import { Leave } from '../models/Leave.js';
+import { Op } from 'sequelize';
 
 const router = Router();
 
-// Test endpoint to check if payslip table exists
-router.get('/test', async (req, res) => {
-  try {
-    const count = await Payslip.count();
-    res.json({ message: 'Payslip table exists', count });
-  } catch (error) {
-    console.error('Payslip table test error:', error);
-    res.status(500).json({ message: 'Payslip table error', error: error.message });
-  }
-});
-
-// Get payslips for an employee
-router.get('/employee/:email', authenticateToken, async (req, res) => {
-  try {
-    const { email } = req.params;
-    const payslips = await Payslip.findAll({
-      where: { employeeEmail: email.toLowerCase() },
-      order: [['year', 'DESC'], ['month', 'DESC']]
-    });
-    res.json(payslips);
-  } catch (error) {
-    console.error('Error fetching payslips:', error);
-    res.status(500).json({ message: 'Error fetching payslips' });
-  }
-});
-
-// Get all payslips (for admin)
-router.get('/', authenticateToken, async (req, res) => {
-  try {
-    const payslips = await Payslip.findAll({
-      order: [['year', 'DESC'], ['month', 'DESC']]
-    });
-    res.json(payslips);
-  } catch (error) {
-    console.error('Error fetching payslips:', error);
-    res.status(500).json({ message: 'Error fetching payslips' });
-  }
-});
-
 // Generate payslip for an employee
-router.post('/generate', authenticateToken, async (req, res) => {
+router.post('/generate', async (req, res) => {
   try {
-    console.log('Payslip generation request:', req.body);
-    const { employeeEmail, month, year } = req.body;
+    const { employeeId, month, year } = req.body;
+
+    if (!employeeId || !month || !year) {
+      return res.status(400).json({ 
+        message: 'Employee ID, month, and year are required' 
+      });
+    }
     
     // Find employee
     const employee = await Employee.findOne({
-      where: { email: employeeEmail.toLowerCase() }
+      where: { employeeId: employeeId }
     });
-    
-    console.log('Found employee:', employee ? employee.name : 'Not found');
-    
     if (!employee) {
       return res.status(404).json({ message: 'Employee not found' });
     }
     
-    // Check if payslip already exists
+    // Check if payslip already exists for this month/year
     const existingPayslip = await Payslip.findOne({
       where: { 
-        employeeEmail: employeeEmail.toLowerCase(),
-        month,
-        year
+        employeeId: employeeId,
+        month: month,
+        year: year
       }
     });
     
     if (existingPayslip) {
-      return res.status(400).json({ message: 'Payslip already exists for this month' });
+      return res.status(400).json({ 
+        message: 'Payslip already exists for this month/year' 
+      });
     }
     
-    // Calculate working days from attendance
+    // Calculate attendance for the month
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
-    const totalDays = endDate.getDate();
     
     const attendanceRecords = await Attendance.findAll({
       where: {
-        email: employeeEmail.toLowerCase(),
+        email: employee.email,
         date: {
-          [require('sequelize').Op.between]: [startDate.toISOString().slice(0, 10), endDate.toISOString().slice(0, 10)]
+          [Op.between]: [startDate, endDate]
         }
       }
     });
     
-    const workingDays = attendanceRecords.filter(record => record.status === 'present').length;
-    
-    // Calculate salary (basic salary + allowances - deductions)
-    const basicSalary = parseFloat(employee.salary) || 0;
-    const allowances = 0; // Can be customized
-    const deductions = 0; // Can be customized
-    const netSalary = basicSalary + allowances - deductions;
+    // Calculate working days
+    const totalDays = endDate.getDate();
+    const workingDays = attendanceRecords.length > 0 
+      ? attendanceRecords.filter(record => record.checkIn && record.checkOut).length
+      : totalDays; // If no attendance records, assume full working days
+
+    // Calculate leaves taken
+    const leavesTaken = await Leave.findAll({
+      where: {
+        email: employee.email,
+        startDate: {
+          [Op.between]: [startDate, endDate]
+        },
+        status: 'approved'
+      }
+    });
+
+    const leaveDays = leavesTaken.reduce((total, leave) => {
+      const start = new Date(leave.startDate);
+      const end = new Date(leave.endDate);
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      return total + diffDays;
+    }, 0);
+
+    // Calculate salary components
+    const basicSalary = employee.salary || 0;
+    const dailyRate = basicSalary / 30; // Assuming 30 days per month
+    const earnedSalary = dailyRate * workingDays;
+    const leaveDeduction = dailyRate * leaveDays;
+    const netSalary = earnedSalary - leaveDeduction;
     
     // Create payslip
     const payslip = await Payslip.create({
-      employeeId: employee.id,
+      employeeId: employee.employeeId,
       employeeName: employee.name,
       employeeEmail: employee.email,
-      month,
-      year,
-      basicSalary,
-      allowances,
-      deductions,
-      netSalary,
-      workingDays,
-      totalDays,
-      status: 'generated'
+      month: month,
+      year: year,
+      basicSalary: basicSalary,
+      earnedSalary: earnedSalary,
+      leaveDeduction: leaveDeduction,
+      netSalary: netSalary,
+      workingDays: workingDays,
+      totalDays: totalDays,
+      leaveDays: leaveDays,
+      status: 'generated',
+      generatedAt: new Date()
     });
-    
-    res.json(payslip);
+
+    res.status(201).json({
+      message: 'Payslip generated successfully',
+      payslip: payslip
+    });
+
   } catch (error) {
     console.error('Error generating payslip:', error);
-    res.status(500).json({ message: 'Error generating payslip' });
+    res.status(500).json({ 
+      message: 'Error generating payslip',
+      error: error.message 
+    });
   }
 });
 
-// Download payslip as PDF
-router.get('/download/:id', authenticateToken, async (req, res) => {
+// Get all payslips for an employee
+router.get('/employee/:employeeId', async (req, res) => {
   try {
-    const { id } = req.params;
+    const { employeeId } = req.params;
+    const { month, year } = req.query;
+
+    let whereClause = { employeeId: employeeId };
     
-    const payslip = await Payslip.findByPk(id);
+    if (month && year) {
+      whereClause.month = month;
+      whereClause.year = year;
+    }
+
+    const payslips = await Payslip.findAll({
+      where: whereClause,
+      order: [['year', 'DESC'], ['month', 'DESC']]
+    });
+
+    res.json(payslips);
+  } catch (error) {
+    console.error('Error fetching payslips:', error);
+    res.status(500).json({ 
+      message: 'Error fetching payslips',
+      error: error.message 
+    });
+  }
+});
+
+// Get all payslips (admin view)
+router.get('/all', async (req, res) => {
+  try {
+    const { month, year, employeeId } = req.query;
+
+    let whereClause = {};
+    
+    if (month && year) {
+      whereClause.month = month;
+      whereClause.year = year;
+    }
+    
+    if (employeeId) {
+      whereClause.employeeId = employeeId;
+    }
+
+    const payslips = await Payslip.findAll({
+      where: whereClause,
+      order: [['year', 'DESC'], ['month', 'DESC']]
+    });
+
+    res.json(payslips);
+  } catch (error) {
+    console.error('Error fetching all payslips:', error);
+    res.status(500).json({ 
+      message: 'Error fetching payslips',
+      error: error.message 
+    });
+  }
+});
+
+// Get payslip by ID
+router.get('/:id', async (req, res) => {
+  try {
+    const payslip = await Payslip.findByPk(req.params.id);
+    
     if (!payslip) {
       return res.status(404).json({ message: 'Payslip not found' });
     }
-    
-    // Create PDF
-    const doc = new PDFDocument();
-    const fileName = `payslip_${payslip.employeeName}_${payslip.month}_${payslip.year}.pdf`;
-    const filePath = path.join(process.cwd(), 'uploads', 'payslips', fileName);
-    
-    // Ensure directory exists
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    
-    // Pipe PDF to file
-    const stream = fs.createWriteStream(filePath);
-    doc.pipe(stream);
-    
-    // Add content to PDF
-    doc.fontSize(20).text('EMPLOYEE PAYSLIP', { align: 'center' });
-    doc.moveDown();
-    
-    doc.fontSize(12).text(`Employee Name: ${payslip.employeeName}`);
-    doc.text(`Employee Email: ${payslip.employeeEmail}`);
-    doc.text(`Month: ${payslip.month}/${payslip.year}`);
-    doc.text(`Generated Date: ${new Date(payslip.generatedAt).toLocaleDateString()}`);
-    doc.moveDown();
-    
-    doc.fontSize(14).text('SALARY DETAILS', { underline: true });
-    doc.moveDown();
-    
-    // Convert string values to numbers before using toFixed()
-    const basicSalary = parseFloat(payslip.basicSalary) || 0;
-    const allowances = parseFloat(payslip.allowances) || 0;
-    const deductions = parseFloat(payslip.deductions) || 0;
-    const netSalary = parseFloat(payslip.netSalary) || 0;
-    
-    doc.fontSize(12).text(`Basic Salary: ₹${basicSalary.toLocaleString('en-IN')}`);
-    doc.text(`Allowances: ₹${allowances.toLocaleString('en-IN')}`);
-    doc.text(`Deductions: ₹${deductions.toLocaleString('en-IN')}`);
-    doc.moveDown();
-    
-    doc.fontSize(14).text(`Net Salary: ₹${netSalary.toLocaleString('en-IN')}`, { underline: true });
-    doc.moveDown();
-    
-    doc.fontSize(12).text('ATTENDANCE DETAILS', { underline: true });
-    doc.moveDown();
-    
-    doc.text(`Working Days: ${payslip.workingDays}`);
-    doc.text(`Total Days: ${payslip.totalDays}`);
-    doc.text(`Attendance Rate: ${((payslip.workingDays / payslip.totalDays) * 100).toFixed(1)}%`);
-    doc.moveDown();
-    
-    doc.fontSize(10).text('This is a computer generated document.', { align: 'center' });
-    
-    // Finalize PDF
-    doc.end();
-    
-    // Wait for file to be written
-    stream.on('finish', () => {
-      res.download(filePath, fileName, (err) => {
-        if (err) {
-          console.error('Error downloading file:', err);
-          res.status(500).json({ message: 'Error downloading payslip' });
-        }
-        // Clean up file after download
-        fs.unlink(filePath, (unlinkErr) => {
-          if (unlinkErr) console.error('Error deleting file:', unlinkErr);
-        });
-      });
-    });
-    
+
+    res.json(payslip);
   } catch (error) {
-    console.error('Error downloading payslip:', error);
-    res.status(500).json({ message: 'Error downloading payslip' });
+    console.error('Error fetching payslip:', error);
+    res.status(500).json({ 
+      message: 'Error fetching payslip',
+      error: error.message 
+    });
+  }
+});
+
+// Update payslip status
+router.put('/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    
+    const payslip = await Payslip.findByPk(req.params.id);
+    if (!payslip) {
+      return res.status(404).json({ message: 'Payslip not found' });
+    }
+
+    await payslip.update({ status: status });
+    
+    res.json({
+      message: 'Payslip status updated successfully',
+      payslip: payslip
+    });
+  } catch (error) {
+    console.error('Error updating payslip status:', error);
+    res.status(500).json({ 
+      message: 'Error updating payslip status',
+      error: error.message 
+    });
+  }
+});
+
+// Delete payslip
+router.delete('/:id', async (req, res) => {
+  try {
+    const payslip = await Payslip.findByPk(req.params.id);
+    
+    if (!payslip) {
+      return res.status(404).json({ message: 'Payslip not found' });
+    }
+
+    await payslip.destroy();
+    
+    res.json({ message: 'Payslip deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting payslip:', error);
+    res.status(500).json({ 
+      message: 'Error deleting payslip',
+      error: error.message 
+    });
   }
 });
 

@@ -19,7 +19,10 @@ import EmployeeProfile from "./page/EmployeeProfile.jsx";
 import EmployeeAttendance from "./page/EmployeeAttendance.jsx";
 import AdminAttendance from "./page/AdminAttendance.jsx";
 import EmployeePayslip from "./page/EmployeePayslip.jsx";
+import PayslipManagement from "./page/PayslipManagement.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import EmployeeLeave from "./page/EmployeeLeave.jsx";
+import AdminLeaveManagement from "./page/AdminLeaveManagement.jsx";
 import EnhancedLogin from "./page/EnhancedLogin.jsx";
 import NotFound from "./page/NotFound.jsx";
 import { useAuth } from "./hooks/use-auth";
@@ -60,7 +63,13 @@ const App = () => (
               <Route path="/attendance" element={<EmployeeAttendance />} />
               <Route path="/admin-attendance" element={<AdminAttendance />} />
               <Route path="/payslip" element={<EmployeePayslip />} />
+              <Route path="/payslip-management" element={
+                <ErrorBoundary>
+                  <PayslipManagement />
+                </ErrorBoundary>
+              } />
               <Route path="/leave" element={<EmployeeLeave />} />
+              <Route path="/admin-leave-management" element={<AdminLeaveManagement />} />
               <Route path="/employees" element={<Employees />} />
               <Route path="/training" element={<Training />} />
               <Route path="/calendar" element={<EnhancedCalendar />} />

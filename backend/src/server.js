@@ -23,7 +23,6 @@ import kycRouter from "./routes/kyc.js";
 import attendanceRouter from "./routes/attendance.js";
 import leavesRouter from "./routes/leaves.js";
 import payslipRouter from "./routes/payslip.js";
-import emailTestRouter from "./routes/emailTest.js";
 import healthRouter from "./routes/health.js";
 
 const app = express();
@@ -77,7 +76,6 @@ app.use("/api/kyc", kycRouter);
 app.use("/api/attendance", attendanceRouter);
 app.use("/api/leaves", leavesRouter);
 app.use("/api/payslip", payslipRouter);
-app.use("/api/email", emailTestRouter);
 
 const PORT = process.env.PORT || 3001;
 

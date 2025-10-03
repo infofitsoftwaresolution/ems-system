@@ -1,5 +1,5 @@
-# Multi-stage build for backend
-FROM node:18-alpine AS base
+# Backend Dockerfile - Fixed Version
+FROM node:18-alpine
 
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
@@ -7,45 +7,28 @@ RUN apk add --no-cache dumb-init
 # Create app directory
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
 # Copy package files
-COPY package*.json ./
+COPY backend/package*.json ./
 
-# Install dependencies
-FROM base AS deps
-RUN npm ci --only=production && npm cache clean --force
+# Install ALL dependencies including dotenv
+RUN npm install --production --legacy-peer-deps
 
-# Build stage
-FROM base AS builder
-COPY package*.json ./
-RUN npm ci
-COPY src ./src
-RUN npm run build || echo "No build script found, skipping..."
-
-# Production stage
-FROM base AS runner
-
-# Copy built application
-COPY --from=deps --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nodejs:nodejs /app/src ./src
-COPY --chown=nodejs:nodejs package*.json ./
+# Copy source code
+COPY backend/src ./src
 
 # Create necessary directories
-RUN mkdir -p uploads/kyc uploads/payslips && \
-    chown -R nodejs:nodejs uploads
+RUN mkdir -p uploads/kyc uploads/payslips
 
-# Switch to non-root user
-USER nodejs
+# Set proper permissions
+RUN chown -R node:node /app
+USER node
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
 # Expose port
 EXPOSE 3001
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]

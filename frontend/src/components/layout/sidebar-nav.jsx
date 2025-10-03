@@ -116,6 +116,16 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
           title: "Performance",
           href: "/performance",
           icon: BarChart4,
+        },
+        {
+          title: "Payslip Management",
+          href: "/payslip-management",
+          icon: FileText,
+        },
+        {
+          title: "Leave Management",
+          href: "/admin-leave-management",
+          icon: Calendar,
         }
       );
     }

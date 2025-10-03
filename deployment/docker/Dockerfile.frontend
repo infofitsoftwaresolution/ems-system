@@ -1,5 +1,5 @@
 ﻿# Build stage
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 
 # Install dependencies for building
 RUN apk add --no-cache libc6-compat
@@ -7,18 +7,21 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copy package files
-COPY frontend/Modern-EMS/package*.json ./
+COPY frontend/package*.json ./
 
 # Install dependencies
-RUN npm ci --frozen-lockfile --legacy-peer-deps
+RUN npm install --legacy-peer-deps
 
 # Copy source code
-COPY frontend/Modern-EMS/src ./src
-COPY frontend/Modern-EMS/public ./public
-COPY frontend/Modern-EMS/index.html ./
-COPY frontend/Modern-EMS/vite.config.js ./
-COPY frontend/Modern-EMS/tailwind.config.js ./
-COPY frontend/Modern-EMS/postcss.config.js ./
+COPY frontend/src ./src
+COPY frontend/public ./public
+COPY frontend/index.html ./
+COPY frontend/vite.config.js ./
+COPY frontend/tailwind.config.js ./
+COPY frontend/postcss.config.js ./
+
+# Set environment variable for API URL
+ENV VITE_API_URL=http://13.233.73.43/api
 
 # Build the application
 RUN npm run build

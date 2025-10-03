@@ -197,19 +197,6 @@ export default function EmployeeDashboard() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              console.log('Current user:', user);
-              console.log('Current KYC status:', kycStatus);
-              alert(`User: ${user?.email}\nRole: ${user?.role}\nKYC Status: ${kycStatus}`);
-            }}
-            className="flex items-center space-x-1"
-          >
-            <User className="h-4 w-4" />
-            <span>Debug</span>
-          </Button>
           <Badge variant="outline" className="text-sm">
             {user?.role || "Employee"}
           </Badge>

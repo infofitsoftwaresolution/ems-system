@@ -11,6 +11,7 @@ Employee.init(
     employeeId: { type: DataTypes.STRING, unique: true },
     department: { type: DataTypes.STRING },
     role: { type: DataTypes.STRING },
+    position: { type: DataTypes.STRING },
     hireDate: { type: DataTypes.DATEONLY },
     salary: { type: DataTypes.DECIMAL },
     status: { type: DataTypes.STRING, defaultValue: 'active' },

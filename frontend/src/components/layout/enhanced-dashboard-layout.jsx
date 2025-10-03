@@ -24,8 +24,6 @@ export function EnhancedDashboardLayout() {
     updatePassword
   } = useAuth();
   
-  // Debug logging
-  console.log('Dashboard layout auth state:', { isAuthenticated, isLoading, user });
 
   useEffect(() => {
     setMounted(true);
@@ -64,7 +62,6 @@ export function EnhancedDashboardLayout() {
 
   // If not authenticated, redirect to login
   if (!isAuthenticated && mounted) {
-    console.log('Not authenticated, redirecting to login');
     return <Navigate to="/login" />;
   }
 

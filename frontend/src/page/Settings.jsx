@@ -271,7 +271,7 @@ export default function Settings() {
               <Separator />
 
               {errors.profile && (
-                <Alert variant="destructive">
+                <Alert variant="destructive" autoDismiss={true}>
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Error</AlertTitle>
                   <AlertDescription>{errors.profile}</AlertDescription>
@@ -811,7 +811,9 @@ export default function Settings() {
 
                 <Separator />
 
-                <Alert className="bg-amber-50 text-amber-900 border-amber-200">
+                <Alert
+                  className="bg-amber-50 text-amber-900 border-amber-200"
+                  showCloseButton={true}>
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <AlertTitle className="text-amber-800">
                     Active Sessions

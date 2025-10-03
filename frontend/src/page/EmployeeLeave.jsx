@@ -67,8 +67,28 @@ export default function EmployeeLeave() {
 
   const handleSubmitLeave = async (e) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!leaveForm.startDate || !leaveForm.endDate) {
+      toast.error('Please select start and end dates');
+      return;
+    }
+    
+    if (!user?.email) {
+      toast.error('User email not found. Please log in again.');
+      return;
+    }
+    
     try {
-      await apiService.createLeave(leaveForm);
+      // Include user email and name in the leave data
+      const leaveData = {
+        ...leaveForm,
+        email: user.email,
+        name: user.name || user.email.split('@')[0]
+      };
+      
+      console.log('Submitting leave data:', leaveData);
+      await apiService.createLeave(leaveData);
       toast.success('Leave application submitted successfully!');
       setShowLeaveForm(false);
       setLeaveForm({
@@ -254,7 +274,7 @@ export default function EmployeeLeave() {
                     <div>
                       <p className="font-medium capitalize">{leave.type} Leave</p>
                       <p className="text-sm text-gray-600">
-                        {new Date(leave.startDate).toLocaleDateString()} - {new Date(leave.endDate).toLocaleDateString()}
+                        {leave.startDate ? new Date(leave.startDate).toLocaleDateString() : 'Invalid Date'} - {leave.endDate ? new Date(leave.endDate).toLocaleDateString() : 'Invalid Date'}
                       </p>
                       <p className="text-sm text-gray-500">{leave.reason}</p>
                     </div>
@@ -262,7 +282,7 @@ export default function EmployeeLeave() {
                   <div className="flex items-center space-x-2">
                     {getLeaveStatusBadge(leave.status)}
                     <span className="text-sm text-gray-500">
-                      {new Date(leave.createdAt).toLocaleDateString()}
+                      {leave.appliedAt ? new Date(leave.appliedAt).toLocaleDateString() : 'Invalid Date'}
                     </span>
                   </div>
                 </div>
