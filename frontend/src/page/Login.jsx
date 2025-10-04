@@ -16,8 +16,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
 export default function Login() {
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("password");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const { login, isAuthenticated, isLoading, error } = useAuth();
 
   const handleSubmit = async (e) => {
@@ -90,11 +90,6 @@ export default function Login() {
             </CardFooter>
           </form>
         </Card>
-        <div className="mt-4 text-center text-sm text-muted-foreground">
-          <p>For demo purposes:</p>
-          <p>Email: admin@example.com</p>
-          <p>Password: password</p>
-        </div>
       </div>
     </div>
   );
