@@ -63,7 +63,7 @@ services:
     build:
       context: .
       dockerfile: deployment/docker/Dockerfile.frontend
-    image: 777555685730.dkr.ecr.ap-south-1.amazonaws.com/ems-frontend:latest
+    image: 777555685730.dkr.ecr.ap-south-1.amazonaws.com/ems-frontend:no-demo
     container_name: ems-frontend
     environment:
       BACKEND_URL: http://13.233.73.43
@@ -100,3 +100,4 @@ networks:
     ipam:
       config:
         - subnet: 172.25.0.0/16
+
