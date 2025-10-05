@@ -36,7 +36,7 @@
 2. **Download and run the deployment script:**
    ```bash
    # Download the deployment script
-   curl -O https://raw.githubusercontent.com/yourusername/rural-samriddhi-ems/main/deploy-ec2.sh
+   curl -O https://raw.githubusercontent.com/infofitsoftwaresolution/ems-system/main/deploy-ec2.sh
    
    # Make it executable
    chmod +x deploy-ec2.sh
