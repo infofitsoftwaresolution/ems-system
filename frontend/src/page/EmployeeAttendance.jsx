@@ -44,13 +44,18 @@ export default function EmployeeAttendance() {
         
         // Check KYC status first
         if (user?.email) {
+          console.log('🔍 Checking KYC status for:', user.email);
           const kycInfo = await apiService.getKycStatus(user.email);
+          console.log('📋 KYC Info received:', kycInfo);
           setKycStatus(kycInfo.status);
           
           if (kycInfo.status === 'approved') {
+            console.log('✅ KYC approved, loading attendance data');
             // Load attendance data
             const attendanceData = await apiService.getTodayAttendance(user.email);
             setAttendance(attendanceData);
+          } else {
+            console.log('❌ KYC not approved, status:', kycInfo.status);
           }
         }
       } catch (err) {
@@ -105,32 +110,69 @@ export default function EmployeeAttendance() {
       setCheckingOut(true);
       clearLocation();
       
-      // Get high-accuracy location
+      // Get high-accuracy location with fallback
       toast.info('Getting your location...', { duration: 2000 });
-      const locationData = await getLocationWithAddress();
       
-      console.log('Check-out location data:', locationData);
+      let locationData = null;
+      let locationError = null;
+      
+      try {
+        locationData = await getLocationWithAddress();
+        console.log('Check-out location data:', locationData);
+      } catch (locErr) {
+        console.warn('Location capture failed:', locErr);
+        locationError = locErr.message;
+        
+        // Show user-friendly error and ask for manual confirmation
+        const shouldProceed = window.confirm(
+          `Location capture failed: ${locErr.message}\n\n` +
+          'Would you like to proceed with checkout without location data?\n' +
+          'Note: This may affect attendance tracking accuracy.'
+        );
+        
+        if (!shouldProceed) {
+          throw new Error('Checkout cancelled by user');
+        }
+        
+        // Create fallback location data
+        locationData = {
+          latitude: null,
+          longitude: null,
+          address: 'Location not available',
+          city: 'Unknown',
+          fullAddress: 'Location capture failed',
+          fallback: true,
+          error: locationError
+        };
+      }
+      
       console.log('User email for check-out:', user?.email);
       
-      // Check location accuracy
-      if (!isLocationAccurate(100)) {
+      // Check location accuracy if we have location data
+      if (locationData && locationData.latitude && !isLocationAccurate(100)) {
         toast.warning(`Location accuracy is ${Math.round(accuracy)}m. For better accuracy, try moving to an open area.`);
       }
       
       // Proceed with check-out - pass user email as fallback
       await apiService.checkOut(locationData, user?.email);
       
-      toast.success(`Checked out successfully from ${locationData.city}!`);
+      const successMessage = locationData?.city && locationData.city !== 'Unknown' 
+        ? `Checked out successfully from ${locationData.city}!`
+        : 'Checked out successfully!';
+      
+      toast.success(successMessage);
       
       // Reload attendance data
       const attendanceData = await apiService.getTodayAttendance(user.email);
       setAttendance(attendanceData);
     } catch (err) {
       console.error('Check-out error:', err);
-      if (err.message.includes('Location')) {
+      if (err.message.includes('Location') || err.message.includes('location')) {
         toast.error(`Location error: ${err.message}. Please enable location access and try again.`);
+      } else if (err.message.includes('cancelled')) {
+        toast.info('Checkout cancelled');
       } else {
-        toast.error('Failed to check out');
+        toast.error(`Failed to check out: ${err.message}`);
       }
     } finally {
       setCheckingOut(false);

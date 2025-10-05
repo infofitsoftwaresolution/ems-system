@@ -126,7 +126,26 @@ router.post('/', async (req, res) => {
       tempPassword: tempPassword
     };
     
-    await sendNewEmployeeEmail(emailData);
+    console.log('📧 ===== EMAIL SENDING PROCESS =====');
+    console.log('📧 Sending welcome email to:', emp.email);
+    console.log('📧 Email data:', JSON.stringify(emailData, null, 2));
+    console.log('📧 Email service function:', typeof sendNewEmployeeEmail);
+    
+    try {
+      console.log('📧 Calling sendNewEmployeeEmail...');
+      const emailResult = await sendNewEmployeeEmail(emailData);
+      console.log('📧 Email result:', JSON.stringify(emailResult, null, 2));
+      if (emailResult && emailResult.success) {
+        console.log('✅ Welcome email sent successfully to:', emp.email);
+        console.log('✅ Message ID:', emailResult.messageId);
+      } else {
+        console.log('❌ Email sending failed:', emailResult ? emailResult.error : 'No result returned');
+      }
+    } catch (emailError) {
+      console.error('📧 Email sending failed with error:', emailError);
+      console.error('📧 Error stack:', emailError.stack);
+    }
+    console.log('📧 ===== END EMAIL PROCESS =====');
     
     res.status(201).json({
       ...emp.toJSON(),

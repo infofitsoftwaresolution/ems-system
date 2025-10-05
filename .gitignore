@@ -4,34 +4,41 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Production builds
+dist/
+build/
+
 # Environment variables
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.development
+.env.test
+.env.production
+production.env
 
 # Database
 *.sqlite
 *.db
 
 # Logs
-logs
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Runtime data
-pids
+pids/
 *.pid
 *.seed
 *.pid.lock
 
 # Coverage directory used by tools like istanbul
 coverage/
-
-# nyc test coverage
-.nyc_output
+.nyc_output/
 
 # Dependency directories
+node_modules/
 jspm_packages/
 
 # Optional npm cache directory
@@ -74,9 +81,6 @@ jspm_packages/
 # TernJS port file
 .tern-port
 
-# Stores VSCode versions used for testing VSCode extensions
-.vscode-test
-
 # IDE files
 .vscode/
 .idea/
@@ -93,26 +97,23 @@ jspm_packages/
 ehthumbs.db
 Thumbs.db
 
-# Build outputs
-dist/
-build/
+# Uploads (keep structure but not files)
+backend/uploads/*
+!backend/uploads/.gitkeep
 
-# Uploads (keep structure but ignore files)
-uploads/*
-!uploads/.gitkeep
+# Backups
+backups/
+*.backup
+
+# SSL certificates
+ssl/
+*.pem
+*.key
+*.crt
+
+# Docker volumes
+docker-volumes/
 
 # Temporary files
 tmp/
 temp/
-
-# Test files
-test-*.html
-*.test.js
-*.spec.js
-
-# Backup files
-*.bak
-*.backup
-
-# Local development
-.local

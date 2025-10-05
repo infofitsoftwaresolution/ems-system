@@ -5,70 +5,52 @@ import { User } from "./models/User.js";
 import { Employee } from "./models/Employee.js";
 
 async function seed() {
-  await sequelize.sync({ force: true });
-  const adminHash = await bcrypt.hash("admin123", 10);
-  await User.create({
-    name: "Admin User",
-    email: "admin@company.com",
-    role: "admin",
-    passwordHash: adminHash,
-    mustChangePassword: false,
-  });
+  try {
+    // Check if admin user already exists
+    const existingAdmin = await User.findOne({ where: { email: "s24346379@gmail.com" } });
+    
+    if (existingAdmin) {
+      console.log("Admin user already exists, skipping seed");
+      console.log("Database is already set up with data");
+      process.exit(0);
+    }
+    
+    // Only sync if no admin user exists (fresh installation)
+    await sequelize.sync({ force: false });
+    console.log("Database synced successfully");
+    
+    // Production Admin User
+    const adminHash = await bcrypt.hash("rsamriddhi@6287", 10);
+    const adminUser = await User.create({
+      name: "Rural Samridhi Admin",
+      email: "s24346379@gmail.com",
+      role: "admin",
+      passwordHash: adminHash,
+      mustChangePassword: false,
+      active: true
+    });
 
-  const managerHash = await bcrypt.hash("manager123", 10);
-  await User.create({
-    name: "Manager User",
-    email: "manager@company.com",
-    role: "manager",
-    passwordHash: managerHash,
-    mustChangePassword: true,
-  });
-
-  const employeeHash = await bcrypt.hash("employee123", 10);
-  await User.create({
-    name: "Employee User",
-    email: "employee@company.com",
-    role: "employee",
-    passwordHash: employeeHash,
-    mustChangePassword: true,
-  });
-
-  // Generate employee IDs
-  const generateEmployeeId = () => {
-    const year = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, "0");
-    return `EMP${year}${random}`;
-  };
-
-  await Employee.bulkCreate([
-    {
-      name: "John Doe",
-      email: "john.doe@company.com",
-      employeeId: generateEmployeeId(),
-      department: "Engineering",
-      position: "Software Engineer",
-      role: "employee",
-      hireDate: "2023-01-15",
-      salary: 1200000,
-      status: "active",
-    },
-    {
-      name: "Jane Smith",
-      email: "jane.smith@company.com",
-      employeeId: generateEmployeeId(),
-      department: "Product",
-      position: "Product Manager",
-      role: "manager",
-      hireDate: "2022-08-20",
-      salary: 1500000,
-      status: "active",
-    },
-  ]);
-
-  console.log("Seed complete");
-  process.exit(0);
+    console.log("Production admin user created successfully");
+    console.log("User ID:", adminUser.id);
+    console.log("Email: s24346379@gmail.com");
+    console.log("Password: rsamriddhi@6287");
+    console.log("Role:", adminUser.role);
+    console.log("Active:", adminUser.active);
+    
+    // Verify the user was created
+    const createdUser = await User.findOne({ where: { email: "s24346379@gmail.com" } });
+    if (createdUser) {
+      console.log("✅ User verification successful");
+    } else {
+      console.log("❌ User verification failed");
+    }
+    
+    console.log("Seed complete");
+    process.exit(0);
+  } catch (error) {
+    console.error("Seed error:", error);
+    process.exit(1);
+  }
 }
 
 seed().catch((e) => {

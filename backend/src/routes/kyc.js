@@ -288,8 +288,16 @@ router.get('/', async (req, res) => {
       }
       
       if (!kycRequest) {
+        console.log('❌ No KYC request found for email:', email);
         return res.json({ status: 'not_submitted', message: 'No KYC request found' });
       }
+      
+      console.log('✅ KYC request found:', {
+        id: kycRequest.id,
+        status: kycRequest.status,
+        fullName: kycRequest.fullName,
+        employeeId: kycRequest.employeeId
+      });
       
       return res.json({ 
         status: kycRequest.status,

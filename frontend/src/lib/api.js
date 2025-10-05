@@ -228,6 +228,12 @@ class ApiService {
       body.address = locationData.fullAddress || locationData.address;
     }
     
+    console.log('🔍 Checkout API call:', {
+      userEmail,
+      locationData,
+      body
+    });
+    
     return this.request('/api/attendance/checkout', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -247,11 +253,6 @@ class ApiService {
     });
   }
 
-  async checkOut() {
-    return this.request('/api/attendance/checkout', {
-      method: 'POST',
-    });
-  }
 
   // Leave endpoints
   async getLeaves() {

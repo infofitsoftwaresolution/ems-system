@@ -1,234 +1,266 @@
-# 🏢 Rural Samridhi Employee Management System (EMS)
+# Rural Samridhi EMS - Employee Management System
 
-A comprehensive Employee Management System built with React and Node.js, designed for Rural Samridhi organization. This system includes KYC verification, attendance tracking, leave management, payroll processing, and more.
+A comprehensive Employee Management System built with React, Node.js, and SQLite, designed for rural development organizations.
 
 ## 🌟 Features
 
-### 👥 Employee Management
-- Complete employee lifecycle management
-- Employee profile with KYC verification
-- Role-based access control
-- Employee data export and reporting
-
-### 🔐 KYC (Know Your Customer) System
-- Document upload (PAN, Aadhaar, etc.)
-- Admin approval workflow
-- Status tracking and notifications
-- Secure document storage
-
-### ⏰ Attendance Management
-- Check-in/Check-out with live location tracking
-- Attendance history and reports
-- GPS-based location verification
-- Real-time attendance dashboard
-
-### 🏖️ Leave Management
-- Leave application and approval workflow
-- Leave balance tracking
-- Leave history and reports
-- Email notifications
-
-### 💰 Payroll Management
-- Payslip generation
-- Salary calculations
-- Payment history
-- PDF payslip generation
-
-### 📧 Communication
-- Email notifications for all activities
-- KYC approval/rejection notifications
-- Leave application notifications
-- System alerts and reminders
+- **Employee Management** - Complete employee lifecycle management
+- **KYC Verification** - Document verification and approval system
+- **Attendance Tracking** - GPS-based check-in/check-out system
+- **Leave Management** - Employee leave request and approval
+- **Payslip Generation** - Automated salary slip generation
+- **Email Notifications** - Automated email notifications
+- **Admin Dashboard** - Comprehensive admin interface
+- **Role-based Access** - Admin, Manager, and Employee roles
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Node.js (v18.0.0 or higher)
-- npm (v8.0.0 or higher)
-- Git
+### Local Development
 
-### Installation
-
-1. **Clone the repository**
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/infofitsoftwaresolution/ems-system.git
    cd ems-system
    ```
 
-2. **One-command setup**
+2. **Start the application:**
    ```bash
-   npm run setup
+   # Windows
+   start-ems.bat
+   
+   # Linux/Mac
+   chmod +x start-ems.sh
+   ./start-ems.sh
    ```
 
-3. **Start development servers**
-   ```bash
-   npm run dev
-   ```
-
-4. **Access the application**
+3. **Access the application:**
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:3001
 
-### Default Login Credentials
+### Production Deployment
 
-#### Admin Account
-- **Email**: `admin@ruralsamridhi.com`
-- **Password**: `admin123`
+1. **Build for production:**
+   ```bash
+   chmod +x build-production.sh
+   ./build-production.sh
+   ```
 
-#### Test Employee Account
-- **Email**: `employee@ruralsamridhi.com`
-- **Password**: `employee123`
+2. **Deploy on EC2:**
+   ```bash
+   # On EC2 instance
+   curl -O https://raw.githubusercontent.com/infofitsoftwaresolution/ems-system/main/deploy-ec2.sh
+   chmod +x deploy-ec2.sh
+   sudo ./deploy-ec2.sh
+   ```
+
+## 📋 Admin Credentials
+
+- **Email:** s24346379@gmail.com
+- **Password:** rsamriddhi@6287
 
 ## 🛠️ Technology Stack
 
 ### Frontend
-- **React 19** - Modern UI framework
+- **React 18** - Modern React with hooks
 - **Vite** - Fast build tool
-- **Tailwind CSS** - Utility-first CSS
+- **Tailwind CSS** - Utility-first CSS framework
 - **Radix UI** - Accessible component library
 - **React Router** - Client-side routing
-- **React Hook Form** - Form management
-- **Recharts** - Data visualization
+- **Framer Motion** - Animation library
 
 ### Backend
-- **Node.js** - Runtime environment
+- **Node.js 18** - JavaScript runtime
 - **Express.js** - Web framework
-- **Sequelize** - ORM for database
-- **SQLite** - Database (easily switchable to PostgreSQL)
+- **Sequelize** - SQL ORM
+- **SQLite** - Lightweight database
 - **JWT** - Authentication
 - **Nodemailer** - Email service
 - **Multer** - File upload handling
+
+### Production
+- **Docker** - Containerization
+- **Nginx** - Reverse proxy
+- **SSL/TLS** - Secure connections
+- **Rate Limiting** - API protection
+- **Health Checks** - Monitoring
 
 ## 📁 Project Structure
 
 ```
 ems-system/
-├── backend/                 # Node.js API server
+├── backend/                 # Backend API server
 │   ├── src/
-│   │   ├── routes/         # API endpoints
 │   │   ├── models/         # Database models
-│   │   ├── middleware/     # Authentication & validation
-│   │   └── services/       # Email & other services
+│   │   ├── routes/         # API routes
+│   │   ├── services/       # Business logic
+│   │   └── server.js       # Main server file
 │   ├── uploads/            # File uploads
 │   └── database.sqlite     # SQLite database
-├── frontend/Modern-EMS/    # React frontend
+├── frontend/               # React frontend
 │   ├── src/
 │   │   ├── components/     # Reusable components
-│   │   ├── page/          # Page components
-│   │   ├── lib/           # Utilities & context
-│   │   └── hooks/         # Custom hooks
-├── deployment/            # Deployment scripts
-└── docs/                 # Documentation
+│   │   ├── pages/          # Page components
+│   │   ├── hooks/          # Custom hooks
+│   │   └── lib/            # Utilities
+│   └── public/             # Static assets
+├── deployment/              # Deployment files
+├── nginx.production.conf   # Nginx configuration
+├── docker-compose.production.yml
+└── deploy-ec2.sh          # EC2 deployment script
 ```
 
-## 🔧 Available Scripts
+## 🔧 Configuration
 
-### Root Level Commands
-```bash
-npm run install-all    # Install all dependencies
-npm run dev           # Start both servers in development
-npm run start         # Start both servers in production
-npm run build         # Build frontend for production
-npm run setup         # Complete setup (install + seed)
-npm run clean         # Remove all node_modules
-npm run reset         # Clean + setup (fresh start)
+### Environment Variables
+
+Create a `.env` file in the backend directory:
+
+```env
+NODE_ENV=development
+PORT=3001
+JWT_SECRET=your-secret-key
+DB_DIALECT=sqlite
+DB_STORAGE=./database.sqlite
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
 ```
 
-### Backend Commands
-```bash
-cd backend
-npm run dev          # Start development server
-npm run start        # Start production server
-npm run test         # Run API tests
-npm run seed         # Seed database
-npm run seed:kyc     # Seed KYC data
-npm run reset-db     # Reset database
-```
+### Production Configuration
 
-### Frontend Commands
-```bash
-cd frontend/Modern-EMS
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run preview      # Preview production build
-npm run lint         # Run ESLint
-```
+For production deployment, use the provided configuration files:
+- `production.env` - Production environment variables
+- `nginx.production.conf` - Nginx configuration
+- `docker-compose.production.yml` - Docker configuration
 
-## 📧 Email Configuration
+## 📊 API Endpoints
 
-To enable email functionality:
+### Authentication
+- `POST /api/auth/login` - User login
+- `POST /api/auth/logout` - User logout
+- `GET /api/auth/me` - Get current user
 
-1. Copy `backend/env.example` to `backend/.env`
-2. Configure Gmail SMTP settings:
-   ```env
-   SMTP_USER=your-email@gmail.com
-   SMTP_PASS=your-gmail-app-password
-   ```
-3. Restart the backend server
+### Employee Management
+- `GET /api/employees` - Get all employees
+- `POST /api/employees` - Create employee
+- `GET /api/employees/:id` - Get employee by ID
+- `PUT /api/employees/:id` - Update employee
+- `DELETE /api/employees/:id` - Delete employee
 
-## 🧪 Testing
+### KYC Management
+- `GET /api/kyc` - Get all KYC submissions
+- `POST /api/kyc` - Submit KYC
+- `PUT /api/kyc/:id/status` - Update KYC status
 
-### API Testing
-```bash
-# Health check
-curl http://localhost:3001/api/health
+### Attendance
+- `GET /api/attendance/today` - Get today's attendance
+- `POST /api/attendance/checkin` - Check in
+- `POST /api/attendance/checkout` - Check out
 
-# Test authentication
-curl -X POST http://localhost:3001/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@ruralsamridhi.com", "password": "admin123"}'
-```
+### Leave Management
+- `GET /api/leaves` - Get all leaves
+- `POST /api/leaves` - Create leave request
+- `PUT /api/leaves/:id` - Update leave
 
-### Email Testing
-```bash
-curl -X POST http://localhost:3001/api/email/test \
-  -H "Content-Type: application/json" \
-  -d '{"to": "test@example.com", "emailType": "newEmployee"}'
-```
+### Payslip Management
+- `GET /api/payslips` - Get all payslips
+- `POST /api/payslips` - Generate payslip
+- `GET /api/payslips/:id/download` - Download payslip
 
 ## 🚀 Deployment
 
-### Docker Deployment
+### Local Development
 ```bash
-cd deployment/docker
-docker-compose up -d
+# Start both servers
+start-ems.bat  # Windows
+./start-ems.sh # Linux/Mac
 ```
 
-### AWS Deployment
-See `deployment/scripts/` for AWS deployment scripts.
+### Production Deployment
 
-## 📚 Documentation
+1. **EC2 Amazon Linux 2:**
+   ```bash
+   sudo ./deploy-ec2.sh
+   ```
 
-- [Setup Guide](SETUP_GUIDE.md) - Detailed setup instructions
-- [Team Quick Start](TEAM_QUICK_START.md) - Quick setup for team members
-- [API Documentation](API_Endpoints_Documentation.md) - Complete API reference
-- [Deployment Guide](DEPLOYMENT_SUMMARY.md) - Deployment instructions
+2. **Docker:**
+   ```bash
+   docker-compose -f docker-compose.production.yml up -d
+   ```
+
+3. **Manual:**
+   ```bash
+   ./start-production.sh
+   ```
+
+## 📈 Monitoring
+
+### Health Checks
+- Backend: http://localhost:3001/health
+- Frontend: http://localhost:5173
+- Production: https://app.rsamriddhi.com/health
+
+### Logs
+```bash
+# Application logs
+docker-compose logs -f
+
+# System logs
+journalctl -u ems -f
+```
+
+### Backup
+```bash
+# Manual backup
+./backup-production.sh
+
+# Automated backup (configured in production)
+# Runs daily at 2 AM
+```
+
+## 🔒 Security Features
+
+- **JWT Authentication** - Secure token-based auth
+- **Rate Limiting** - API protection
+- **Input Validation** - Data sanitization
+- **File Upload Security** - Type and size validation
+- **CORS Protection** - Cross-origin security
+- **Security Headers** - XSS, CSRF protection
+
+## 📱 Mobile Responsive
+
+The application is fully responsive and works on:
+- Desktop computers
+- Tablets
+- Mobile phones
+- All modern browsers
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 👥 Team
-
-**InfoFit Software Solution**
-- Repository: https://github.com/infofitsoftwaresolution/ems-system
-- Issues: https://github.com/infofitsoftwaresolution/ems-system/issues
-
-## 🆘 Support
+## 📞 Support
 
 For support and questions:
-1. Check the [Setup Guide](SETUP_GUIDE.md)
-2. Review [Troubleshooting](TROUBLESHOOTING.md)
-3. Create an [issue](https://github.com/infofitsoftwaresolution/ems-system/issues)
+- Create an issue on GitHub
+- Check the documentation
+- Review the deployment guide
+
+## 🎯 Roadmap
+
+- [ ] Mobile app development
+- [ ] Advanced reporting
+- [ ] Multi-language support
+- [ ] API documentation
+- [ ] Performance optimization
 
 ---
 
-**Built with ❤️ by InfoFit Software Solution**
+**Built with ❤️ for Rural Development Organizations**

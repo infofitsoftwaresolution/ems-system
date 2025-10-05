@@ -22,8 +22,8 @@ import { ParticleBackground } from "@/components/ui/particle-background";
 export default function EnhancedLogin() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [email, setEmail] = useState("admin@company.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
@@ -237,7 +237,7 @@ export default function EnhancedLogin() {
               </p>
 
               <p className="text-xs text-center text-muted-foreground">
-                Demo credentials: admin@company.com / admin123
+                Contact your administrator for login credentials
               </p>
             </CardFooter>
           </Card>

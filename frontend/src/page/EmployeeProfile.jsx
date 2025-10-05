@@ -23,11 +23,13 @@ import {
   FileImage
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useKycScroll } from "@/hooks/use-kyc-scroll";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function EmployeeProfile() {
   const { user } = useAuth();
+  const { scrollToKycForm } = useKycScroll();
   const [kycStatus, setKycStatus] = useState(null);
   const [kycData, setKycData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -329,7 +331,10 @@ export default function EmployeeProfile() {
                 
                 {kycStatus === 'not_submitted' && (
                   <Button 
-                    onClick={() => setShowKycForm(true)}
+                    onClick={() => {
+                      setShowKycForm(true);
+                      setTimeout(scrollToKycForm, 100);
+                    }}
                     className="w-full"
                   >
                     <Edit className="h-4 w-4 mr-2" />
@@ -339,7 +344,10 @@ export default function EmployeeProfile() {
                 
                 {kycStatus === 'rejected' && (
                   <Button 
-                    onClick={() => setShowKycForm(true)}
+                    onClick={() => {
+                      setShowKycForm(true);
+                      setTimeout(scrollToKycForm, 100);
+                    }}
                     variant="outline"
                     className="w-full"
                   >
@@ -417,7 +425,7 @@ export default function EmployeeProfile() {
 
       {/* KYC Form - Only show for non-admin users */}
       {showKycForm && user?.role !== 'admin' && (
-        <Card>
+        <Card id="kyc-form" data-testid="kyc-form" className="kyc-form">
           <CardHeader>
             <CardTitle>Complete Your KYC</CardTitle>
             <CardDescription>

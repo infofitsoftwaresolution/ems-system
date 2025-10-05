@@ -8,8 +8,8 @@ export function useGeolocation(options = {}) {
 
   const defaultOptions = {
     enableHighAccuracy: true,
-    timeout: 10000,
-    maximumAge: 0,
+    timeout: 30000, // Increased timeout to 30 seconds
+    maximumAge: 300000, // Allow cached location up to 5 minutes old
     ...options
   };
 
@@ -23,6 +23,7 @@ export function useGeolocation(options = {}) {
       setLoading(true);
       setError(null);
 
+      // Try high accuracy first
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude, accuracy } = position.coords;
@@ -39,26 +40,55 @@ export function useGeolocation(options = {}) {
           resolve(locationData);
         },
         (error) => {
-          let errorMessage = 'Failed to get location';
+          console.warn('High accuracy location failed, trying fallback...', error);
           
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage = 'Location access denied by user';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage = 'Location information is unavailable';
-              break;
-            case error.TIMEOUT:
-              errorMessage = 'Location request timed out';
-              break;
-            default:
-              errorMessage = 'An unknown error occurred';
-              break;
-          }
+          // Fallback to lower accuracy if high accuracy fails
+          const fallbackOptions = {
+            enableHighAccuracy: false,
+            timeout: 15000,
+            maximumAge: 600000 // 10 minutes
+          };
           
-          setError(errorMessage);
-          setLoading(false);
-          reject(new Error(errorMessage));
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const { latitude, longitude, accuracy } = position.coords;
+              const locationData = {
+                latitude,
+                longitude,
+                accuracy,
+                timestamp: new Date().toISOString(),
+                fallback: true
+              };
+              
+              setLocation(locationData);
+              setAccuracy(accuracy);
+              setLoading(false);
+              resolve(locationData);
+            },
+            (fallbackError) => {
+              let errorMessage = 'Failed to get location';
+              
+              switch (fallbackError.code) {
+                case fallbackError.PERMISSION_DENIED:
+                  errorMessage = 'Location access denied. Please enable location permissions and refresh the page.';
+                  break;
+                case fallbackError.POSITION_UNAVAILABLE:
+                  errorMessage = 'Location information is unavailable. Please check your GPS settings.';
+                  break;
+                case fallbackError.TIMEOUT:
+                  errorMessage = 'Location request timed out. Please try again.';
+                  break;
+                default:
+                  errorMessage = 'Unable to get your location. Please check your device settings.';
+                  break;
+              }
+              
+              setError(errorMessage);
+              setLoading(false);
+              reject(new Error(errorMessage));
+            },
+            fallbackOptions
+          );
         },
         defaultOptions
       );

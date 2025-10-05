@@ -41,6 +41,7 @@ export default function KycManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   // Load KYC submissions
   useEffect(() => {
@@ -82,6 +83,10 @@ export default function KycManagement() {
         )
       );
       toast.success(`KYC status updated to ${newStatus}`);
+      
+      // Close the dialog after successful update
+      setDialogOpen(false);
+      setSelectedSubmission(null);
     } catch (err) {
       console.error('Error updating KYC status:', err);
       toast.error(`Failed to update status: ${err.message}`);
@@ -224,12 +229,20 @@ export default function KycManagement() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
-                      <Dialog>
+                      <Dialog open={dialogOpen && selectedSubmission?.id === submission.id} onOpenChange={(open) => {
+                        setDialogOpen(open);
+                        if (!open) {
+                          setSelectedSubmission(null);
+                        }
+                      }}>
                         <DialogTrigger asChild>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setSelectedSubmission(submission)}
+                            onClick={() => {
+                              setSelectedSubmission(submission);
+                              setDialogOpen(true);
+                            }}
                           >
                             <Eye className="h-4 w-4 mr-1" />
                             View
