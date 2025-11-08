@@ -73,22 +73,34 @@ export default function EmployeeAttendance() {
       setCheckingIn(true);
       clearLocation();
       
-      // Get high-accuracy location
-      toast.info('Getting your location...', { duration: 2000 });
-      const locationData = await getLocationWithAddress();
-      
-      console.log('Check-in location data:', locationData);
-      console.log('User email for check-in:', user?.email);
-      
-      // Check location accuracy
-      if (!isLocationAccurate(100)) {
-        toast.warning(`Location accuracy is ${Math.round(accuracy)}m. For better accuracy, try moving to an open area.`);
+      // Try to get location, but allow check-in without it
+      let locationData = null;
+      try {
+        toast.info('Getting your location...', { duration: 2000 });
+        locationData = await getLocationWithAddress();
+        
+        console.log('Check-in location data:', locationData);
+        
+        // Check location accuracy
+        if (!isLocationAccurate(100)) {
+          toast.warning(`Location accuracy is ${Math.round(accuracy)}m. For better accuracy, try moving to an open area.`);
+        }
+      } catch (locationError) {
+        console.warn('Location not available, proceeding with check-in without location:', locationError);
+        // Show a warning but allow check-in to proceed
+        toast.warning('Location not available. Check-in will proceed without location data.', { duration: 3000 });
       }
       
-      // Proceed with check-in - pass user email as fallback
+      console.log('User email for check-in:', user?.email);
+      
+      // Proceed with check-in - pass location data if available, or null
       await apiService.checkIn(locationData, user?.email);
       
-      toast.success(`Checked in successfully from ${locationData.city}!`);
+      if (locationData?.city) {
+        toast.success(`Checked in successfully from ${locationData.city}!`);
+      } else {
+        toast.success('Checked in successfully!');
+      }
       
       // Reload attendance data
       const attendanceData = await apiService.getTodayAttendance(user.email);
