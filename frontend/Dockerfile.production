@@ -27,7 +27,9 @@ RUN npm install -g serve
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/public ./public
+# Copy public directory if it exists in builder stage
+COPY --from=builder /app/public* ./public/ 2>/dev/null || true
+RUN mkdir -p ./public || true
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs
