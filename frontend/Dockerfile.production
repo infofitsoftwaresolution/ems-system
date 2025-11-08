@@ -27,9 +27,14 @@ RUN npm install -g serve
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
-# Copy public directory
+# Copy public directory if it exists (optional)
 RUN mkdir -p ./public
-COPY --from=builder /app/public ./public
+RUN --mount=from=builder,source=/app/public,target=/source-public \
+    if [ -d "/source-public" ] && [ "$(ls -A /source-public)" ]; then \
+      cp -r /source-public/* ./public/; \
+    else \
+      echo "Public directory not found or empty, skipping"; \
+    fi
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs
