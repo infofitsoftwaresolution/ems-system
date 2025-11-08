@@ -73,10 +73,10 @@ export default function EmployeeAttendance() {
       setCheckingIn(true);
       clearLocation();
       
-      // Try to get location, but allow check-in without it
+      // Try to get location - browser will prompt for permission
       let locationData = null;
       try {
-        toast.info('Getting your location...', { duration: 2000 });
+        toast.info('Please allow location access when prompted by your browser...', { duration: 3000 });
         locationData = await getLocationWithAddress();
         
         console.log('Check-in location data:', locationData);
@@ -86,9 +86,21 @@ export default function EmployeeAttendance() {
           toast.warning(`Location accuracy is ${Math.round(accuracy)}m. For better accuracy, try moving to an open area.`);
         }
       } catch (locationError) {
-        console.warn('Location not available, proceeding with check-in without location:', locationError);
-        // Show a warning but allow check-in to proceed
-        toast.warning('Location not available. Check-in will proceed without location data.', { duration: 3000 });
+        console.warn('Location not available:', locationError);
+        
+        // Check if it's a permission denied error
+        if (locationError.message.includes('denied') || locationError.message.includes('permission')) {
+          // Show helpful message with instructions
+          toast.error(
+            'Location permission denied. Please click the lock icon in your browser address bar and allow location access, then try again.',
+            { duration: 5000 }
+          );
+          // Still allow check-in without location
+          toast.warning('Proceeding with check-in without location data.', { duration: 3000 });
+        } else {
+          // Other location errors
+          toast.warning('Location not available. Check-in will proceed without location data.', { duration: 3000 });
+        }
       }
       
       console.log('User email for check-in:', user?.email);

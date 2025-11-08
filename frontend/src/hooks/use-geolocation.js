@@ -70,7 +70,7 @@ export function useGeolocation(options = {}) {
               
               switch (fallbackError.code) {
                 case fallbackError.PERMISSION_DENIED:
-                  errorMessage = 'Location access denied. Please enable location permissions and refresh the page.';
+                  errorMessage = 'Location permission denied. Please click the lock icon in your browser address bar and allow location access.';
                   break;
                 case fallbackError.POSITION_UNAVAILABLE:
                   errorMessage = 'Location information is unavailable. Please check your GPS settings.';
