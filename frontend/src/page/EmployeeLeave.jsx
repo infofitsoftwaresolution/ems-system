@@ -50,8 +50,8 @@ export default function EmployeeLeave() {
           setKycStatus(kycInfo.status);
           
           if (kycInfo.status === 'approved') {
-            // Load leaves data
-            const leavesData = await apiService.getLeaves();
+            // Load leaves data - only for current user
+            const leavesData = await apiService.getLeaves(user.email);
             setLeaves(leavesData);
           }
         }
@@ -97,8 +97,8 @@ export default function EmployeeLeave() {
         reason: '',
         type: 'sick'
       });
-      // Reload leaves data
-      const leavesData = await apiService.getLeaves();
+      // Reload leaves data - only for current user
+      const leavesData = await apiService.getLeaves(user.email);
       setLeaves(leavesData);
     } catch (err) {
       toast.error('Failed to submit leave application');

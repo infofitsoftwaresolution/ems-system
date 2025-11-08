@@ -45,6 +45,7 @@ export default function AdminLeaveManagement() {
   const fetchLeaves = async () => {
     try {
       setLoading(true);
+      // Admin can see all leaves - don't pass email filter
       const leavesData = await apiService.getLeaves();
       setLeaves(leavesData);
     } catch (error) {
