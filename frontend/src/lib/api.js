@@ -244,8 +244,9 @@ class ApiService {
 
 
   // Leave endpoints
-  async getLeaves() {
-    return this.request('/api/leaves');
+  async getLeaves(email = null) {
+    const url = email ? `/api/leaves?email=${encodeURIComponent(email)}` : '/api/leaves';
+    return this.request(url);
   }
 
   async createLeave(leaveData) {
@@ -253,12 +254,6 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(leaveData),
     });
-  }
-
-
-  // Leave endpoints
-  async getLeaves() {
-    return this.request('/api/leaves');
   }
 
 
