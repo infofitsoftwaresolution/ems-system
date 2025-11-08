@@ -1,10 +1,8 @@
 name: Security Scan
 
+# DISABLED - Using "Deploy to EC2 with RDS" workflow instead
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:  # Only manual trigger, not on push
   schedule:
     - cron: '0 2 * * 1' # Weekly on Monday at 2 AM
 
