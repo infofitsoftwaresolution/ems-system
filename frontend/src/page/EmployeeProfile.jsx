@@ -142,8 +142,9 @@ export default function EmployeeProfile() {
       }
       
       // Submit KYC data
-      console.log('Submitting to:', 'http://localhost:3001/api/kyc');
-      const response = await fetch('http://localhost:3001/api/kyc', {
+      const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
+      console.log('Submitting to:', `${apiUrl}/kyc`);
+      const response = await fetch(`${apiUrl}/kyc`, {
         method: 'POST',
         body: formData
       });

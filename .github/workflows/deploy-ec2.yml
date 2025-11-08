@@ -51,6 +51,9 @@ jobs:
 
     - name: Build frontend
       working-directory: ./frontend
+      env:
+        VITE_API_URL: /api
+        VITE_APP_URL: http://13.234.30.222
       run: npm run build
 
     # Docker Build

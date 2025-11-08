@@ -67,7 +67,8 @@ export function KycModal({ isOpen, onClose, onKycComplete, user }) {
       }
 
       // Submit KYC data
-      const response = await fetch('http://localhost:3001/api/kyc', {
+      const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
+      const response = await fetch(`${apiUrl}/kyc`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`

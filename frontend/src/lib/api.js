@@ -1,5 +1,7 @@
 // API service for communicating with the backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Use relative path in production (empty string means same origin), or environment variable
+// In production, use relative paths so it works through Nginx proxy
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
 class ApiService {
   constructor() {

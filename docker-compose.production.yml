@@ -59,8 +59,8 @@ services:
       - "5173:5173"
     environment:
       - NODE_ENV=production
-      - VITE_API_URL=${FRONTEND_URL:-https://app.rsamriddhi.com}/api
-      - VITE_APP_URL=${FRONTEND_URL:-https://app.rsamriddhi.com}
+      # Note: VITE_* variables need to be set at build time, not runtime
+      # For runtime, we'll use relative paths in the code
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173"]
       interval: 30s
