@@ -1,8 +1,8 @@
 name: Test Deploy Components
 
+# DISABLED - Using "Deploy to EC2 with RDS" workflow instead
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:  # Only manual trigger, not on push
 
 jobs:
   test-components:
