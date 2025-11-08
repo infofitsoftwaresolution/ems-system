@@ -1,18 +1,8 @@
 name: Docker Build and Push
 
+# DISABLED - Using "Deploy to EC2 with RDS" workflow instead
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'deployment/docker/**'
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'deployment/docker/**'
+  workflow_dispatch:  # Only manual trigger, not on push
 
 env:
   REGISTRY: ghcr.io
@@ -56,7 +46,7 @@ jobs:
         context: ${{ matrix.service == 'backend' && './backend' || '.' }}
         file: ${{ matrix.service == 'backend' && './deployment/docker/Dockerfile.backend' || './deployment/docker/Dockerfile.frontend' }}
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}:${{ steps.meta.outputs.tags }}
+        tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha,scope=${{ matrix.service }}
         cache-to: type=gha,mode=max,scope=${{ matrix.service }}
