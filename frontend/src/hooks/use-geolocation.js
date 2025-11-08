@@ -8,7 +8,7 @@ export function useGeolocation(options = {}) {
 
   const defaultOptions = {
     enableHighAccuracy: true,
-    timeout: 45000, // Increased timeout to 45 seconds for better accuracy
+    timeout: 60000, // Increased timeout to 60 seconds for better accuracy
     maximumAge: 0, // Don't use cached location - always get fresh location for accuracy
     ...options
   };
@@ -45,7 +45,7 @@ export function useGeolocation(options = {}) {
           // Fallback to lower accuracy if high accuracy fails
           const fallbackOptions = {
             enableHighAccuracy: false,
-            timeout: 30000, // Increased timeout for fallback
+            timeout: 45000, // Increased timeout for fallback
             maximumAge: 0 // Don't use cached location
           };
           

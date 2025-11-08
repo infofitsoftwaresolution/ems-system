@@ -66,6 +66,22 @@ export default function EmployeeAttendance() {
       }
     };
     loadData();
+    
+    // Request location permission early for better accuracy
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'geolocation' }).then(result => {
+        if (result.state === 'prompt') {
+          // Pre-request permission to improve accuracy
+          navigator.geolocation.getCurrentPosition(
+            () => console.log('Location permission granted'),
+            () => console.log('Location permission denied'),
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+          );
+        }
+      }).catch(() => {
+        // Permissions API not supported, ignore
+      });
+    }
   }, [user]);
 
   const handleCheckIn = async () => {
