@@ -102,3 +102,5 @@ emailLogger.sendMail(testEmail).then(() => {
   
   process.exit(0);
 });
+
+

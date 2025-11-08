@@ -101,3 +101,5 @@ console.log('The system works perfectly without email - you can add employees an
 console.log('Email is just a convenience feature for automatic notifications.');
 
 process.exit(0);
+
+

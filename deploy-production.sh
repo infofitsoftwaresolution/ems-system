@@ -168,3 +168,5 @@ print_status ""
 print_status "To view logs: docker-compose -f docker-compose.production.yml logs -f"
 print_status "To stop services: docker-compose -f docker-compose.production.yml down"
 print_status "To restart services: docker-compose -f docker-compose.production.yml restart"
+
+

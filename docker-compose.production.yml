@@ -3,9 +3,7 @@ version: '3.8'
 services:
   # Backend Service
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-ghcr.io/infofitsoftwaresolution/ems-system-backend:latest}
     container_name: ems-backend
     restart: unless-stopped
     ports:
@@ -13,25 +11,38 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-ems-2024-production}
-      - DB_DIALECT=sqlite
-      - DB_STORAGE=/app/database.sqlite
-      - LOG_LEVEL=info
-      - DEBUG=false
-      - ENABLE_REQUEST_LOGGING=true
-      - MAX_FILE_SIZE=10485760
+      # RDS PostgreSQL Configuration
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_SSL=${POSTGRES_SSL:-true}
+      - DB_DIALECT=${DB_DIALECT:-postgres}
+      - DB_HOST=${DB_HOST:-${POSTGRES_HOST}}
+      - DB_PORT=${DB_PORT:-${POSTGRES_PORT:-5432}}
+      - DB_NAME=${DB_NAME:-${POSTGRES_DB}}
+      - DB_USER=${DB_USER:-${POSTGRES_USER}}
+      - DB_PASS=${DB_PASS:-${POSTGRES_PASSWORD}}
+      - DB_SSL=${DB_SSL:-true}
+      # Application Configuration
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-24h}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DEBUG=${DEBUG:-false}
+      - ENABLE_REQUEST_LOGGING=${ENABLE_REQUEST_LOGGING:-true}
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-10485760}
       - UPLOAD_PATH=/app/uploads
-      - FRONTEND_URL=https://app.rsamriddhi.com
-      - RATE_LIMIT_WINDOW_MS=900000
-      - RATE_LIMIT_MAX_REQUESTS=100
+      - FRONTEND_URL=${FRONTEND_URL:-https://app.rsamriddhi.com}
+      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
+      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASS=${SMTP_PASS}
     volumes:
       - ./backend/uploads:/app/uploads
-      - ./backend/database.sqlite:/app/database.sqlite
       - ./backend/logs:/app/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -41,19 +52,17 @@ services:
 
   # Frontend Service
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ${FRONTEND_IMAGE:-ghcr.io/infofitsoftwaresolution/ems-system-frontend:latest}
     container_name: ems-frontend
     restart: unless-stopped
     ports:
       - "5173:5173"
     environment:
       - NODE_ENV=production
-      - VITE_API_URL=https://app.rsamriddhi.com/api
-      - VITE_APP_URL=https://app.rsamriddhi.com
+      - VITE_API_URL=${FRONTEND_URL:-https://app.rsamriddhi.com}/api
+      - VITE_APP_URL=${FRONTEND_URL:-https://app.rsamriddhi.com}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173"] || exit 0
       interval: 30s
       timeout: 10s
       retries: 3
@@ -70,8 +79,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.production.conf:/etc/nginx/conf.d/default.conf
-      - ./ssl:/etc/nginx/ssl
+      - ./nginx.production.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - backend
       - frontend

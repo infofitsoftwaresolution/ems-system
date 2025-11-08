@@ -237,3 +237,5 @@ echo "   Check status: systemctl status ems"
 echo "   Manual backup: $APP_DIR/backup.sh"
 echo ""
 echo "✅ Deployment completed successfully!"
+
+

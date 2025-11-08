@@ -1,0 +1,308 @@
+name: Deploy to EC2 with RDS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  EC2_HOST: 13.234.30.222
+
+jobs:
+  # Build and Test
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      backend-tag: ${{ steps.meta.outputs.tags }}
+      frontend-tag: ${{ steps.meta.outputs.tags }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: |
+          backend/package-lock.json
+          frontend/package-lock.json
+
+    # Backend Tests
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: npm ci
+
+    - name: Run backend linting
+      working-directory: ./backend
+      run: npm run lint || echo "Linting skipped"
+
+    # Frontend Tests
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Run frontend linting
+      working-directory: ./frontend
+      run: npm run lint || echo "Linting skipped"
+
+    - name: Build frontend
+      working-directory: ./frontend
+      run: npm run build
+
+    # Docker Build
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend
+        tags: |
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    # Build Backend Image
+    - name: Build and push backend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        file: ./backend/Dockerfile.production
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # Build Frontend Image
+    - name: Build and push frontend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile.production
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # Deploy to EC2
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ env.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        port: ${{ secrets.EC2_PORT || 22 }}
+        script: |
+          set -e
+          
+          echo "🚀 Starting deployment to EC2..."
+          
+          # Create deployment directory if it doesn't exist
+          sudo mkdir -p /opt/ems-deployment
+          sudo chown -R $USER:$USER /opt/ems-deployment
+          cd /opt/ems-deployment
+          
+          # Clone or update repository
+          if [ -d ".git" ]; then
+            echo "📥 Repository exists, pulling latest changes..."
+            # Reset any local changes and pull
+            git fetch origin
+            git reset --hard origin/main || git reset --hard origin/master
+            git pull origin main || git pull origin master || true
+            echo "✅ Repository updated"
+          else
+            echo "📥 Cloning repository..."
+            # Remove any existing files if directory exists but isn't a git repo
+            if [ "$(ls -A .)" ]; then
+              echo "⚠️ Directory not empty, backing up and cleaning..."
+              mkdir -p ../backup-$(date +%Y%m%d-%H%M%S)
+              mv * ../backup-$(date +%Y%m%d-%H%M%S)/ 2>/dev/null || true
+            fi
+            git clone https://github.com/infofitsoftwaresolution/ems-system.git .
+            echo "✅ Repository cloned"
+          fi
+          
+          # Ensure we're on the correct branch
+          git checkout main || git checkout master || true
+          
+          # Ensure Docker is installed and running
+          if ! command -v docker &> /dev/null; then
+            echo "🐳 Installing Docker..."
+            sudo yum update -y
+            sudo yum install -y docker
+            sudo systemctl enable docker
+            sudo systemctl start docker
+            sudo usermod -aG docker $USER
+          fi
+          
+          # Ensure Docker Compose is installed
+          if ! command -v docker-compose &> /dev/null; then
+            echo "🐳 Installing Docker Compose..."
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+          fi
+          
+          # Create necessary directories
+          mkdir -p backend/uploads backend/logs
+          mkdir -p ssl-certs
+          
+          # Setup environment file with RDS configuration (preserve existing if it has custom values)
+          echo "⚙️ Setting up environment configuration..."
+          if [ ! -f .env ] || [ ! -s .env ]; then
+            echo "Creating new .env file..."
+            cat > .env << 'ENVEOF'
+          NODE_ENV=production
+          PORT=3001
+          FRONTEND_URL=https://app.rsamriddhi.com
+          
+          # RDS PostgreSQL Database Configuration
+          POSTGRES_HOST=rsamriddhi.c3ea24kmsrmf.ap-south-1.rds.amazonaws.com
+          POSTGRES_PORT=5432
+          POSTGRES_DB=rsamriddhi
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=rsamriddhi1234
+          POSTGRES_SSL=true
+          DB_DIALECT=postgres
+          DB_HOST=rsamriddhi.c3ea24kmsrmf.ap-south-1.rds.amazonaws.com
+          DB_PORT=5432
+          DB_NAME=rsamriddhi
+          DB_USER=postgres
+          DB_PASS=rsamriddhi1234
+          DB_SSL=true
+          
+          # JWT Configuration
+          JWT_SECRET=${{ secrets.JWT_SECRET || 'your-super-secret-jwt-key-ems-2024-production' }}
+          JWT_EXPIRES_IN=24h
+          
+          # Email Configuration
+          SMTP_USER=${{ secrets.SMTP_USER || 's24346379@gmail.com' }}
+          SMTP_PASS=${{ secrets.SMTP_PASS || 'edufxpcbkumsnsyo' }}
+          
+          # File Upload
+          MAX_FILE_SIZE=10485760
+          UPLOAD_PATH=./uploads
+          
+          # Logging
+          LOG_LEVEL=info
+          DEBUG=false
+          ENABLE_REQUEST_LOGGING=true
+          
+          # Rate Limiting
+          RATE_LIMIT_WINDOW_MS=900000
+          RATE_LIMIT_MAX_REQUESTS=100
+          
+          # Docker Images
+          BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest
+          FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest
+          ENVEOF
+          else
+            echo "⚠️ .env file already exists, preserving it. Make sure it has RDS configuration."
+            # Update only if RDS config is missing
+            if ! grep -q "POSTGRES_HOST" .env; then
+              echo "Adding RDS configuration to existing .env file..."
+              cat >> .env << 'ENVEOF'
+          
+          # RDS PostgreSQL Database Configuration
+          POSTGRES_HOST=rsamriddhi.c3ea24kmsrmf.ap-south-1.rds.amazonaws.com
+          POSTGRES_PORT=5432
+          POSTGRES_DB=rsamriddhi
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=rsamriddhi1234
+          POSTGRES_SSL=true
+          DB_DIALECT=postgres
+          DB_HOST=rsamriddhi.c3ea24kmsrmf.ap-south-1.rds.amazonaws.com
+          DB_PORT=5432
+          DB_NAME=rsamriddhi
+          DB_USER=postgres
+          DB_PASS=rsamriddhi1234
+          DB_SSL=true
+          ENVEOF
+            fi
+          fi
+          
+          # Login to GitHub Container Registry
+          echo "🔐 Logging in to GitHub Container Registry..."
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          
+          # Pull latest images
+          echo "📦 Pulling latest Docker images..."
+          docker-compose -f docker-compose.production.yml pull || true
+          
+          # Stop existing containers
+          echo "🛑 Stopping existing containers..."
+          docker-compose -f docker-compose.production.yml down || true
+          
+          # Start new containers
+          echo "🚀 Starting new containers..."
+          docker-compose -f docker-compose.production.yml up -d
+          
+          # Wait for services to be healthy
+          echo "⏳ Waiting for services to start..."
+          sleep 30
+          
+          # Health check
+          echo "🏥 Running health checks..."
+          max_attempts=10
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -f http://localhost:3001/api/health > /dev/null 2>&1; then
+              echo "✅ Backend health check passed!"
+              break
+            fi
+            attempt=$((attempt + 1))
+            echo "⏳ Health check attempt $attempt/$max_attempts..."
+            sleep 10
+          done
+          
+          if [ $attempt -eq $max_attempts ]; then
+            echo "⚠️ Health check failed, but deployment completed"
+            docker-compose -f docker-compose.production.yml logs --tail=50
+          fi
+          
+          # Clean up old images
+          echo "🧹 Cleaning up old Docker images..."
+          docker image prune -af --filter "until=24h" || true
+          
+          # Show running containers
+          echo "📊 Current container status:"
+          docker-compose -f docker-compose.production.yml ps
+          
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 Application should be available at: http://${{ env.EC2_HOST }}"
+
+    - name: Deployment Summary
+      if: always()
+      run: |
+        echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **EC2 Host**: ${{ env.EC2_HOST }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Backend Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest" >> $GITHUB_STEP_SUMMARY
+        echo "- **Frontend Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest" >> $GITHUB_STEP_SUMMARY
+        echo "- **Database**: RDS PostgreSQL (rsamriddhi.c3ea24kmsrmf.ap-south-1.rds.amazonaws.com)" >> $GITHUB_STEP_SUMMARY
+

@@ -98,3 +98,5 @@ async function testAllConfigs() {
 testAllConfigs().then(() => {
   process.exit(0);
 });
+
+

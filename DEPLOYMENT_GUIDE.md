@@ -57,6 +57,7 @@
    JWT_SECRET=your-super-secret-jwt-key-change-this
    SMTP_USER=your-email@gmail.com
    SMTP_PASS=your-app-password
+   GOOGLE_MAPS_API_KEY=your-google-maps-api-key-here
    ```
 
 ### Step 5: Initialize the Application
