@@ -70,19 +70,13 @@ router.post('/', upload.fields([
     console.log('KYC submission - body.employeeId:', body.employeeId, 'type:', typeof body.employeeId);
     
     if (body.employeeId && body.employeeId !== '0' && body.employeeId !== 'undefined' && body.employeeId !== 'null') {
-      // First try to find by employeeId (string field)
+      // employeeId is stored as VARCHAR, so always use string comparison
+      // Convert to string to ensure type consistency
+      const employeeIdStr = String(body.employeeId);
       existingKyc = await Kyc.findOne({ 
-        where: { employeeId: body.employeeId },
+        where: { employeeId: employeeIdStr },
         order: [['createdAt', 'DESC']]
       });
-      
-      // If not found, try by numeric ID (for backward compatibility)
-      if (!existingKyc && !isNaN(Number(body.employeeId))) {
-        existingKyc = await Kyc.findOne({ 
-          where: { employeeId: Number(body.employeeId) },
-          order: [['createdAt', 'DESC']]
-        });
-      }
     }
     
     // If no KYC found by employeeId, check by fullName
