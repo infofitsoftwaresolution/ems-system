@@ -85,7 +85,8 @@ async function start() {
     await sequelize.authenticate();
     // Setup model associations
     setupKycAssociations(Employee);
-    await sequelize.sync();
+    // Sync database schema - alter: true will add missing columns without dropping data
+    await sequelize.sync({ alter: true });
     app.listen(PORT, () =>
       console.log(`Server listening on http://localhost:${PORT}`)
     );
