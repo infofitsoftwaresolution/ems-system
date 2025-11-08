@@ -73,7 +73,7 @@ export default function EmployeeAttendance() {
       setCheckingIn(true);
       clearLocation();
       
-      // Try to get location - browser will prompt for permission
+      // Get accurate location - required for check-in
       let locationData = null;
       try {
         toast.info('Please allow location access when prompted by your browser...', { duration: 3000 });
@@ -81,38 +81,77 @@ export default function EmployeeAttendance() {
         
         console.log('Check-in location data:', locationData);
         
-        // Check location accuracy
-        if (!isLocationAccurate(100)) {
-          toast.warning(`Location accuracy is ${Math.round(accuracy)}m. For better accuracy, try moving to an open area.`);
-        }
-      } catch (locationError) {
-        console.warn('Location not available:', locationError);
-        
-        // Check if it's a permission denied error
-        if (locationError.message.includes('denied') || locationError.message.includes('permission')) {
-          // Show helpful message with instructions
-          toast.error(
-            'Location permission denied. Please click the lock icon in your browser address bar and allow location access, then try again.',
+        // Validate location accuracy - require at least 100m accuracy
+        const locationAccuracy = locationData.accuracy || 999;
+        if (locationAccuracy > 100) {
+          toast.warning(
+            `Location accuracy is ${Math.round(locationAccuracy)}m. For better accuracy, please move to an open area and try again.`,
             { duration: 5000 }
           );
-          // Still allow check-in without location
-          toast.warning('Proceeding with check-in without location data.', { duration: 3000 });
+          // Retry with better accuracy
+          toast.info('Retrying with high accuracy GPS...', { duration: 2000 });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          locationData = await getLocationWithAddress();
+          
+          // Check accuracy again
+          const retryAccuracy = locationData.accuracy || 999;
+          if (retryAccuracy > 100) {
+            toast.warning(
+              `Location accuracy is still ${Math.round(retryAccuracy)}m. Check-in will proceed, but please ensure you're in an open area for accurate tracking.`,
+              { duration: 5000 }
+            );
+          } else {
+            toast.success(`Location captured with ${Math.round(retryAccuracy)}m accuracy!`, { duration: 2000 });
+          }
         } else {
-          // Other location errors
-          toast.warning('Location not available. Check-in will proceed without location data.', { duration: 3000 });
+          toast.success(`Location captured with ${Math.round(locationAccuracy)}m accuracy!`, { duration: 2000 });
         }
+      } catch (locationError) {
+        console.error('Location error:', locationError);
+        
+        // Location is required - don't allow check-in without it
+        if (locationError.message.includes('denied') || locationError.message.includes('permission')) {
+          toast.error(
+            'Location permission is required for check-in. Please click the lock icon in your browser address bar, allow location access, and try again.',
+            { duration: 6000 }
+          );
+          setCheckingIn(false);
+          return; // Stop check-in process
+        } else if (locationError.message.includes('timeout')) {
+          toast.error(
+            'Location request timed out. Please ensure GPS is enabled and try again in an open area.',
+            { duration: 5000 }
+          );
+          setCheckingIn(false);
+          return; // Stop check-in process
+        } else {
+          toast.error(
+            'Unable to get your location. Please check your device GPS settings and try again.',
+            { duration: 5000 }
+          );
+          setCheckingIn(false);
+          return; // Stop check-in process
+        }
+      }
+      
+      // Validate that we have location data
+      if (!locationData || !locationData.latitude || !locationData.longitude) {
+        toast.error('Location data is incomplete. Please try again.', { duration: 3000 });
+        setCheckingIn(false);
+        return;
       }
       
       console.log('User email for check-in:', user?.email);
+      console.log('Final location data:', locationData);
       
-      // Proceed with check-in - pass location data if available, or null
+      // Proceed with check-in with location data
       await apiService.checkIn(locationData, user?.email);
       
-      if (locationData?.city) {
-        toast.success(`Checked in successfully from ${locationData.city}!`);
-      } else {
-        toast.success('Checked in successfully!');
-      }
+      const locationInfo = locationData.city && locationData.city !== 'Unknown City' 
+        ? ` from ${locationData.city}`
+        : ` (Lat: ${locationData.latitude.toFixed(6)}, Lng: ${locationData.longitude.toFixed(6)})`;
+      
+      toast.success(`Checked in successfully${locationInfo}!`, { duration: 3000 });
       
       // Reload attendance data
       const attendanceData = await apiService.getTodayAttendance(user.email);
@@ -134,57 +173,85 @@ export default function EmployeeAttendance() {
       setCheckingOut(true);
       clearLocation();
       
-      // Get high-accuracy location with fallback
-      toast.info('Getting your location...', { duration: 2000 });
-      
+      // Get accurate location - required for check-out
       let locationData = null;
-      let locationError = null;
-      
       try {
+        toast.info('Please allow location access when prompted by your browser...', { duration: 3000 });
         locationData = await getLocationWithAddress();
+        
         console.log('Check-out location data:', locationData);
-      } catch (locErr) {
-        console.warn('Location capture failed:', locErr);
-        locationError = locErr.message;
         
-        // Show user-friendly error and ask for manual confirmation
-        const shouldProceed = window.confirm(
-          `Location capture failed: ${locErr.message}\n\n` +
-          'Would you like to proceed with checkout without location data?\n' +
-          'Note: This may affect attendance tracking accuracy.'
-        );
-        
-        if (!shouldProceed) {
-          throw new Error('Checkout cancelled by user');
+        // Validate location accuracy - require at least 100m accuracy
+        const locationAccuracy = locationData.accuracy || 999;
+        if (locationAccuracy > 100) {
+          toast.warning(
+            `Location accuracy is ${Math.round(locationAccuracy)}m. For better accuracy, please move to an open area and try again.`,
+            { duration: 5000 }
+          );
+          // Retry with better accuracy
+          toast.info('Retrying with high accuracy GPS...', { duration: 2000 });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          locationData = await getLocationWithAddress();
+          
+          // Check accuracy again
+          const retryAccuracy = locationData.accuracy || 999;
+          if (retryAccuracy > 100) {
+            toast.warning(
+              `Location accuracy is still ${Math.round(retryAccuracy)}m. Check-out will proceed, but please ensure you're in an open area for accurate tracking.`,
+              { duration: 5000 }
+            );
+          } else {
+            toast.success(`Location captured with ${Math.round(retryAccuracy)}m accuracy!`, { duration: 2000 });
+          }
+        } else {
+          toast.success(`Location captured with ${Math.round(locationAccuracy)}m accuracy!`, { duration: 2000 });
         }
+      } catch (locationError) {
+        console.error('Location error:', locationError);
         
-        // Create fallback location data
-        locationData = {
-          latitude: null,
-          longitude: null,
-          address: 'Location not available',
-          city: 'Unknown',
-          fullAddress: 'Location capture failed',
-          fallback: true,
-          error: locationError
-        };
+        // Location is required - don't allow check-out without it
+        if (locationError.message.includes('denied') || locationError.message.includes('permission')) {
+          toast.error(
+            'Location permission is required for check-out. Please click the lock icon in your browser address bar, allow location access, and try again.',
+            { duration: 6000 }
+          );
+          setCheckingOut(false);
+          return; // Stop check-out process
+        } else if (locationError.message.includes('timeout')) {
+          toast.error(
+            'Location request timed out. Please ensure GPS is enabled and try again in an open area.',
+            { duration: 5000 }
+          );
+          setCheckingOut(false);
+          return; // Stop check-out process
+        } else {
+          toast.error(
+            'Unable to get your location. Please check your device GPS settings and try again.',
+            { duration: 5000 }
+          );
+          setCheckingOut(false);
+          return; // Stop check-out process
+        }
+      }
+      
+      // Validate that we have location data
+      if (!locationData || !locationData.latitude || !locationData.longitude) {
+        toast.error('Location data is incomplete. Please try again.', { duration: 3000 });
+        setCheckingOut(false);
+        return;
       }
       
       console.log('User email for check-out:', user?.email);
+      console.log('Final location data:', locationData);
       
-      // Check location accuracy if we have location data
-      if (locationData && locationData.latitude && !isLocationAccurate(100)) {
-        toast.warning(`Location accuracy is ${Math.round(accuracy)}m. For better accuracy, try moving to an open area.`);
-      }
-      
-      // Proceed with check-out - pass user email as fallback
+      // Proceed with check-out with location data
       await apiService.checkOut(locationData, user?.email);
       
-      const successMessage = locationData?.city && locationData.city !== 'Unknown' 
-        ? `Checked out successfully from ${locationData.city}!`
-        : 'Checked out successfully!';
+      const locationInfo = locationData.city && locationData.city !== 'Unknown City' 
+        ? ` from ${locationData.city}`
+        : ` (Lat: ${locationData.latitude.toFixed(6)}, Lng: ${locationData.longitude.toFixed(6)})`;
       
-      toast.success(successMessage);
+      toast.success(`Checked out successfully${locationInfo}!`, { duration: 3000 });
       
       // Reload attendance data
       const attendanceData = await apiService.getTodayAttendance(user.email);
