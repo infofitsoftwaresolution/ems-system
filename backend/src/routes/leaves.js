@@ -24,20 +24,32 @@ router.post('/', authenticateToken, async (req, res) => {
 // For non-admin users, only show their own leaves
 // For admin users, show all leaves if no email filter is provided
 router.get('/', authenticateToken, async (req, res) => {
-  const userEmail = req.user?.email || req.user?.sub?.email || null;
   const userRole = req.user?.role || null;
+  const userId = req.user?.sub || null;
   const queryEmail = req.query.email ? String(req.query.email).toLowerCase() : null;
   
   // Build where clause
   let where = {};
   
-  // If user is not admin, only show their own leaves
+  // If user is not admin/manager, only show their own leaves
   if (userRole !== 'admin' && userRole !== 'manager') {
-    // Non-admin users can only see their own leaves
-    if (userEmail) {
-      where.email = userEmail.toLowerCase();
+    // Get user email from User model using user ID from token
+    if (userId) {
+      try {
+        const { User } = await import('../models/User.js');
+        const user = await User.findByPk(userId);
+        if (user && user.email) {
+          where.email = user.email.toLowerCase();
+        } else {
+          // If user not found, return empty array for security
+          return res.json([]);
+        }
+      } catch (error) {
+        console.error('Error fetching user email:', error);
+        return res.json([]);
+      }
     } else {
-      // If no user email found, return empty array for security
+      // If no user ID found, return empty array for security
       return res.json([]);
     }
   } else {
