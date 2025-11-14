@@ -32,7 +32,7 @@ export function DashboardLayout() {
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden">
       <Header toggleSidebar={() => setIsCollapsed(!isCollapsed)} />
-      <div className="flex flex-1">
+      <div className="flex flex-1 pt-14">
         <aside
           className={cn(
             "fixed left-0 top-14 z-20 h-[calc(100vh-3.5rem)] w-64 border-r bg-background transition-all duration-300 ease-in-out overflow-hidden",
