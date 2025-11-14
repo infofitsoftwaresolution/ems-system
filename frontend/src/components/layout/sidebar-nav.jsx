@@ -46,7 +46,7 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
     ];
 
     // Add employee-specific items
-    if (user?.role === 'employee') {
+    if (user?.role === "employee") {
       baseItems.push(
         {
           title: "Attendance",
@@ -67,8 +67,10 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
     }
 
     // Add admin/manager specific items
-    if (user?.role === 'admin' || user?.role === 'manager') {
-      baseItems.splice(1, 0, 
+    if (user?.role === "admin" || user?.role === "manager") {
+      baseItems.splice(
+        1,
+        0,
         {
           title: "Employees",
           href: "/employees",
@@ -108,7 +110,7 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
     }
 
     // Add admin-only items (before common items for better visibility)
-    if (user?.role === 'admin') {
+    if (user?.role === "admin") {
       baseItems.push(
         {
           title: "KYC Management",

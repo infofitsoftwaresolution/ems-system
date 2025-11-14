@@ -109,5 +109,10 @@
     /* Tailwind @apply directive - valid Tailwind syntax */
     /* css-lint-disable-next-line at-rule-no-unknown */
     @apply bg-background text-foreground;
+    overflow-x: hidden;
+  }
+
+  html {
+    overflow-x: hidden;
   }
 }

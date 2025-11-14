@@ -30,17 +30,19 @@ export function DashboardLayout() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col overflow-x-hidden">
       <Header toggleSidebar={() => setIsCollapsed(!isCollapsed)} />
       <div className="flex flex-1">
         <aside
           className={cn(
-            "fixed left-0 top-14 z-20 h-[calc(100vh-3.5rem)] w-64 border-r bg-background transition-all duration-300 ease-in-out",
+            "fixed left-0 top-14 z-20 h-[calc(100vh-3.5rem)] w-64 border-r bg-background transition-all duration-300 ease-in-out overflow-hidden",
             isCollapsed && "w-[70px]"
           )}>
-          <div className="flex h-full flex-col justify-between p-4">
-            <SidebarNav isCollapsed={isCollapsed} className="gap-1" />
-            <div className="flex justify-end">
+          <div className="flex h-full flex-col justify-between p-4 overflow-x-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+              <SidebarNav isCollapsed={isCollapsed} className="gap-1" />
+            </div>
+            <div className="flex justify-end shrink-0">
               <Button
                 variant="ghost"
                 size="icon"

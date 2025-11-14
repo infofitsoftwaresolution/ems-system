@@ -7,15 +7,33 @@ Event.init(
   {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     title: { type: DataTypes.STRING, allowNull: false },
-    date: { type: DataTypes.DATEONLY, allowNull: false },
+    description: { type: DataTypes.TEXT },
+    type: { 
+      type: DataTypes.STRING, 
+      defaultValue: 'meeting',
+      validate: {
+        isIn: [['meeting', 'training', 'holiday', 'review']]
+      }
+    },
+    start: { type: DataTypes.DATE, allowNull: false },
+    end: { type: DataTypes.DATE, allowNull: false },
+    allDay: { type: DataTypes.BOOLEAN, defaultValue: false },
+    attendees: { type: DataTypes.TEXT }, // JSON string of attendee IDs
+    createdByEmail: { type: DataTypes.STRING },
+    // Keep legacy fields for backward compatibility
+    date: { type: DataTypes.DATEONLY },
     startTime: { type: DataTypes.STRING },
     endTime: { type: DataTypes.STRING },
-    priority: { type: DataTypes.ENUM('low', 'normal', 'high'), defaultValue: 'normal' },
-    duration: { type: DataTypes.INTEGER }, // minutes
-    recurring: { type: DataTypes.STRING }, // e.g., 'none','daily','weekly','monthly'
-    reminder: { type: DataTypes.STRING }, // e.g., 'none','10m','1h','1d'
-    description: { type: DataTypes.TEXT },
-    createdByEmail: { type: DataTypes.STRING }
+    priority: { 
+      type: DataTypes.STRING, 
+      defaultValue: 'normal',
+      validate: {
+        isIn: [['low', 'normal', 'high']]
+      }
+    },
+    duration: { type: DataTypes.INTEGER },
+    recurring: { type: DataTypes.STRING },
+    reminder: { type: DataTypes.STRING }
   },
   { sequelize, modelName: 'Event', tableName: 'events' }
 );

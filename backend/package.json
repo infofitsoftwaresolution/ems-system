@@ -10,6 +10,7 @@
     "test": "echo 'No tests specified' && exit 0",
     "seed": "node src/seed.js",
     "seed:kyc": "node src/seedKyc.js",
+    "update-admin": "node src/updateAdminPassword.js",
     "setup": "npm run seed && npm run seed:kyc",
     "reset-db": "rm -f database.sqlite && npm run setup"
   },
