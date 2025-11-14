@@ -44,6 +44,7 @@ import {
   Award,
   FileText,
   BarChart2,
+  X,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,6 +55,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { apiService } from "@/lib/api";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * @typedef {Object} UserCourse
@@ -65,8 +69,16 @@ import {
  */
 
 export default function Training() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showRequestDialog, setShowRequestDialog] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [courseRequest, setCourseRequest] = useState({
+    title: "",
+    category: "",
+    description: "",
+  });
 
   // Mock data: In a real application, this would come from the backend
   const userCourses = courses.map((course) => ({
@@ -100,6 +112,62 @@ export default function Training() {
   const enrolledCourses = filteredCourses.filter((course) => course.enrolled);
   const availableCourses = filteredCourses.filter((course) => !course.enrolled);
   const completedCourses = filteredCourses.filter((course) => course.completed);
+
+  // Handle course request submission
+  const handleSubmitCourseRequest = async (e) => {
+    e.preventDefault();
+
+    if (!courseRequest.title.trim()) {
+      toast.error("Please enter a course title");
+      return;
+    }
+
+    if (!courseRequest.category) {
+      toast.error("Please select a category");
+      return;
+    }
+
+    if (!courseRequest.description.trim()) {
+      toast.error("Please enter a description");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Submit course request to backend
+      await apiService.requestCourse({
+        title: courseRequest.title.trim(),
+        category: courseRequest.category,
+        description: courseRequest.description.trim(),
+        email: user?.email || "",
+        name: user?.name || "",
+      });
+
+      toast.success("Course request submitted successfully!");
+
+      // Reset form
+      setCourseRequest({
+        title: "",
+        category: "",
+        description: "",
+      });
+
+      // Close dialog
+      setShowRequestDialog(false);
+    } catch (error) {
+      console.error("Error submitting course request:", error);
+      toast.error(
+        error.message || "Failed to submit course request. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle clear category filter
+  const handleClearCategoryFilter = () => {
+    setSelectedCategory(null);
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -170,7 +238,7 @@ export default function Training() {
             <TabsTrigger value="available">Available Courses</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
           </TabsList>
-          <Dialog>
+          <Dialog open={showRequestDialog} onOpenChange={setShowRequestDialog}>
             <DialogTrigger asChild>
               <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -185,41 +253,83 @@ export default function Training() {
                   platform
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="course-title">Course Title</Label>
-                  <Input
-                    id="course-title"
-                    placeholder="Enter the desired course title"
-                  />
+              <form onSubmit={handleSubmitCourseRequest}>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="course-title">Course Title *</Label>
+                    <Input
+                      id="course-title"
+                      placeholder="Enter the desired course title"
+                      value={courseRequest.title}
+                      onChange={(e) =>
+                        setCourseRequest({
+                          ...courseRequest,
+                          title: e.target.value,
+                        })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category *</Label>
+                    <Select
+                      value={courseRequest.category}
+                      onValueChange={(value) =>
+                        setCourseRequest({
+                          ...courseRequest,
+                          category: value,
+                        })
+                      }
+                      required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description *</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="Explain why this course would be beneficial"
+                      value={courseRequest.description}
+                      onChange={(e) =>
+                        setCourseRequest({
+                          ...courseRequest,
+                          description: e.target.value,
+                        })
+                      }
+                      required
+                      rows={4}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Explain why this course would be beneficial"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit">Submit Request</Button>
-              </DialogFooter>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowRequestDialog(false);
+                      setCourseRequest({
+                        title: "",
+                        category: "",
+                        description: "",
+                      });
+                    }}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Submitting..." : "Submit Request"}
+                  </Button>
+                </DialogFooter>
+              </form>
             </DialogContent>
           </Dialog>
         </div>
@@ -234,26 +344,50 @@ export default function Training() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Filter className="h-4 w-4" /> Filter by Category
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setSelectedCategory(null)}>
-                All Categories
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {categories.map((category) => (
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Filter className="h-4 w-4" />
+                  {selectedCategory ? selectedCategory : "Filter by Category"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}>
-                  {category}
+                  onClick={() => setSelectedCategory(null)}
+                  className={selectedCategory === null ? "bg-accent" : ""}>
+                  All Categories
+                  {selectedCategory === null && (
+                    <CheckCircle className="ml-2 h-4 w-4" />
+                  )}
                 </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuSeparator />
+                {categories.map((category) => (
+                  <DropdownMenuItem
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={
+                      selectedCategory === category ? "bg-accent" : ""
+                    }>
+                    {category}
+                    {selectedCategory === category && (
+                      <CheckCircle className="ml-2 h-4 w-4" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {selectedCategory && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={handleClearCategoryFilter}
+                title="Clear filter">
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Enrolled courses tab */}

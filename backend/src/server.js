@@ -24,6 +24,7 @@ import attendanceRouter from "./routes/attendance.js";
 import leavesRouter from "./routes/leaves.js";
 import payslipRouter from "./routes/payslip.js";
 import healthRouter from "./routes/health.js";
+import coursesRouter from "./routes/courses.js";
 
 const app = express();
 
@@ -77,6 +78,7 @@ app.use("/api/kyc", kycRouter);
 app.use("/api/attendance", attendanceRouter);
 app.use("/api/leaves", leavesRouter);
 app.use("/api/payslip", payslipRouter);
+app.use("/api/courses", coursesRouter);
 
 const PORT = process.env.PORT || 3001;
 

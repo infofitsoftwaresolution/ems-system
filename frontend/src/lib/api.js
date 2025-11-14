@@ -309,6 +309,14 @@ class ApiService {
       includeAuth: false,
     });
   }
+
+  // Course request endpoints
+  async requestCourse(courseData) {
+    return this.request('/api/courses/request', {
+      method: 'POST',
+      body: JSON.stringify(courseData),
+    });
+  }
 }
 
 // Create and export a singleton instance
