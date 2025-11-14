@@ -69,7 +69,7 @@ export function EnhancedDashboardLayout() {
     <div className="flex min-h-screen flex-col bg-background/90 overflow-x-hidden">
       <EnhancedHeader toggleSidebar={() => setIsCollapsed(!isCollapsed)} />
 
-      <div className="flex flex-1 relative">
+      <div className="flex flex-1 relative pt-16">
         <AnimatePresence>
           <motion.aside
             initial={false}
