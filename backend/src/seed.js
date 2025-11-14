@@ -6,6 +6,10 @@ import { Employee } from "./models/Employee.js";
 
 async function seed() {
   try {
+    // Sync database first to ensure tables exist
+    await sequelize.sync({ force: false });
+    console.log("Database synced successfully");
+    
     // Check if admin user already exists
     const existingAdmin = await User.findOne({ where: { email: "s24346379@gmail.com" } });
     
@@ -14,10 +18,6 @@ async function seed() {
       console.log("Database is already set up with data");
       process.exit(0);
     }
-    
-    // Only sync if no admin user exists (fresh installation)
-    await sequelize.sync({ force: false });
-    console.log("Database synced successfully");
     
     // Production Admin User
     const adminHash = await bcrypt.hash("rsamriddhi@6287", 10);

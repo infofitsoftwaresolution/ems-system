@@ -99,25 +99,61 @@ export default function Employees() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Load employees from API
-  useEffect(() => {
-    const loadEmployees = async () => {
-      try {
-        setLoading(true);
-        const data = await apiService.getEmployees();
-        setEmployees(data);
-      } catch (err) {
-        setError("Failed to load employees");
-        console.error("Error loading employees:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Edit Employee State
+  const [editingEmployee, setEditingEmployee] = useState(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
+  // Active Tab State
+  const [activeTab, setActiveTab] = useState("all");
+
+  // KYC Approval State
+  const [kycSubmissions, setKycSubmissions] = useState([]);
+
+  // Load employees from API
+  const loadEmployees = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await apiService.getEmployees();
+      setEmployees(data);
+    } catch (err) {
+      setError("Failed to load employees");
+      console.error("Error loading employees:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadEmployees();
+    loadKycSubmissions();
   }, []);
 
-  // Filter employees based on search query and filters
+  // Load KYC submissions for approval
+  const loadKycSubmissions = async () => {
+    try {
+      const data = await apiService.getKycSubmissions();
+      setKycSubmissions(data || []);
+    } catch (err) {
+      console.error("Error loading KYC submissions:", err);
+    }
+  };
+
+  // Handle KYC status update
+  const handleKycStatusUpdate = async (kycId, status) => {
+    try {
+      await apiService.updateKycStatus(kycId, status);
+      toast.success(`KYC status updated to ${status}`);
+      loadKycSubmissions();
+      loadEmployees(); // Refresh employees to update KYC status
+    } catch (err) {
+      console.error("Error updating KYC status:", err);
+      toast.error(`Failed to update KYC status: ${err.message}`);
+    }
+  };
+
+  // Filter employees based on search query, filters, and active tab
   const filteredEmployees = employees.filter((employee) => {
     const matchesSearch =
       searchQuery === "" ||
@@ -126,12 +162,22 @@ export default function Employees() {
       employee.position?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesDepartment =
-      selectedDepartment === null || employee.department === selectedDepartment;
+      selectedDepartment === null ||
+      employee.department === selectedDepartment ||
+      getDepartmentName(employee.department) ===
+        getDepartmentName(selectedDepartment);
 
     const matchesStatus =
       selectedStatus === null || employee.status === selectedStatus;
 
-    return matchesSearch && matchesDepartment && matchesStatus;
+    // Tab filtering
+    const matchesTab =
+      activeTab === "all" ||
+      (activeTab === "active" && employee.status === "active") ||
+      (activeTab === "inactive" && employee.status === "inactive") ||
+      (activeTab === "onLeave" && employee.status === "onLeave");
+
+    return matchesSearch && matchesDepartment && matchesStatus && matchesTab;
   });
 
   // Sort employees
@@ -208,6 +254,116 @@ export default function Employees() {
     setDeleteEmployeeName("");
   };
 
+  // Handle Edit Employee
+  const handleEditClick = (employee) => {
+    setEditingEmployee({
+      id: employee.id,
+      name: employee.name,
+      email: employee.email,
+      department: employee.department,
+      position: employee.position || "",
+      role: employee.role || "",
+      joinDate: employee.hireDate || "",
+      isActive: employee.status === "active",
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateEmployee = async () => {
+    if (!editingEmployee || !editingEmployee.name || !editingEmployee.email) {
+      toast.error("Please fill in required fields (Name and Email)");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const employeeData = {
+        name: editingEmployee.name,
+        email: editingEmployee.email,
+        position: editingEmployee.position,
+        department: editingEmployee.department,
+        role: editingEmployee.role,
+        hireDate: editingEmployee.joinDate,
+        status: editingEmployee.isActive ? "active" : "inactive",
+      };
+
+      const updatedEmployee = await apiService.updateEmployee(
+        editingEmployee.id,
+        employeeData
+      );
+
+      // Update the employee in the list
+      setEmployees(
+        employees.map((emp) =>
+          emp.id === editingEmployee.id ? updatedEmployee : emp
+        )
+      );
+
+      toast.success("Employee updated successfully!");
+      setShowEditDialog(false);
+      setEditingEmployee(null);
+    } catch (err) {
+      console.error("Error updating employee:", err);
+      toast.error(
+        `Failed to update employee: ${err.message || "Please try again."}`
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Handle Email Employee
+  const handleEmailClick = (employee) => {
+    window.location.href = `mailto:${employee.email}`;
+  };
+
+  // Handle Export to CSV
+  const handleExportCSV = () => {
+    const headers = [
+      "Name",
+      "Email",
+      "Department",
+      "Position",
+      "Role",
+      "Start Date",
+      "Status",
+    ];
+    const csvData = filteredEmployees.map((emp) => [
+      emp.name,
+      emp.email,
+      getDepartmentName(emp.department),
+      emp.position || "N/A",
+      emp.role || "N/A",
+      emp.hireDate ? new Date(emp.hireDate).toLocaleDateString() : "N/A",
+      emp.status || "N/A",
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...csvData.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `employees_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Employees exported to CSV successfully!");
+  };
+
+  // Handle Refresh
+  const handleRefresh = () => {
+    loadEmployees();
+    toast.success("Employees list refreshed!");
+  };
+
   // Handle sort
   const handleSort = (key) => {
     let direction = "asc";
@@ -227,13 +383,6 @@ export default function Employees() {
     // If it's an ID, look it up in the departments array
     const dept = departments.find((dept) => dept.id === department);
     return dept ? dept.name : "N/A";
-  };
-
-  // Get role name by id
-  const getRoleName = (id) => {
-    if (!id) return "employee";
-    const role = roles.find((r) => r.id === id);
-    return role ? role.name : "employee";
   };
 
   // Handle adding new employee
@@ -279,18 +428,20 @@ export default function Employees() {
       setShowAddEmployeeDialog(false);
     } catch (err) {
       console.error("Error adding employee:", err);
-      
+
       // Handle specific error cases
       let errorMessage = "Failed to add employee. Please try again.";
-      
+
       if (err.message && err.message.includes("already exists")) {
-        errorMessage = "An employee with this email already exists. Please use a different email address.";
+        errorMessage =
+          "An employee with this email already exists. Please use a different email address.";
       } else if (err.message && err.message.includes("DUPLICATE_EMAIL")) {
-        errorMessage = "An employee with this email already exists. Please use a different email address.";
+        errorMessage =
+          "An employee with this email already exists. Please use a different email address.";
       } else if (err.message) {
         errorMessage = `Failed to add employee: ${err.message}`;
       }
-      
+
       toast.error(errorMessage);
     } finally {
       setIsAddingEmployee(false);
@@ -344,7 +495,10 @@ export default function Employees() {
         </p>
       </div>
 
-      <Tabs defaultValue="all" className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-4">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <TabsList>
             <TabsTrigger value="all">All Employees</TabsTrigger>
@@ -353,9 +507,13 @@ export default function Employees() {
             <TabsTrigger value="inactive">Inactive</TabsTrigger>
           </TabsList>
           <div className="flex gap-2">
-            <Dialog open={showAddEmployeeDialog} onOpenChange={setShowAddEmployeeDialog}>
+            <Dialog
+              open={showAddEmployeeDialog}
+              onOpenChange={setShowAddEmployeeDialog}>
               <DialogTrigger asChild>
-                <Button className="gap-2" onClick={() => setShowAddEmployeeDialog(true)}>
+                <Button
+                  className="gap-2"
+                  onClick={() => setShowAddEmployeeDialog(true)}>
                   <UserPlus className="h-4 w-4" />
                   Add Employee
                 </Button>
@@ -509,6 +667,160 @@ export default function Employees() {
               </DialogContent>
             </Dialog>
 
+            {/* Edit Employee Dialog */}
+            <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+              <DialogContent className="sm:max-w-[625px]">
+                <DialogHeader>
+                  <DialogTitle>Edit Employee</DialogTitle>
+                  <DialogDescription>
+                    Update employee information in the system.
+                  </DialogDescription>
+                </DialogHeader>
+                {editingEmployee && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleUpdateEmployee();
+                    }}>
+                    <div className="grid grid-cols-2 gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-name">Full Name *</Label>
+                        <Input
+                          id="edit-name"
+                          placeholder="John Doe"
+                          value={editingEmployee.name}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              name: e.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-email">Email *</Label>
+                        <Input
+                          id="edit-email"
+                          type="email"
+                          placeholder="john.doe@company.com"
+                          value={editingEmployee.email}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              email: e.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-department">Department</Label>
+                        <Select
+                          value={editingEmployee.department}
+                          onValueChange={(value) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              department: value,
+                            })
+                          }>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departments.map((dept) => (
+                              <SelectItem key={dept.id} value={dept.id}>
+                                {dept.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-position">Position</Label>
+                        <Input
+                          id="edit-position"
+                          placeholder="Software Engineer"
+                          value={editingEmployee.position}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              position: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-role">Role</Label>
+                        <Select
+                          value={editingEmployee.role}
+                          onValueChange={(value) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              role: value,
+                            })
+                          }>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roles.map((role) => (
+                              <SelectItem key={role.id} value={role.id}>
+                                {role.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-join-date">Start Date</Label>
+                        <Input
+                          id="edit-join-date"
+                          type="date"
+                          value={editingEmployee.joinDate}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              joinDate: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="col-span-2 flex items-center space-x-2">
+                        <Switch
+                          id="edit-active"
+                          checked={editingEmployee.isActive}
+                          onCheckedChange={(checked) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              isActive: checked,
+                            })
+                          }
+                        />
+                        <Label htmlFor="edit-active">
+                          Employee is active and can access the system
+                        </Label>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setShowEditDialog(false);
+                          setEditingEmployee(null);
+                        }}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isUpdating}>
+                        {isUpdating ? "Updating..." : "Update Employee"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                )}
+              </DialogContent>
+            </Dialog>
+
             {/* Delete Employee Confirmation Dialog */}
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
               <DialogContent className="sm:max-w-[500px]">
@@ -569,10 +881,10 @@ export default function Employees() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem className="gap-2">
+                <DropdownMenuItem className="gap-2" onClick={handleExportCSV}>
                   <Download className="h-4 w-4" /> Export to CSV
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2">
+                <DropdownMenuItem className="gap-2" onClick={handleRefresh}>
                   <RefreshCcw className="h-4 w-4" /> Refresh
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -583,6 +895,83 @@ export default function Employees() {
             </DropdownMenu>
           </div>
         </div>
+
+        {/* KYC Approval Section */}
+        {kycSubmissions.filter((k) => k.status === "pending").length > 0 && (
+          <Card className="border-yellow-200 bg-yellow-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-yellow-600" />
+                Pending KYC Approvals (
+                {kycSubmissions.filter((k) => k.status === "pending").length})
+              </CardTitle>
+              <CardDescription>
+                Review and approve pending KYC submissions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {kycSubmissions
+                  .filter((k) => k.status === "pending")
+                  .slice(0, 5)
+                  .map((kyc) => (
+                    <div
+                      key={kyc.id}
+                      className="flex items-center justify-between p-3 bg-white rounded-lg border border-yellow-200">
+                      <div className="flex-1">
+                        <p className="font-medium">{kyc.fullName}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {kyc.employeeId} • Submitted{" "}
+                          {new Date(
+                            kyc.submittedAt || kyc.createdAt
+                          ).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            window.open(`/kyc-management`, "_blank")
+                          }>
+                          Review
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            handleKycStatusUpdate(kyc.id, "approved")
+                          }>
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() =>
+                            handleKycStatusUpdate(kyc.id, "rejected")
+                          }>
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                {kycSubmissions.filter((k) => k.status === "pending").length >
+                  5 && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => window.open(`/kyc-management`, "_blank")}>
+                    View All Pending KYC Submissions (
+                    {
+                      kycSubmissions.filter((k) => k.status === "pending")
+                        .length
+                    }
+                    )
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="px-6 py-4">
@@ -754,10 +1143,14 @@ export default function Employees() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem className="gap-2">
+                          <DropdownMenuItem
+                            className="gap-2"
+                            onClick={() => handleEditClick(employee)}>
                             <PencilLine className="h-4 w-4" /> Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2">
+                          <DropdownMenuItem
+                            className="gap-2"
+                            onClick={() => handleEmailClick(employee)}>
                             <MailIcon className="h-4 w-4" /> Email
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />

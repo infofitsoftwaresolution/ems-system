@@ -24,6 +24,7 @@ import attendanceRouter from "./routes/attendance.js";
 import leavesRouter from "./routes/leaves.js";
 import payslipRouter from "./routes/payslip.js";
 import healthRouter from "./routes/health.js";
+import coursesRouter from "./routes/courses.js";
 
 const app = express();
 
@@ -77,6 +78,7 @@ app.use("/api/kyc", kycRouter);
 app.use("/api/attendance", attendanceRouter);
 app.use("/api/leaves", leavesRouter);
 app.use("/api/payslip", payslipRouter);
+app.use("/api/courses", coursesRouter);
 
 const PORT = process.env.PORT || 3001;
 
@@ -85,8 +87,8 @@ async function start() {
     await sequelize.authenticate();
     // Setup model associations
     setupKycAssociations(Employee);
-    // Sync database schema - alter: true will add missing columns without dropping data
-    await sequelize.sync({ alter: true });
+    // Sync database schema - use force: false to avoid migration issues with SQLite
+    await sequelize.sync({ force: false });
     app.listen(PORT, () =>
       console.log(`Server listening on http://localhost:${PORT}`)
     );

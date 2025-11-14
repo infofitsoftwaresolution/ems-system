@@ -47,6 +47,7 @@ export default function AdminAttendance() {
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState("today");
   const [selectedAttendance, setSelectedAttendance] = useState(null);
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
 
   // Load attendance data
   useEffect(() => {
@@ -70,10 +71,23 @@ export default function AdminAttendance() {
     loadAttendanceData();
   }, [dateFilter]);
 
+  // Handle search
+  const handleSearch = () => {
+    setAppliedSearchTerm(searchTerm);
+  };
+
+  // Handle clear search
+  const handleClearSearch = () => {
+    setSearchTerm("");
+    setAppliedSearchTerm("");
+  };
+
   // Filter attendance data
   const filteredAttendance = attendanceData.filter(record => {
-    const matchesSearch = record.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!appliedSearchTerm) return true;
+    const matchesSearch = record.name?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+                         record.email?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+                         record.employeeId?.toLowerCase().includes(appliedSearchTerm.toLowerCase());
     return matchesSearch;
   });
 
@@ -187,16 +201,46 @@ export default function AdminAttendance() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="search">Search</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="search"
-                  placeholder="Search by name or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="search"
+                    placeholder="Search by name, email, or ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearch();
+                      }
+                    }}
+                    className="pl-10"
+                  />
+                </div>
+                <Button
+                  onClick={handleSearch}
+                  variant="default"
+                  className="px-4"
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Search
+                </Button>
+                {appliedSearchTerm && (
+                  <Button
+                    onClick={handleClearSearch}
+                    variant="outline"
+                    size="icon"
+                    title="Clear search"
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
+              {appliedSearchTerm && (
+                <p className="text-sm text-muted-foreground">
+                  Showing results for: <strong>{appliedSearchTerm}</strong>
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="dateFilter">Date Range</Label>

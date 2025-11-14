@@ -4,32 +4,51 @@ import { Payslip } from '../models/Payslip.js';
 import { Attendance } from '../models/Attendance.js';
 import { Leave } from '../models/Leave.js';
 import { Op } from 'sequelize';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
 // Generate payslip for an employee
-router.post('/generate', async (req, res) => {
+router.post('/generate', authenticateToken, async (req, res) => {
   try {
-    const { employeeId, month, year } = req.body;
+    let { employeeId, month, year } = req.body;
 
     if (!employeeId || !month || !year) {
       return res.status(400).json({ 
         message: 'Employee ID, month, and year are required' 
       });
     }
+
+    // Convert month and year to integers
+    month = parseInt(month, 10);
+    year = parseInt(year, 10);
+
+    if (isNaN(month) || month < 1 || month > 12) {
+      return res.status(400).json({ 
+        message: 'Invalid month. Month must be between 1 and 12' 
+      });
+    }
+
+    if (isNaN(year) || year < 2020 || year > 2030) {
+      return res.status(400).json({ 
+        message: 'Invalid year. Year must be between 2020 and 2030' 
+      });
+    }
     
-    // Find employee
+    // Find employee by employeeId (which is a STRING in Employee model)
     const employee = await Employee.findOne({
-      where: { employeeId: employeeId }
+      where: { employeeId: String(employeeId) }
     });
     if (!employee) {
       return res.status(404).json({ message: 'Employee not found' });
     }
     
     // Check if payslip already exists for this month/year
+    // Note: Payslip model stores employeeId as INTEGER, but we need to match by employeeId string
+    // We'll check by employeeId string converted to match the Payslip model
     const existingPayslip = await Payslip.findOne({
       where: { 
-        employeeId: employeeId,
+        employeeId: employee.id, // Use employee.id (INTEGER) for Payslip model
         month: month,
         year: year
       }
@@ -45,11 +64,15 @@ router.post('/generate', async (req, res) => {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
     
+    // Format dates for SQLite (YYYY-MM-DD)
+    const startDateStr = startDate.toISOString().slice(0, 10);
+    const endDateStr = endDate.toISOString().slice(0, 10);
+    
     const attendanceRecords = await Attendance.findAll({
       where: {
         email: employee.email,
         date: {
-          [Op.between]: [startDate, endDate]
+          [Op.between]: [startDateStr, endDateStr]
         }
       }
     });
@@ -65,7 +88,7 @@ router.post('/generate', async (req, res) => {
       where: {
         email: employee.email,
         startDate: {
-          [Op.between]: [startDate, endDate]
+          [Op.between]: [startDateStr, endDateStr]
         },
         status: 'approved'
       }
@@ -87,16 +110,17 @@ router.post('/generate', async (req, res) => {
     const netSalary = earnedSalary - leaveDeduction;
     
     // Create payslip
+    // Note: Payslip model expects employeeId as INTEGER, so we use employee.id
     const payslip = await Payslip.create({
-      employeeId: employee.employeeId,
+      employeeId: employee.id, // Use employee.id (INTEGER) instead of employee.employeeId (STRING)
       employeeName: employee.name,
       employeeEmail: employee.email,
       month: month,
       year: year,
-      basicSalary: basicSalary,
-      earnedSalary: earnedSalary,
-      leaveDeduction: leaveDeduction,
-      netSalary: netSalary,
+      basicSalary: parseFloat(basicSalary),
+      earnedSalary: parseFloat(earnedSalary),
+      leaveDeduction: parseFloat(leaveDeduction),
+      netSalary: parseFloat(netSalary),
       workingDays: workingDays,
       totalDays: totalDays,
       leaveDays: leaveDays,

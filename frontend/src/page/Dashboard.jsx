@@ -49,7 +49,6 @@ export default function Dashboard() {
   const [employees, setEmployees] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [kycData, setKycData] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState("week");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -61,8 +60,8 @@ export default function Dashboard() {
         // Fetch real data from API
         const [employeesData, attendanceData, kycData] = await Promise.all([
           apiService.getEmployees(),
-          apiService.getAllAttendance('all'),
-          apiService.getKycSubmissions()
+          apiService.getAllAttendance("all"),
+          apiService.getKycSubmissions(),
         ]);
 
         setEmployees(employeesData);
@@ -71,25 +70,37 @@ export default function Dashboard() {
 
         // Calculate real stats
         const totalEmployees = employeesData.length;
-        const activeEmployees = employeesData.filter(emp => emp.status === 'active').length;
-        const departmentsCount = new Set(employeesData.map(emp => emp.department)).size;
-        const newHires = employeesData.filter(emp => {
+        const activeEmployees = employeesData.filter(
+          (emp) => emp.status === "active"
+        ).length;
+        const departmentsCount = new Set(
+          employeesData.map((emp) => emp.department)
+        ).size;
+        const newHires = employeesData.filter((emp) => {
           const hireDate = new Date(emp.hireDate);
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
           return hireDate > thirtyDaysAgo;
         }).length;
-        
-        const approvedKyc = kycData.filter(kyc => kyc.status === 'approved').length;
-        const kycCompletionRate = totalEmployees > 0 ? Math.round((approvedKyc / totalEmployees) * 100) : 0;
-        
-        const todayAttendance = attendanceData.filter(att => {
+
+        const approvedKyc = kycData.filter(
+          (kyc) => kyc.status === "approved"
+        ).length;
+        const kycCompletionRate =
+          totalEmployees > 0
+            ? Math.round((approvedKyc / totalEmployees) * 100)
+            : 0;
+
+        const todayAttendance = attendanceData.filter((att) => {
           const attDate = new Date(att.date);
           const today = new Date();
           return attDate.toDateString() === today.toDateString();
         }).length;
-        
-        const attendanceRate = totalEmployees > 0 ? Math.round((todayAttendance / totalEmployees) * 100) : 0;
+
+        const attendanceRate =
+          totalEmployees > 0
+            ? Math.round((todayAttendance / totalEmployees) * 100)
+            : 0;
 
         setStats({
           totalEmployees,
@@ -105,14 +116,14 @@ export default function Dashboard() {
         const recentActivity = attendanceData
           .sort((a, b) => new Date(b.date) - new Date(a.date))
           .slice(0, 10)
-          .map(att => ({
+          .map((att) => ({
             id: att.id,
-            user: att.name || att.email.split('@')[0],
-            action: att.checkOut ? 'Checked out' : 'Checked in',
+            user: att.name || att.email.split("@")[0],
+            action: att.checkOut ? "Checked out" : "Checked in",
             timestamp: att.checkOut || att.checkIn,
-            type: 'attendance'
+            type: "attendance",
           }));
-        
+
         setActivity(recentActivity);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -128,17 +139,118 @@ export default function Dashboard() {
   // Calculate upcoming reviews count (placeholder for now)
   const upcomingEvents = [];
 
+  // Handle Download Report
+  const handleDownloadReport = () => {
+    const reportData = {
+      generatedAt: new Date().toISOString(),
+      stats: stats,
+      totalEmployees: employees.length,
+      activeEmployees: employees.filter((emp) => emp.status === "active")
+        .length,
+      departments: departmentData,
+      recentEmployees: employees.slice(0, 10).map((emp) => ({
+        name: emp.name,
+        email: emp.email,
+        department: emp.department,
+        status: emp.status,
+        hireDate: emp.hireDate,
+      })),
+      attendance: {
+        today: attendance.filter((att) => {
+          const attDate = new Date(att.date);
+          const today = new Date();
+          return attDate.toDateString() === today.toDateString();
+        }).length,
+        total: attendance.length,
+      },
+      kyc: {
+        total: kycData.length,
+        approved: kycData.filter((k) => k.status === "approved").length,
+        pending: kycData.filter((k) => k.status === "pending").length,
+        rejected: kycData.filter((k) => k.status === "rejected").length,
+      },
+    };
+
+    // Create CSV content
+    const csvRows = [
+      ["Dashboard Report", ""],
+      ["Generated At", reportData.generatedAt],
+      [""],
+      ["Key Metrics", ""],
+      ["Total Employees", reportData.stats?.totalEmployees || 0],
+      ["Active Employees", reportData.stats?.activeEmployees || 0],
+      ["Departments", reportData.stats?.departmentsCount || 0],
+      ["New Hires (Last 30 Days)", reportData.stats?.newHires || 0],
+      [
+        "Training Completion Rate",
+        `${reportData.stats?.trainingCompletionRate || 0}%`,
+      ],
+      [
+        "Employee Satisfaction Rate",
+        `${reportData.stats?.employeeSatisfactionRate || 0}%`,
+      ],
+      [""],
+      ["Attendance Summary", ""],
+      ["Today's Attendance", reportData.attendance.today],
+      ["Total Attendance Records", reportData.attendance.total],
+      [""],
+      ["KYC Summary", ""],
+      ["Total KYC Submissions", reportData.kyc.total],
+      ["Approved", reportData.kyc.approved],
+      ["Pending", reportData.kyc.pending],
+      ["Rejected", reportData.kyc.rejected],
+      [""],
+      ["Department Distribution", ""],
+      ...departmentData.map((dept) => [dept.name, dept.value]),
+      [""],
+      ["Recent Employees", ""],
+      ["Name", "Email", "Department", "Status", "Hire Date"],
+      ...reportData.recentEmployees.map((emp) => [
+        emp.name,
+        emp.email,
+        emp.department || "N/A",
+        emp.status || "N/A",
+        emp.hireDate ? new Date(emp.hireDate).toLocaleDateString() : "N/A",
+      ]),
+    ];
+
+    const csvContent = csvRows
+      .map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+      )
+      .join("\n");
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `dashboard-report-${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success("Dashboard report downloaded successfully!");
+  };
+
   // Department distribution data for pie chart
-  const departmentData = employees.length > 0 ? Object.entries(
-    employees.reduce((acc, emp) => {
-      const dept = emp.department || 'Unknown';
-      acc[dept] = (acc[dept] || 0) + 1;
-      return acc;
-    }, {})
-  ).map(([name, value]) => ({
-    name,
-    value,
-  })) : [];
+  const departmentData =
+    employees.length > 0
+      ? Object.entries(
+          employees.reduce((acc, emp) => {
+            const dept = emp.department || "Unknown";
+            acc[dept] = (acc[dept] || 0) + 1;
+            return acc;
+          }, {})
+        ).map(([name, value]) => ({
+          name,
+          value,
+        }))
+      : [];
 
   // Colors for the pie chart
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
@@ -388,7 +500,11 @@ export default function Dashboard() {
                   {employees.slice(0, 5).map((employee) => (
                     <div key={employee.id} className="flex items-center gap-4">
                       <Avatar>
-                        <AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(employee.name)}&background=random`} />
+                        <AvatarImage
+                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                            employee.name
+                          )}&background=random`}
+                        />
                         <AvatarFallback>
                           {employee.name
                             .split(" ")
@@ -509,7 +625,10 @@ export default function Dashboard() {
                       <ArrowUpRight className="h-4 w-4 text-green-500" />
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full gap-2">
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={handleDownloadReport}>
                     <Download className="h-4 w-4" />
                     Download Report
                   </Button>
