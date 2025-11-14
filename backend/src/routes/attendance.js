@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Attendance } from '../models/Attendance.js';
 import { Employee } from '../models/Employee.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { Op } from 'sequelize';
 
 const router = Router();
 
@@ -12,24 +13,32 @@ router.get('/', authenticateToken, async (req, res) => {
     let whereClause = {};
     
     if (filter === 'today') {
-      const today = new Date().toISOString().slice(0, 10);
-      whereClause.date = today;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().slice(0, 10);
+      whereClause.date = todayStr;
     } else if (filter === 'week') {
-      const startOfWeek = new Date();
-      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      // Get Monday of current week (0 = Sunday, 1 = Monday, etc.)
+      const day = startOfWeek.getDay();
+      const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+      startOfWeek.setDate(diff);
       startOfWeek.setHours(0, 0, 0, 0);
+      const startOfWeekStr = startOfWeek.toISOString().slice(0, 10);
       whereClause.date = {
-        [require('sequelize').Op.gte]: startOfWeek.toISOString().slice(0, 10)
+        [Op.gte]: startOfWeekStr
       };
     } else if (filter === 'month') {
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
+      const startOfMonthStr = startOfMonth.toISOString().slice(0, 10);
       whereClause.date = {
-        [require('sequelize').Op.gte]: startOfMonth.toISOString().slice(0, 10)
+        [Op.gte]: startOfMonthStr
       };
     }
-    // 'all' filter doesn't add any where clause
+    // 'all' filter doesn't add any where clause - returns all records
     
     const attendanceList = await Attendance.findAll({
       where: whereClause,
