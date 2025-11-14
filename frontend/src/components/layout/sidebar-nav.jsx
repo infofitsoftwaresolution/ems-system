@@ -14,6 +14,7 @@ import {
   ServerCog,
   Clock,
   FileText,
+  ShieldCheck,
   User as UserIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -65,30 +66,6 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
       );
     }
 
-    // Add common items for all users
-    baseItems.push(
-      {
-        title: "Tasks",
-        href: "/tasks",
-        icon: ClipboardList,
-      },
-      {
-        title: "Calendar",
-        href: "/calendar",
-        icon: Calendar,
-      },
-      {
-        title: "Messages",
-        href: "/messages",
-        icon: MessageSquare,
-      },
-      {
-        title: "Settings",
-        href: "/settings",
-        icon: Settings,
-      }
-    );
-
     // Add admin/manager specific items
     if (user?.role === 'admin' || user?.role === 'manager') {
       baseItems.splice(1, 0, 
@@ -130,13 +107,13 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
       );
     }
 
-    // Add admin-only items
+    // Add admin-only items (before common items for better visibility)
     if (user?.role === 'admin') {
       baseItems.push(
         {
           title: "KYC Management",
           href: "/kyc-management",
-          icon: FileText,
+          icon: ShieldCheck,
         },
         {
           title: "Administration",
@@ -145,6 +122,30 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
         }
       );
     }
+
+    // Add common items for all users
+    baseItems.push(
+      {
+        title: "Tasks",
+        href: "/tasks",
+        icon: ClipboardList,
+      },
+      {
+        title: "Calendar",
+        href: "/calendar",
+        icon: Calendar,
+      },
+      {
+        title: "Messages",
+        href: "/messages",
+        icon: MessageSquare,
+      },
+      {
+        title: "Settings",
+        href: "/settings",
+        icon: Settings,
+      }
+    );
 
     return baseItems;
   };
