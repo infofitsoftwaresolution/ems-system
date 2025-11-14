@@ -143,16 +143,29 @@ router.post('/generate', authenticateToken, async (req, res) => {
 });
 
 // Get all payslips for an employee
-router.get('/employee/:employeeId', async (req, res) => {
+router.get('/employee/:employeeId', authenticateToken, async (req, res) => {
   try {
     const { employeeId } = req.params;
     const { month, year } = req.query;
 
-    let whereClause = { employeeId: employeeId };
+    // Find employee by employeeId (string) to get the numeric ID
+    const employee = await Employee.findOne({
+      where: { employeeId: String(employeeId) }
+    });
+
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    // Build where clause using employee.id (INTEGER) for Payslip model
+    let whereClause = { employeeId: employee.id };
     
-    if (month && year) {
-      whereClause.month = month;
-      whereClause.year = year;
+    if (month) {
+      whereClause.month = parseInt(month, 10);
+    }
+    
+    if (year) {
+      whereClause.year = parseInt(year, 10);
     }
 
     const payslips = await Payslip.findAll({

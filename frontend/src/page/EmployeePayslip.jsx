@@ -23,23 +23,35 @@ export default function EmployeePayslip() {
   }, [user, selectedYear]);
 
   const fetchPayslips = async () => {
-      try {
-        setLoading(true);
+    try {
+      setLoading(true);
       // Find employee by email
       const employees = await apiService.getEmployees();
       const employee = employees.find(emp => emp.email === user.email);
       
-      if (employee) {
-        const response = await apiService.getEmployeePayslips(employee.employeeId, null, selectedYear);
-        setPayslips(response);
+      if (!employee) {
+        toast.error("Employee record not found. Please contact HR.");
+        setPayslips([]);
+        return;
       }
+      
+      if (!employee.employeeId) {
+        toast.error("Employee ID not found. Please contact HR.");
+        setPayslips([]);
+        return;
+      }
+      
+      const response = await apiService.getEmployeePayslips(employee.employeeId, null, selectedYear);
+      setPayslips(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error("Error fetching payslips:", error);
-      toast.error("Failed to fetch payslips");
-      } finally {
-        setLoading(false);
-      }
-    };
+      const errorMessage = error.message || "Failed to fetch payslips";
+      toast.error(errorMessage);
+      setPayslips([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDownloadPayslip = async (payslipId) => {
     try {
@@ -145,10 +157,12 @@ export default function EmployeePayslip() {
       <Card>
           <CardContent className="text-center py-12">
             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No payslips found</h3>
-            <p className="text-muted-foreground">
-              No payslips have been generated for you for {selectedYear}. 
-              Contact HR if you believe this is an error.
+            <h3 className="text-lg font-semibold mb-2">No payslips available</h3>
+            <p className="text-muted-foreground mb-2">
+              No payslips have been generated for you for the year {selectedYear}.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Payslips are typically generated monthly by HR. If you believe this is an error, please contact HR.
             </p>
           </CardContent>
         </Card>

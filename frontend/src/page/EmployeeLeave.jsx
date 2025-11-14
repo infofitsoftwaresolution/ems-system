@@ -47,9 +47,25 @@ export default function EmployeeLeave() {
         // Check KYC status first
         if (user?.email) {
           const kycInfo = await apiService.getKycStatus(user.email);
-          setKycStatus(kycInfo.status);
           
-          if (kycInfo.status === 'approved') {
+          // IMPORTANT: Only use the status from KYC request, not from Employee model
+          // The status must be explicitly 'approved' from the KYC review process
+          let kycStatusValue = kycInfo.status;
+          
+          // Handle edge cases
+          if (!kycStatusValue || (kycStatusValue === 'pending' && kycInfo.message === 'No KYC request found')) {
+            kycStatusValue = 'not_submitted';
+          }
+          
+          // Ensure we're using the actual KYC request status
+          if (kycStatusValue !== 'approved' && kycStatusValue !== 'rejected' && kycStatusValue !== 'pending' && kycStatusValue !== 'not_submitted') {
+            console.warn('Unexpected KYC status:', kycStatusValue, 'Defaulting to not_submitted');
+            kycStatusValue = 'not_submitted';
+          }
+          
+          setKycStatus(kycStatusValue);
+          
+          if (kycStatusValue === 'approved') {
             // Load leaves data - only for current user
             const leavesData = await apiService.getLeaves(user.email);
             setLeaves(leavesData);
@@ -101,7 +117,8 @@ export default function EmployeeLeave() {
       const leavesData = await apiService.getLeaves(user.email);
       setLeaves(leavesData);
     } catch (err) {
-      toast.error('Failed to submit leave application');
+      const errorMessage = err.message || 'Failed to submit leave application';
+      toast.error(errorMessage);
       console.error('Leave submission error:', err);
     }
   };
@@ -291,9 +308,9 @@ export default function EmployeeLeave() {
           ) : (
             <div className="text-center py-8">
               <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No leave applications yet</p>
+              <p className="text-gray-600 font-medium">No leave applications yet</p>
               <p className="text-sm text-gray-500 mt-2">
-                Submit your first leave application using the button above
+                You haven't submitted any leave applications. Click "Apply for Leave" above to submit your first application.
               </p>
             </div>
           )}

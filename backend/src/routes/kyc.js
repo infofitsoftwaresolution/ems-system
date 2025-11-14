@@ -293,14 +293,22 @@ router.get('/', async (req, res) => {
         employeeId: kycRequest.employeeId
       });
       
-      return res.json({ 
+      // Return KYC data including document numbers
+      const kycData = {
         status: kycRequest.status,
         message: `KYC status: ${kycRequest.status}`,
         kycId: kycRequest.id,
         submittedAt: kycRequest.submittedAt,
         reviewedAt: kycRequest.reviewedAt,
-        remarks: kycRequest.remarks
-      });
+        remarks: kycRequest.remarks,
+        panNumber: kycRequest.panNumber || null,
+        aadharNumber: kycRequest.documentNumber || kycRequest.aadharNumber || null,
+        address: kycRequest.address || null,
+        phoneNumber: kycRequest.phoneNumber || null,
+        dob: kycRequest.dob || null
+      };
+      
+      return res.json(kycData);
     }
     
     // Otherwise, return all KYC requests (for admin/manager)
