@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -17,7 +17,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import {
   Select,
   SelectContent,
@@ -49,19 +48,26 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { format, addMonths, subMonths, parseISO, addDays } from "date-fns";
-import { events, users } from "@/lib/data";
+import { apiService } from "@/lib/api";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 // TypeScript types removed - using JSDoc for type hints
 import { Badge } from "@/components/ui/badge";
-import { motion, AnimatePresence } from "framer-motion";
+// eslint-disable-next-line no-unused-vars
+import { AnimatePresence, motion } from "framer-motion";
 import { EnhancedParticleBackground } from "@/components/ui/enhanced-particle-background";
 import { AnimatedGradientBackground } from "@/components/ui/animated-gradient-background";
+import { Loader2 } from "lucide-react";
 
 export default function EnhancedCalendar() {
+  const { user } = useAuth();
   const [date, setDate] = useState(new Date());
   const [month, setMonth] = useState(new Date());
   const [viewType, setViewType] = useState("month");
-  const [allEvents, setAllEvents] = useState(events);
-  const [filteredEvents, setFilteredEvents] = useState(events);
+  const [allEvents, setAllEvents] = useState([]);
+  const [filteredEvents, setFilteredEvents] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [newEvent, setNewEvent] = useState({
     title: "",
@@ -77,6 +83,27 @@ export default function EnhancedCalendar() {
   const [isViewEventDialogOpen, setIsViewEventDialogOpen] = useState(false);
   const [hoveredEvent, setHoveredEvent] = useState(null);
   const [animationKey, setAnimationKey] = useState(0);
+
+  // Load events on mount
+  useEffect(() => {
+    const loadEvents = async () => {
+      try {
+        setIsInitialLoading(true);
+        const eventsData = await apiService.getEvents();
+        setAllEvents(eventsData);
+        setFilteredEvents(eventsData);
+      } catch (error) {
+        console.error("Error loading events:", error);
+        toast.error("Failed to load events");
+        setAllEvents([]);
+        setFilteredEvents([]);
+      } finally {
+        setIsInitialLoading(false);
+      }
+    };
+
+    loadEvents();
+  }, []);
 
   // Filter events based on selected type
   useEffect(() => {
@@ -108,29 +135,61 @@ export default function EnhancedCalendar() {
   };
 
   // Helper function to handle event creation
-  const handleCreateEvent = () => {
-    const newEventWithId = {
-      id: `e${allEvents.length + 1}`,
-      ...newEvent,
-    };
-    setAllEvents([...allEvents, newEventWithId]);
-    setIsAddEventDialogOpen(false);
-    // Reset form
-    setNewEvent({
-      title: "",
-      description: "",
-      type: "meeting",
-      start: new Date().toISOString(),
-      end: addDays(new Date(), 1).toISOString(),
-      allDay: false,
-      attendees: [],
-    });
+  const handleCreateEvent = async () => {
+    if (!newEvent.title.trim()) {
+      toast.error("Please enter an event title");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const createdEvent = await apiService.createEvent({
+        title: newEvent.title,
+        description: newEvent.description,
+        type: newEvent.type,
+        start: newEvent.start,
+        end: newEvent.end,
+        allDay: newEvent.allDay,
+        attendees: newEvent.attendees,
+        createdByEmail: user?.email || "",
+      });
+
+      setAllEvents([...allEvents, createdEvent]);
+      setIsAddEventDialogOpen(false);
+      toast.success("Event created successfully");
+
+      // Reset form
+      setNewEvent({
+        title: "",
+        description: "",
+        type: "meeting",
+        start: new Date().toISOString(),
+        end: addDays(new Date(), 1).toISOString(),
+        allDay: false,
+        attendees: [],
+      });
+    } catch (error) {
+      console.error("Error creating event:", error);
+      toast.error(error.message || "Failed to create event");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Helper function to delete event
-  const handleDeleteEvent = (id) => {
-    setAllEvents(allEvents.filter((event) => event.id !== id));
-    setIsViewEventDialogOpen(false);
+  const handleDeleteEvent = async (id) => {
+    setIsLoading(true);
+    try {
+      await apiService.deleteEvent(id);
+      setAllEvents(allEvents.filter((event) => event.id !== id));
+      setIsViewEventDialogOpen(false);
+      toast.success("Event deleted successfully");
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      toast.error(error.message || "Failed to delete event");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Get event color based on type with enhanced styling
@@ -149,36 +208,69 @@ export default function EnhancedCalendar() {
     }
   };
 
+  // Helper function to safely format dates
+  const safeFormatDate = (dateString, formatString) => {
+    if (!dateString) return "N/A";
+    try {
+      const date = parseISO(dateString);
+      if (isNaN(date.getTime())) return "Invalid date";
+      return format(date, formatString);
+    } catch (error) {
+      console.error("Error formatting date:", error, dateString);
+      return "Invalid date";
+    }
+  };
+
   // Get events for the current month view
   const getMonthViewEvents = () => {
     return filteredEvents.filter((event) => {
-      const eventStart = parseISO(event.start);
-      const firstDayOfMonth = new Date(
-        month.getFullYear(),
-        month.getMonth(),
-        1
-      );
-      const lastDayOfMonth = new Date(
-        month.getFullYear(),
-        month.getMonth() + 1,
-        0,
-        23,
-        59,
-        59
-      );
-      return eventStart >= firstDayOfMonth && eventStart <= lastDayOfMonth;
+      if (!event || !event.start) return false;
+      try {
+        const eventStart = parseISO(event.start);
+        if (isNaN(eventStart.getTime())) return false;
+
+        const firstDayOfMonth = new Date(
+          month.getFullYear(),
+          month.getMonth(),
+          1
+        );
+        const lastDayOfMonth = new Date(
+          month.getFullYear(),
+          month.getMonth() + 1,
+          0,
+          23,
+          59,
+          59
+        );
+        return eventStart >= firstDayOfMonth && eventStart <= lastDayOfMonth;
+      } catch (error) {
+        console.error("Error parsing event start date:", error, event);
+        return false;
+      }
     });
   };
 
   // Get events for the current day
   const getDayEvents = (day) => {
+    if (!day || !(day instanceof Date) || isNaN(day.getTime())) {
+      return [];
+    }
+
     return filteredEvents.filter((event) => {
-      const eventStart = parseISO(event.start);
-      return (
-        eventStart.getDate() === day.getDate() &&
-        eventStart.getMonth() === day.getMonth() &&
-        eventStart.getFullYear() === day.getFullYear()
-      );
+      if (!event || !event.start) return false;
+      try {
+        const eventStart = parseISO(event.start);
+        if (isNaN(eventStart.getTime())) return false;
+
+        return (
+          eventStart.getDate() === day.getDate() &&
+          eventStart.getMonth() === day.getMonth() &&
+          eventStart.getFullYear() === day.getFullYear()
+        );
+      } catch (error) {
+        console.error("Error parsing event start date:", error, event);
+        return false;
+      }
     });
   };
 
@@ -232,6 +324,27 @@ export default function EnhancedCalendar() {
       transition: { duration: 0.2 },
     },
   };
+
+  if (isInitialLoading) {
+    return (
+      <div className="relative flex flex-col gap-6 min-h-screen">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
+            Interactive Calendar
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Manage your schedule with style and elegance ✨
+          </p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
+            <p className="text-muted-foreground">Loading calendar...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex flex-col gap-6 min-h-screen">
@@ -534,8 +647,16 @@ export default function EnhancedCalendar() {
                   </Button>
                   <Button
                     onClick={handleCreateEvent}
+                    disabled={isLoading || !newEvent.title.trim()}
                     className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
-                    Save Event
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+                        Creating...
+                      </>
+                    ) : (
+                      "Save Event"
+                    )}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -597,96 +718,176 @@ export default function EnhancedCalendar() {
                       </Button>
                     </motion.div>
                   </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="mt-4">
-                      <CalendarComponent
-                        mode="single"
-                        month={month}
-                        selected={date}
-                        onSelect={(newDate) => newDate && setDate(newDate)}
-                        className="rounded-md border-0"
-                        modifiersClassNames={{
-                          selected:
-                            "bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700",
-                        }}
-                        modifiersStyles={{
-                          selected: { fontWeight: "bold" },
-                        }}
-                        styles={{
-                          day: {
-                            height: "120px",
-                          },
-                        }}
-                        components={{
-                          Day: ({ date, ...props }) => {
-                            const dayEvents = getDayEvents(date);
-                            const isToday =
-                              format(date, "yyyy-MM-dd") ===
-                              format(new Date(), "yyyy-MM-dd");
-                            return (
-                              <motion.div
-                                {...props}
-                                className={`relative h-full p-2 rounded-lg transition-all duration-300 ${
-                                  isToday
-                                    ? "bg-gradient-to-br from-blue-100 to-purple-100 shadow-lg"
-                                    : "hover:bg-gradient-to-br hover:from-blue-50 hover:to-purple-50"
-                                }`}
-                                whileHover={{ scale: 1.02 }}
-                                transition={{ duration: 0.2 }}>
-                                <div
-                                  className={`text-sm font-medium ${
-                                    isToday ? "text-blue-700" : ""
-                                  }`}>
-                                  {format(date, "d")}
-                                </div>
-                                <div className="mt-1 overflow-y-auto max-h-[80px] space-y-1">
-                                  <AnimatePresence>
-                                    {dayEvents.slice(0, 3).map((event) => (
-                                      <motion.div
-                                        key={event.id}
-                                        variants={eventVariants}
-                                        initial="hidden"
-                                        animate="visible"
-                                        exit="hidden"
-                                        whileHover="hover"
-                                        className={`text-[10px] truncate py-1 px-2 rounded-full cursor-pointer shadow-sm ${getEventColor(
-                                          event.type
-                                        )} flex items-center gap-1`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedEvent(event);
-                                          setIsViewEventDialogOpen(true);
-                                        }}
-                                        onMouseEnter={() =>
-                                          setHoveredEvent(event.id)
-                                        }
-                                        onMouseLeave={() =>
-                                          setHoveredEvent(null)
-                                        }>
-                                        {getEventTypeIcon(event.type)}
-                                        <span className="flex-1">
-                                          {event.title}
-                                        </span>
-                                      </motion.div>
-                                    ))}
-                                  </AnimatePresence>
-                                  {dayEvents.length > 3 && (
-                                    <motion.div
-                                      className="text-[10px] text-gray-500 font-medium"
-                                      animate={{ opacity: [0.5, 1, 0.5] }}
-                                      transition={{
-                                        duration: 2,
-                                        repeat: Infinity,
-                                      }}>
-                                      +{dayEvents.length - 3} more ✨
-                                    </motion.div>
-                                  )}
-                                </div>
-                              </motion.div>
-                            );
-                          },
-                        }}
-                      />
+                  <CardContent className="pt-0 px-6 pb-6">
+                    <div className="mt-4 w-full">
+                      <div className="border rounded-lg overflow-hidden bg-background shadow-sm">
+                        {/* Custom Calendar Grid */}
+                        {(() => {
+                          const startOfMonth = new Date(
+                            month.getFullYear(),
+                            month.getMonth(),
+                            1
+                          );
+                          const endOfMonth = new Date(
+                            month.getFullYear(),
+                            month.getMonth() + 1,
+                            0
+                          );
+                          const startDate = new Date(startOfMonth);
+                          startDate.setDate(
+                            startDate.getDate() - startDate.getDay()
+                          );
+                          const endDate = new Date(endOfMonth);
+                          endDate.setDate(
+                            endDate.getDate() + (6 - endDate.getDay())
+                          );
+
+                          const days = [];
+                          const currentDate = new Date(startDate);
+                          while (currentDate <= endDate) {
+                            days.push(new Date(currentDate));
+                            currentDate.setDate(currentDate.getDate() + 1);
+                          }
+
+                          const weeks = [];
+                          for (let i = 0; i < days.length; i += 7) {
+                            weeks.push(days.slice(i, i + 7));
+                          }
+
+                          return (
+                            <table className="w-full border-collapse table-fixed">
+                              <thead>
+                                <tr className="border-b-2 border-border bg-muted/30">
+                                  {[
+                                    "Sun",
+                                    "Mon",
+                                    "Tue",
+                                    "Wed",
+                                    "Thu",
+                                    "Fri",
+                                    "Sat",
+                                  ].map((day) => (
+                                    <th
+                                      key={day}
+                                      className="text-center text-sm font-semibold text-muted-foreground py-3 px-2 border-r border-border last:border-r-0 w-[14.28%] uppercase tracking-wider"
+                                      scope="col">
+                                      {day}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {weeks.map((week, weekIndex) => (
+                                  <tr
+                                    key={weekIndex}
+                                    className="border-b border-border/50 last:border-b-0 hover:bg-muted/10 transition-colors">
+                                    {week.map((day, dayIndex) => {
+                                      const dayEvents = getDayEvents(day);
+                                      const isToday =
+                                        format(day, "yyyy-MM-dd") ===
+                                        format(new Date(), "yyyy-MM-dd");
+                                      const isCurrentMonth =
+                                        day.getMonth() === month.getMonth();
+                                      const isSelected =
+                                        format(day, "yyyy-MM-dd") ===
+                                        format(date, "yyyy-MM-dd");
+
+                                      return (
+                                        <td
+                                          key={dayIndex}
+                                          className="h-[120px] p-0 relative border-r border-border/50 last:border-r-0 align-top w-[14.28%] bg-background hover:bg-muted/10 transition-colors">
+                                          <button
+                                            type="button"
+                                            onClick={() => setDate(day)}
+                                            className={`relative h-full w-full p-2.5 rounded-md transition-all duration-200 text-left flex flex-col items-start justify-start ${
+                                              isSelected
+                                                ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg"
+                                                : isToday
+                                                ? "bg-gradient-to-br from-blue-100 to-purple-100 shadow-md ring-2 ring-primary/20"
+                                                : "hover:bg-gradient-to-br hover:from-blue-50 hover:to-purple-50"
+                                            } ${
+                                              !isCurrentMonth
+                                                ? "opacity-40"
+                                                : ""
+                                            }`}>
+                                            {/* Date number */}
+                                            <div
+                                              className={`text-xl font-bold mb-2 w-full text-left ${
+                                                isSelected
+                                                  ? "text-white"
+                                                  : isToday
+                                                  ? "text-blue-700"
+                                                  : "text-foreground"
+                                              }`}>
+                                              {format(day, "d")}
+                                            </div>
+                                            {/* Events */}
+                                            <div className="w-full flex-1 overflow-y-auto max-h-[80px] space-y-1.5">
+                                              <AnimatePresence>
+                                                {dayEvents
+                                                  .slice(0, 3)
+                                                  .map((event) => (
+                                                    <motion.div
+                                                      key={event.id}
+                                                      variants={eventVariants}
+                                                      initial="hidden"
+                                                      animate="visible"
+                                                      exit="hidden"
+                                                      whileHover="hover"
+                                                      className={`text-[10px] truncate py-1 px-2 rounded-full cursor-pointer shadow-sm ${getEventColor(
+                                                        event.type
+                                                      )} flex items-center gap-1 w-full`}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        e.preventDefault();
+                                                        setSelectedEvent(event);
+                                                        setIsViewEventDialogOpen(
+                                                          true
+                                                        );
+                                                      }}
+                                                      onMouseEnter={() =>
+                                                        setHoveredEvent(
+                                                          event.id
+                                                        )
+                                                      }
+                                                      onMouseLeave={() =>
+                                                        setHoveredEvent(null)
+                                                      }>
+                                                      {getEventTypeIcon(
+                                                        event.type
+                                                      )}
+                                                      <span className="flex-1">
+                                                        {event.title}
+                                                      </span>
+                                                    </motion.div>
+                                                  ))}
+                                              </AnimatePresence>
+                                              {dayEvents.length > 3 && (
+                                                <motion.div
+                                                  className="text-[10px] text-gray-500 font-medium"
+                                                  animate={{
+                                                    opacity: [0.5, 1, 0.5],
+                                                  }}
+                                                  transition={{
+                                                    duration: 2,
+                                                    repeat: Infinity,
+                                                  }}>
+                                                  +{dayEvents.length - 3} more
+                                                  ✨
+                                                </motion.div>
+                                              )}
+                                            </div>
+                                          </button>
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </CardContent>
                 </>
@@ -735,11 +936,17 @@ export default function EnhancedCalendar() {
                       ) : (
                         <AnimatePresence>
                           {getMonthViewEvents()
-                            .sort(
-                              (a, b) =>
-                                new Date(a.start).getTime() -
-                                new Date(b.start).getTime()
-                            )
+                            .filter((event) => event && event.start)
+                            .sort((a, b) => {
+                              try {
+                                const aTime = new Date(a.start).getTime();
+                                const bTime = new Date(b.start).getTime();
+                                if (isNaN(aTime) || isNaN(bTime)) return 0;
+                                return aTime - bTime;
+                              } catch {
+                                return 0;
+                              }
+                            })
                             .map((event, index) => (
                               <motion.div
                                 key={event.id}
@@ -784,8 +991,8 @@ export default function EnhancedCalendar() {
                                         <div className="flex items-center gap-2">
                                           <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                                           <span className="font-medium">
-                                            {format(
-                                              parseISO(event.start),
+                                            {safeFormatDate(
+                                              event.start,
                                               "MMM dd, yyyy"
                                             )}
                                           </span>
@@ -793,8 +1000,8 @@ export default function EnhancedCalendar() {
                                         <div className="flex items-center gap-2">
                                           <Clock className="h-4 w-4 text-muted-foreground" />
                                           <span>
-                                            {format(
-                                              parseISO(event.start),
+                                            {safeFormatDate(
+                                              event.start,
                                               "hh:mm a"
                                             )}
                                           </span>
@@ -906,11 +1113,17 @@ export default function EnhancedCalendar() {
                       ) : (
                         <AnimatePresence>
                           {getDayEvents(date)
-                            .sort(
-                              (a, b) =>
-                                new Date(a.start).getTime() -
-                                new Date(b.start).getTime()
-                            )
+                            .filter((event) => event && event.start)
+                            .sort((a, b) => {
+                              try {
+                                const aTime = new Date(a.start).getTime();
+                                const bTime = new Date(b.start).getTime();
+                                if (isNaN(aTime) || isNaN(bTime)) return 0;
+                                return aTime - bTime;
+                              } catch {
+                                return 0;
+                              }
+                            })
                             .map((event, index) => (
                               <motion.div
                                 key={event.id}
@@ -943,8 +1156,8 @@ export default function EnhancedCalendar() {
                                 <div className="flex items-center gap-2 text-sm mt-3">
                                   <Clock className="h-4 w-4" />
                                   <span className="font-medium">
-                                    {format(parseISO(event.start), "hh:mm a")} -{" "}
-                                    {format(parseISO(event.end), "hh:mm a")}
+                                    {safeFormatDate(event.start, "hh:mm a")} -{" "}
+                                    {safeFormatDate(event.end, "hh:mm a")}
                                   </span>
                                 </div>
                                 {event.description && (
@@ -993,8 +1206,8 @@ export default function EnhancedCalendar() {
                     <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50">
                       <CalendarIcon className="h-5 w-5 text-blue-500" />
                       <span className="font-medium">
-                        {format(
-                          parseISO(selectedEvent.start),
+                        {safeFormatDate(
+                          selectedEvent.start,
                           "EEEE, MMMM dd, yyyy"
                         )}
                       </span>
@@ -1002,8 +1215,8 @@ export default function EnhancedCalendar() {
                     <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50">
                       <Clock className="h-5 w-5 text-green-500" />
                       <span className="font-medium">
-                        {format(parseISO(selectedEvent.start), "h:mm a")} -{" "}
-                        {format(parseISO(selectedEvent.end), "h:mm a")}
+                        {safeFormatDate(selectedEvent.start, "h:mm a")} -{" "}
+                        {safeFormatDate(selectedEvent.end, "h:mm a")}
                       </span>
                     </div>
                     {selectedEvent.description && (
@@ -1025,20 +1238,28 @@ export default function EnhancedCalendar() {
                             Attendees
                           </h4>
                           <div className="flex flex-wrap gap-2">
-                            {selectedEvent.attendees.map((attendeeId) => {
-                              const attendee = users.find(
-                                (u) => u.id === attendeeId
-                              );
-                              return (
-                                <Badge
-                                  key={attendeeId}
-                                  variant="secondary"
-                                  className="flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  {attendee ? attendee.name : "Unknown"}
-                                </Badge>
-                              );
-                            })}
+                            {Array.isArray(selectedEvent.attendees) ? (
+                              selectedEvent.attendees.map(
+                                (attendeeId, index) => (
+                                  <Badge
+                                    key={attendeeId || index}
+                                    variant="secondary"
+                                    className="flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    {typeof attendeeId === "string"
+                                      ? attendeeId
+                                      : "Unknown"}
+                                  </Badge>
+                                )
+                              )
+                            ) : (
+                              <Badge
+                                variant="secondary"
+                                className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {selectedEvent.attendees || "Unknown"}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       )}
