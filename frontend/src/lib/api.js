@@ -317,6 +317,41 @@ class ApiService {
       body: JSON.stringify(courseData),
     });
   }
+
+  // Task endpoints
+  async getTasks(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.status) params.append('status', filters.status);
+    if (filters.priority) params.append('priority', filters.priority);
+    if (filters.assigneeId) params.append('assigneeId', filters.assigneeId);
+    
+    const queryString = params.toString();
+    return this.request(`/api/tasks${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getTask(id) {
+    return this.request(`/api/tasks/${id}`);
+  }
+
+  async createTask(taskData) {
+    return this.request('/api/tasks', {
+      method: 'POST',
+      body: JSON.stringify(taskData),
+    });
+  }
+
+  async updateTask(id, taskData) {
+    return this.request(`/api/tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(taskData),
+    });
+  }
+
+  async deleteTask(id) {
+    return this.request(`/api/tasks/${id}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 // Create and export a singleton instance

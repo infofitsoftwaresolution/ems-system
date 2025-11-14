@@ -16,6 +16,7 @@ import { setupKycAssociations } from "./models/Kyc.js";
 import "./models/Attendance.js";
 import "./models/Leave.js";
 import "./models/Payslip.js";
+import "./models/Task.js";
 import authRouter from "./routes/auth.js";
 import employeesRouter from "./routes/employees.js";
 import usersRouter from "./routes/users.js";
@@ -25,6 +26,7 @@ import leavesRouter from "./routes/leaves.js";
 import payslipRouter from "./routes/payslip.js";
 import healthRouter from "./routes/health.js";
 import coursesRouter from "./routes/courses.js";
+import tasksRouter from "./routes/tasks.js";
 
 const app = express();
 
@@ -79,6 +81,7 @@ app.use("/api/attendance", attendanceRouter);
 app.use("/api/leaves", leavesRouter);
 app.use("/api/payslip", payslipRouter);
 app.use("/api/courses", coursesRouter);
+app.use("/api/tasks", tasksRouter);
 
 const PORT = process.env.PORT || 3001;
 
