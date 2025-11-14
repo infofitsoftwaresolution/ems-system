@@ -64,7 +64,8 @@ import { format, parseISO, isAfter, isBefore, addDays } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
-import { users } from "@/lib/data";
+import { apiService } from "@/lib/api";
+import { toast } from "sonner";
 
 /**
  * @typedef {"todo" | "in-progress" | "review" | "completed"} TaskStatus
@@ -87,67 +88,11 @@ import { users } from "@/lib/data";
  * @property {string} [completedAt] - Completion date
  */
 
-// Demo tasks
-const initialTasks = [
-  {
-    id: "task-1",
-    title: "Implement login functionality",
-    description:
-      "Create login form and authentication logic for the new employee portal",
-    status: "completed",
-    priority: "high",
-    createdAt: "2023-07-15T10:00:00Z",
-    dueDate: "2023-07-20T16:00:00Z",
-    assigneeId: "u1",
-    completedAt: "2023-07-19T14:30:00Z",
-  },
-  {
-    id: "task-2",
-    title: "Design onboarding flow",
-    description:
-      "Create wireframes and mockups for the new employee onboarding process",
-    status: "in-progress",
-    priority: "medium",
-    createdAt: "2023-07-16T09:30:00Z",
-    dueDate: "2023-07-25T16:00:00Z",
-    assigneeId: "u2",
-  },
-  {
-    id: "task-3",
-    title: "Prepare Q3 HR report",
-    description: "Compile data and prepare quarterly report for executive team",
-    status: "review",
-    priority: "high",
-    createdAt: "2023-07-10T11:20:00Z",
-    dueDate: "2023-07-22T16:00:00Z",
-    assigneeId: "u3",
-  },
-  {
-    id: "task-4",
-    title: "Update employee handbook",
-    description: "Review and update employee handbook with new policies",
-    status: "todo",
-    priority: "low",
-    createdAt: "2023-07-17T14:00:00Z",
-    dueDate: "2023-08-05T16:00:00Z",
-    assigneeId: "u4",
-  },
-  {
-    id: "task-5",
-    title: "Schedule team building activity",
-    description: "Research and schedule Q3 team building event",
-    status: "todo",
-    priority: "medium",
-    createdAt: "2023-07-18T09:15:00Z",
-    dueDate: "2023-07-28T16:00:00Z",
-    assigneeId: "u5",
-  },
-];
-
 export default function Tasks() {
   const { user } = useAuth();
-  const [tasks, setTasks] = useState(initialTasks);
-  const [filteredTasks, setFilteredTasks] = useState(initialTasks);
+  const [tasks, setTasks] = useState([]);
+  const [filteredTasks, setFilteredTasks] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -160,10 +105,33 @@ export default function Tasks() {
     description: "",
     status: "todo",
     priority: "medium",
-    assigneeId: user?.id || "u1",
+    assigneeId: "",
     dueDate: addDays(new Date(), 7).toISOString(),
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  // Load tasks and employees on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsInitialLoading(true);
+        const [tasksData, employeesData] = await Promise.all([
+          apiService.getTasks(),
+          apiService.getEmployees()
+        ]);
+        setTasks(tasksData);
+        setEmployees(employeesData);
+      } catch (error) {
+        console.error("Error loading tasks:", error);
+        toast.error("Failed to load tasks");
+      } finally {
+        setIsInitialLoading(false);
+      }
+    };
+    
+    loadData();
+  }, []);
 
   // Apply filters
   useEffect(() => {
@@ -193,19 +161,27 @@ export default function Tasks() {
   }, [tasks, searchQuery, statusFilter, priorityFilter, assigneeFilter]);
 
   // Handle task creation
-  const handleCreateTask = () => {
+  const handleCreateTask = async () => {
+    if (!newTask.title.trim()) {
+      toast.error("Please enter a task title");
+      return;
+    }
+
     setIsLoading(true);
+    try {
+      const createdTask = await apiService.createTask({
+        title: newTask.title,
+        description: newTask.description,
+        status: newTask.status,
+        priority: newTask.priority,
+        assigneeId: newTask.assigneeId || null,
+        dueDate: newTask.dueDate,
+        createdBy: user?.email || "",
+      });
 
-    // Simulate API call with setTimeout
-    setTimeout(() => {
-      const newTaskWithId = {
-        id: `task-${tasks.length + 1}`,
-        createdAt: new Date().toISOString(),
-        ...newTask,
-      };
-
-      setTasks([newTaskWithId, ...tasks]);
+      setTasks([createdTask, ...tasks]);
       setIsAddTaskDialogOpen(false);
+      toast.success("Task created successfully");
 
       // Reset form
       setNewTask({
@@ -213,44 +189,50 @@ export default function Tasks() {
         description: "",
         status: "todo",
         priority: "medium",
-        assigneeId: user?.id || "u1",
+        assigneeId: "",
         dueDate: addDays(new Date(), 7).toISOString(),
       });
-
+    } catch (error) {
+      console.error("Error creating task:", error);
+      toast.error(error.message || "Failed to create task");
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   // Handle task deletion
-  const handleDeleteTask = (id) => {
+  const handleDeleteTask = async (id) => {
     setIsLoading(true);
-
-    // Simulate API call with setTimeout
-    setTimeout(() => {
+    try {
+      await apiService.deleteTask(id);
       setTasks(tasks.filter((task) => task.id !== id));
       setIsViewTaskDialogOpen(false);
+      toast.success("Task deleted successfully");
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      toast.error(error.message || "Failed to delete task");
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   // Handle task status update
-  const handleUpdateTaskStatus = (task, newStatus) => {
+  const handleUpdateTaskStatus = async (task, newStatus) => {
     setIsLoading(true);
-
-    // Simulate API call with setTimeout
-    setTimeout(() => {
-      const updatedTask = { ...task, status: newStatus };
-
-      if (newStatus === "completed" && !task.completedAt) {
-        updatedTask.completedAt = new Date().toISOString();
-      } else if (newStatus !== "completed") {
-        delete updatedTask.completedAt;
-      }
+    try {
+      const updatedTask = await apiService.updateTask(task.id, {
+        status: newStatus,
+      });
 
       setTasks(tasks.map((t) => (t.id === task.id ? updatedTask : t)));
       setSelectedTask(updatedTask);
+      toast.success("Task status updated successfully");
+    } catch (error) {
+      console.error("Error updating task status:", error);
+      toast.error(error.message || "Failed to update task status");
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   // Helper function to get task priority styling
@@ -303,8 +285,11 @@ export default function Tasks() {
 
   // Helper function to get assignee info
   const getAssigneeInfo = (assigneeId) => {
-    const assignee = users.find((u) => u.id === assigneeId);
-    return assignee || { name: "Unassigned", avatar: "" };
+    if (!assigneeId) {
+      return { name: "Unassigned", avatar: "", email: "" };
+    }
+    const assignee = employees.find((emp) => emp.employeeId === assigneeId);
+    return assignee || { name: "Unknown", avatar: "", email: "" };
   };
 
   // Calculate task statistics
@@ -315,17 +300,37 @@ export default function Tasks() {
   const overdueTasks = tasks.filter(
     (task) =>
       task.status !== "completed" &&
+      task.dueDate &&
       isBefore(parseISO(task.dueDate), new Date())
   ).length;
   const dueThisWeek = tasks.filter((task) => {
+    if (!task.dueDate || task.status === "completed") return false;
     const dueDate = parseISO(task.dueDate);
     const oneWeek = addDays(new Date(), 7);
     return (
-      task.status !== "completed" &&
       isAfter(dueDate, new Date()) &&
       isBefore(dueDate, oneWeek)
     );
   }).length;
+
+  if (isInitialLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold tracking-tight">Tasks</h1>
+          <p className="text-muted-foreground">
+            Manage and track tasks for your team
+          </p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading tasks...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -521,27 +526,32 @@ export default function Tasks() {
                             {getAssigneeInfo(task.assigneeId)
                               .name.split(" ")
                               .map((n) => n[0])
-                              .join("")}
+                              .join("")
+                              .toUpperCase() || "U"}
                           </AvatarFallback>
                         </Avatar>
                         <span className="text-sm">
-                          {getAssigneeInfo(task.assigneeId).name}
+                          {task.assigneeName || getAssigneeInfo(task.assigneeId).name || "Unassigned"}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div
-                        className={`flex items-center gap-1 ${
-                          isBefore(parseISO(task.dueDate), new Date()) &&
-                          task.status !== "completed"
-                            ? "text-red-600"
-                            : ""
-                        }`}>
-                        <Calendar className="h-4 w-4" />
-                        <span className="text-sm">
-                          {format(parseISO(task.dueDate), "MMM dd, yyyy")}
-                        </span>
-                      </div>
+                      {task.dueDate ? (
+                        <div
+                          className={`flex items-center gap-1 ${
+                            isBefore(parseISO(task.dueDate), new Date()) &&
+                            task.status !== "completed"
+                              ? "text-red-600"
+                              : ""
+                          }`}>
+                          <Calendar className="h-4 w-4" />
+                          <span className="text-sm">
+                            {format(parseISO(task.dueDate), "MMM dd, yyyy")}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No due date</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge
@@ -640,15 +650,16 @@ export default function Tasks() {
                 <Select
                   value={newTask.assigneeId}
                   onValueChange={(value) =>
-                    setNewTask({ ...newTask, assigneeId: value })
+                    setNewTask({ ...newTask, assigneeId: value === "none" ? "" : value })
                   }>
                   <SelectTrigger>
                     <SelectValue placeholder="Select assignee" />
                   </SelectTrigger>
                   <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name}
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {employees.map((employee) => (
+                      <SelectItem key={employee.id} value={employee.employeeId}>
+                        {employee.name} ({employee.employeeId})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -747,7 +758,9 @@ export default function Tasks() {
                 </DialogTitle>
                 <DialogDescription>
                   Created on{" "}
-                  {format(parseISO(selectedTask.createdAt), "MMMM dd, yyyy")}
+                  {selectedTask.createdAt
+                    ? format(parseISO(selectedTask.createdAt), "MMMM dd, yyyy")
+                    : "Unknown date"}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
@@ -773,10 +786,9 @@ export default function Tasks() {
                     <div className="flex items-center gap-2 mt-1">
                       <Calendar className="h-4 w-4" />
                       <span>
-                        {format(
-                          parseISO(selectedTask.dueDate),
-                          "MMMM dd, yyyy"
-                        )}
+                        {selectedTask.dueDate
+                          ? format(parseISO(selectedTask.dueDate), "MMMM dd, yyyy")
+                          : "No due date"}
                       </span>
                     </div>
                   </div>
@@ -801,24 +813,39 @@ export default function Tasks() {
                       onClick={() => setIsViewTaskDialogOpen(false)}>
                       Close
                     </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        if (selectedTask.status === "completed") {
-                          handleUpdateTaskStatus(selectedTask, "todo");
-                        } else {
-                          handleUpdateTaskStatus(selectedTask, "completed");
-                        }
-                      }}
-                      disabled={isLoading}>
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      ) : selectedTask.status === "completed" ? (
-                        "Mark as To Do"
-                      ) : (
-                        "Mark as Completed"
+                    <div className="flex gap-2">
+                      {selectedTask.status !== "review" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleUpdateTaskStatus(selectedTask, "review")}
+                          disabled={isLoading}>
+                          {isLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            "Mark as Review"
+                          )}
+                        </Button>
                       )}
-                    </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (selectedTask.status === "completed") {
+                            handleUpdateTaskStatus(selectedTask, "todo");
+                          } else {
+                            handleUpdateTaskStatus(selectedTask, "completed");
+                          }
+                        }}
+                        disabled={isLoading}>
+                        {isLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : selectedTask.status === "completed" ? (
+                          "Mark as To Do"
+                        ) : (
+                          "Mark as Completed"
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
