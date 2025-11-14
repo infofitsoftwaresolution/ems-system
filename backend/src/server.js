@@ -27,6 +27,7 @@ import payslipRouter from "./routes/payslip.js";
 import healthRouter from "./routes/health.js";
 import coursesRouter from "./routes/courses.js";
 import tasksRouter from "./routes/tasks.js";
+import eventsRouter from "./routes/events.js";
 
 const app = express();
 
@@ -82,6 +83,7 @@ app.use("/api/leaves", leavesRouter);
 app.use("/api/payslip", payslipRouter);
 app.use("/api/courses", coursesRouter);
 app.use("/api/tasks", tasksRouter);
+app.use("/api/events", eventsRouter);
 
 const PORT = process.env.PORT || 3001;
 
@@ -91,7 +93,19 @@ async function start() {
     // Setup model associations
     setupKycAssociations(Employee);
     // Sync database schema - use force: false to avoid migration issues with SQLite
-    await sequelize.sync({ force: false });
+    // If schema changes are needed, delete database.sqlite and restart
+    try {
+      await sequelize.sync({ force: false });
+    } catch (syncError) {
+      console.error("Database sync error:", syncError.message);
+      // If alter fails, try without alter
+      if (syncError.message.includes('alter') || syncError.message.includes('SQLITE')) {
+        console.log("Retrying sync without alter...");
+        await sequelize.sync({ force: false });
+      } else {
+        throw syncError;
+      }
+    }
     app.listen(PORT, () =>
       console.log(`Server listening on http://localhost:${PORT}`)
     );

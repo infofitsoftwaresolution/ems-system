@@ -66,7 +66,7 @@ export function EnhancedDashboardLayout() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background/90">
+    <div className="flex min-h-screen flex-col bg-background/90 overflow-x-hidden">
       <EnhancedHeader toggleSidebar={() => setIsCollapsed(!isCollapsed)} />
 
       <div className="flex flex-1 relative">
@@ -81,19 +81,19 @@ export function EnhancedDashboardLayout() {
               },
             }}
             className={cn(
-              "fixed left-0 top-16 z-20 h-[calc(100vh-4rem)] border-r bg-background/95 backdrop-blur-sm shadow-sm"
+              "fixed left-0 top-16 z-20 h-[calc(100vh-4rem)] border-r bg-background/95 backdrop-blur-sm shadow-sm overflow-hidden"
             )}>
-            <div className="flex h-full flex-col justify-between p-2">
+            <div className="flex h-full flex-col justify-between p-2 overflow-x-hidden">
               <motion.div
                 initial={false}
                 animate={{ opacity: 1 }}
-                className="py-2">
+                className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-2">
                 <SidebarNav isCollapsed={isCollapsed} className="gap-1" />
               </motion.div>
 
               <motion.div
                 whileTap={{ scale: 0.95 }}
-                className="flex justify-end p-2">
+                className="flex justify-end p-2 shrink-0">
                 <Button
                   variant="outline"
                   size="icon"
