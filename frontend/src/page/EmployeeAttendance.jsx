@@ -42,22 +42,38 @@ export default function EmployeeAttendance() {
       try {
         setLoading(true);
         
-        // Check KYC status first
-        if (user?.email) {
-          console.log('🔍 Checking KYC status for:', user.email);
-          const kycInfo = await apiService.getKycStatus(user.email);
-          console.log('📋 KYC Info received:', kycInfo);
-          setKycStatus(kycInfo.status);
-          
-          if (kycInfo.status === 'approved') {
-            console.log('✅ KYC approved, loading attendance data');
-            // Load attendance data
-            const attendanceData = await apiService.getTodayAttendance(user.email);
-            setAttendance(attendanceData);
-          } else {
-            console.log('❌ KYC not approved, status:', kycInfo.status);
+          // Check KYC status first
+          if (user?.email) {
+            console.log('🔍 Checking KYC status for:', user.email);
+            const kycInfo = await apiService.getKycStatus(user.email);
+            console.log('📋 KYC Info received:', kycInfo);
+            
+            // IMPORTANT: Only use the status from KYC request, not from Employee model
+            // The status must be explicitly 'approved' from the KYC review process
+            let kycStatusValue = kycInfo.status;
+            
+            // Handle edge cases
+            if (!kycStatusValue || (kycStatusValue === 'pending' && kycInfo.message === 'No KYC request found')) {
+              kycStatusValue = 'not_submitted';
+            }
+            
+            // Ensure we're using the actual KYC request status
+            if (kycStatusValue !== 'approved' && kycStatusValue !== 'rejected' && kycStatusValue !== 'pending' && kycStatusValue !== 'not_submitted') {
+              console.warn('Unexpected KYC status:', kycStatusValue, 'Defaulting to not_submitted');
+              kycStatusValue = 'not_submitted';
+            }
+            
+            setKycStatus(kycStatusValue);
+            
+            if (kycStatusValue === 'approved') {
+              console.log('✅ KYC approved, loading attendance data');
+              // Load attendance data
+              const attendanceData = await apiService.getTodayAttendance(user.email);
+              setAttendance(attendanceData);
+            } else {
+              console.log('❌ KYC not approved, status:', kycStatusValue);
+            }
           }
-        }
       } catch (err) {
         console.error('Error loading attendance data:', err);
         toast.error('Failed to load attendance data');
@@ -125,49 +141,42 @@ export default function EmployeeAttendance() {
       } catch (locationError) {
         console.error('Location error:', locationError);
         
-        // Location is required - don't allow check-in without it
+        // Location is optional - allow check-in without it but show warning
         if (locationError.message.includes('denied') || locationError.message.includes('permission')) {
-          toast.error(
-            'Location permission is required for check-in. Please click the lock icon in your browser address bar, allow location access, and try again.',
+          toast.warning(
+            'Location permission denied. Check-in will proceed without location data. For better tracking, please allow location access in your browser settings.',
             { duration: 6000 }
           );
-          setCheckingIn(false);
-          return; // Stop check-in process
+          locationData = null; // Set to null to proceed without location
         } else if (locationError.message.includes('timeout')) {
-          toast.error(
-            'Location request timed out. Please ensure GPS is enabled and try again in an open area.',
+          toast.warning(
+            'Location request timed out. Check-in will proceed without location data. For better tracking, please ensure GPS is enabled.',
             { duration: 5000 }
           );
-          setCheckingIn(false);
-          return; // Stop check-in process
+          locationData = null; // Set to null to proceed without location
         } else {
-          toast.error(
-            'Unable to get your location. Please check your device GPS settings and try again.',
+          toast.warning(
+            'Unable to get your location. Check-in will proceed without location data.',
             { duration: 5000 }
           );
-          setCheckingIn(false);
-          return; // Stop check-in process
+          locationData = null; // Set to null to proceed without location
         }
-      }
-      
-      // Validate that we have location data
-      if (!locationData || !locationData.latitude || !locationData.longitude) {
-        toast.error('Location data is incomplete. Please try again.', { duration: 3000 });
-        setCheckingIn(false);
-        return;
       }
       
       console.log('User email for check-in:', user?.email);
       console.log('Final location data:', locationData);
       
-      // Proceed with check-in with location data
-      await apiService.checkIn(locationData, user?.email);
+      // Proceed with check-in (with or without location data)
+      await apiService.checkIn(locationData || {}, user?.email);
       
-      const locationInfo = locationData.city && locationData.city !== 'Unknown City' 
-        ? ` from ${locationData.city}`
-        : ` (Lat: ${locationData.latitude.toFixed(6)}, Lng: ${locationData.longitude.toFixed(6)})`;
-      
-      toast.success(`Checked in successfully${locationInfo}!`, { duration: 3000 });
+      if (locationData && locationData.latitude && locationData.longitude) {
+        const locationInfo = locationData.city && locationData.city !== 'Unknown City' 
+          ? ` from ${locationData.city}`
+          : ` (Lat: ${locationData.latitude.toFixed(6)}, Lng: ${locationData.longitude.toFixed(6)})`;
+        toast.success(`Checked in successfully${locationInfo}!`, { duration: 3000 });
+      } else {
+        toast.success('Checked in successfully! (Location not available)', { duration: 3000 });
+      }
       
       // Reload attendance data
       const attendanceData = await apiService.getTodayAttendance(user.email);

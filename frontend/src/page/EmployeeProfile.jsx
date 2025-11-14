@@ -64,11 +64,22 @@ export default function EmployeeProfile() {
           if (!kycInfo || !kycInfo.status) {
             setKycStatus('not_submitted');
           } else {
-            // Map backend status to frontend status
+            // IMPORTANT: Only use the status from KYC request, not from Employee model
+            // The status must be explicitly 'approved' from the KYC review process
             let frontendStatus = kycInfo.status;
+            
+            // Handle edge cases
             if (kycInfo.status === 'pending' && kycInfo.message === 'No KYC request found') {
               frontendStatus = 'not_submitted';
             }
+            
+            // Ensure we're using the actual KYC request status, not a default
+            // Only 'approved' status means it's been reviewed and approved by admin
+            if (frontendStatus !== 'approved' && frontendStatus !== 'rejected' && frontendStatus !== 'pending' && frontendStatus !== 'not_submitted') {
+              console.warn('Unexpected KYC status:', frontendStatus, 'Defaulting to not_submitted');
+              frontendStatus = 'not_submitted';
+            }
+            
             setKycStatus(frontendStatus);
             setKycData(kycInfo.data || kycInfo);
           }
@@ -358,13 +369,40 @@ export default function EmployeeProfile() {
                 )}
               </div>
 
-              {kycData && (
+              {kycData && (kycData.panNumber || kycData.aadharNumber) && (
                 <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <h4 className="text-sm font-medium mb-2">KYC Details</h4>
-                  <div className="space-y-1 text-sm text-gray-600">
-                    <p><span className="font-medium">PAN:</span> {kycData.panNumber}</p>
-                    <p><span className="font-medium">Aadhar:</span> {kycData.aadharNumber}</p>
-                    <p><span className="font-medium">Submitted:</span> {new Date(kycData.submittedAt).toLocaleDateString()}</p>
+                  <h4 className="text-sm font-medium mb-2">Submitted KYC Information</h4>
+                  <div className="space-y-2 text-sm text-gray-600">
+                    {kycData.panNumber && (
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-gray-400" />
+                        <span className="font-medium">PAN Number:</span>
+                        <span>{kycData.panNumber}</span>
+                      </div>
+                    )}
+                    {kycData.aadharNumber && (
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-gray-400" />
+                        <span className="font-medium">Aadhar Number:</span>
+                        <span>{kycData.aadharNumber}</span>
+                      </div>
+                    )}
+                    {kycData.address && (
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
+                        <div>
+                          <span className="font-medium">Address: </span>
+                          <span>{kycData.address}</span>
+                        </div>
+                      </div>
+                    )}
+                    {kycData.submittedAt && (
+                      <div className="flex items-center gap-2 pt-2 border-t">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <span className="font-medium">Submitted:</span>
+                        <span>{new Date(kycData.submittedAt).toLocaleDateString()}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

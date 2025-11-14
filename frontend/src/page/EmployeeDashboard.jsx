@@ -71,7 +71,6 @@ export default function EmployeeDashboard() {
       setLoading(true);
       if (user?.email) {
         console.log('Loading KYC status for user:', user.email);
-        console.log('User object:', user);
         const kycInfo = await apiService.getKycStatus(user.email);
         console.log('Dashboard KYC Info:', kycInfo);
         
@@ -79,11 +78,22 @@ export default function EmployeeDashboard() {
         if (!kycInfo || !kycInfo.status) {
           setKycStatus('not_submitted');
         } else {
-          // Map backend status to frontend status
+          // IMPORTANT: Only use the status from KYC request, not from Employee model
+          // The status must be explicitly 'approved' from the KYC review process
           let frontendStatus = kycInfo.status;
+          
+          // Handle edge cases
           if (kycInfo.status === 'pending' && kycInfo.message === 'No KYC request found') {
             frontendStatus = 'not_submitted';
           }
+          
+          // Ensure we're using the actual KYC request status, not a default
+          // Only 'approved' status means it's been reviewed and approved by admin
+          if (frontendStatus !== 'approved' && frontendStatus !== 'rejected' && frontendStatus !== 'pending' && frontendStatus !== 'not_submitted') {
+            console.warn('Unexpected KYC status:', frontendStatus, 'Defaulting to not_submitted');
+            frontendStatus = 'not_submitted';
+          }
+          
           setKycStatus(frontendStatus);
         }
       }
