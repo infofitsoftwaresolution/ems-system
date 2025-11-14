@@ -92,16 +92,26 @@ async function start() {
     await sequelize.authenticate();
     // Setup model associations
     setupKycAssociations(Employee);
+    
+    // Run migration to add missing user profile fields
+    try {
+      const { addUserProfileFields } = await import('./migrations/addUserProfileFields.js');
+      await addUserProfileFields();
+    } catch (migrationError) {
+      console.error("Migration error:", migrationError.message);
+      // Continue even if migration fails - might already be applied
+    }
+    
     // Sync database schema - use force: false to avoid migration issues with SQLite
     // If schema changes are needed, delete database.sqlite and restart
     try {
-      await sequelize.sync({ force: false });
+      await sequelize.sync({ force: false, alter: false });
     } catch (syncError) {
       console.error("Database sync error:", syncError.message);
       // If alter fails, try without alter
       if (syncError.message.includes('alter') || syncError.message.includes('SQLITE')) {
         console.log("Retrying sync without alter...");
-        await sequelize.sync({ force: false });
+        await sequelize.sync({ force: false, alter: false });
       } else {
         throw syncError;
       }
