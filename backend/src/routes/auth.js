@@ -8,10 +8,19 @@ const router = Router();
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  console.log('Login attempt for email:', email);
   const user = await User.findOne({ where: { email, active: true } });
-  if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+  if (!user) {
+    console.log('User not found or inactive for email:', email);
+    return res.status(401).json({ message: 'Invalid credentials' });
+  }
+  console.log('User found:', user.email, 'Role:', user.role);
   const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+  if (!ok) {
+    console.log('Password mismatch for email:', email);
+    return res.status(401).json({ message: 'Invalid credentials' });
+  }
+  console.log('Login successful for:', email);
   
   // Get employee KYC status
   console.log('Looking up employee for email:', user.email);
@@ -38,14 +47,40 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/update-password', async (req, res) => {
-  const { email, newPassword } = req.body;
-  const user = await User.findOne({ where: { email } });
-  if (!user) return res.status(404).json({ message: 'User not found' });
-  const hash = await bcrypt.hash(newPassword, 10);
-  user.passwordHash = hash;
-  user.mustChangePassword = false;
-  await user.save();
-  res.json({ success: true });
+  try {
+    const { email, currentPassword, newPassword } = req.body;
+    
+    if (!email || !currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Email, current password, and new password are required' });
+    }
+    
+    const user = await User.findOne({ where: { email, active: true } });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isCurrentPasswordValid) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    
+    // Validate new password
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'New password must be at least 8 characters long' });
+    }
+    
+    // Hash and update password
+    const hash = await bcrypt.hash(newPassword, 10);
+    user.passwordHash = hash;
+    user.mustChangePassword = false;
+    await user.save();
+    
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Error updating password:', error);
+    res.status(500).json({ message: 'Error updating password', error: error.message });
+  }
 });
 
 // Verify token endpoint

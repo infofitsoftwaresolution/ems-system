@@ -111,6 +111,71 @@ class ApiService {
     return this.request(`/api/users/${id}`);
   }
 
+  async getUserProfile() {
+    return this.request('/api/users/me/profile');
+  }
+
+  async updateUserProfile(email, profileData) {
+    return this.request(`/api/users/${email}`, {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  }
+
+  async updatePassword(currentPassword, newPassword) {
+    return this.request('/api/auth/update-password', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        email: this.getCurrentUserEmail(),
+        currentPassword,
+        newPassword 
+      }),
+    });
+  }
+
+  async uploadAvatar(file) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    
+    const token = this.getAuthToken();
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+    };
+    
+    const response = await fetch(`${this.baseURL}/api/users/upload-avatar`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+    
+    return await response.json();
+  }
+
+  async removeAvatar() {
+    return this.request('/api/users/remove-avatar', {
+      method: 'DELETE',
+    });
+  }
+
+  getCurrentUserEmail() {
+    // Try to get from localStorage or auth context
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return user.email;
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return null;
+  }
+
   // KYC endpoints
   async getKycSubmissions() {
     return this.request('/api/kyc');
@@ -349,6 +414,41 @@ class ApiService {
 
   async deleteTask(id) {
     return this.request(`/api/tasks/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Event endpoints
+  async getEvents(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.type) params.append('type', filters.type);
+    if (filters.start) params.append('start', filters.start);
+    if (filters.end) params.append('end', filters.end);
+    
+    const queryString = params.toString();
+    return this.request(`/api/events${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getEvent(id) {
+    return this.request(`/api/events/${id}`);
+  }
+
+  async createEvent(eventData) {
+    return this.request('/api/events', {
+      method: 'POST',
+      body: JSON.stringify(eventData),
+    });
+  }
+
+  async updateEvent(id, eventData) {
+    return this.request(`/api/events/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(eventData),
+    });
+  }
+
+  async deleteEvent(id) {
+    return this.request(`/api/events/${id}`, {
       method: 'DELETE',
     });
   }

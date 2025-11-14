@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
+import { toast as sonnerToast } from "sonner";
 import {
   User,
   Mail,
@@ -45,18 +46,57 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { apiService } from "@/lib/api";
+
+// Comprehensive timezone list
+const TIMEZONES = [
+  { value: "america-los_angeles", label: "Pacific Time (US & Canada)" },
+  { value: "america-denver", label: "Mountain Time (US & Canada)" },
+  { value: "america-chicago", label: "Central Time (US & Canada)" },
+  { value: "america-new_york", label: "Eastern Time (US & Canada)" },
+  { value: "america/phoenix", label: "Arizona" },
+  { value: "america/anchorage", label: "Alaska" },
+  { value: "pacific/honolulu", label: "Hawaii" },
+  { value: "america/toronto", label: "Toronto" },
+  { value: "america/vancouver", label: "Vancouver" },
+  { value: "america/mexico_city", label: "Mexico City" },
+  { value: "america/sao_paulo", label: "São Paulo" },
+  { value: "america/buenos_aires", label: "Buenos Aires" },
+  { value: "europe/london", label: "London" },
+  { value: "europe/paris", label: "Paris" },
+  { value: "europe/berlin", label: "Berlin" },
+  { value: "europe/rome", label: "Rome" },
+  { value: "europe/madrid", label: "Madrid" },
+  { value: "europe/amsterdam", label: "Amsterdam" },
+  { value: "europe/stockholm", label: "Stockholm" },
+  { value: "europe/moscow", label: "Moscow" },
+  { value: "asia/dubai", label: "Dubai" },
+  { value: "asia/kolkata", label: "Mumbai, Kolkata, New Delhi" },
+  { value: "asia/dhaka", label: "Dhaka" },
+  { value: "asia/bangkok", label: "Bangkok" },
+  { value: "asia/singapore", label: "Singapore" },
+  { value: "asia/hong_kong", label: "Hong Kong" },
+  { value: "asia/shanghai", label: "Shanghai" },
+  { value: "asia/tokyo", label: "Tokyo" },
+  { value: "asia/seoul", label: "Seoul" },
+  { value: "australia/sydney", label: "Sydney" },
+  { value: "australia/melbourne", label: "Melbourne" },
+  { value: "pacific/auckland", label: "Auckland" },
+];
 
 export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState({});
+  const fileInputRef = useRef(null);
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar || null);
 
   // Profile settings state
   const [profile, setProfile] = useState({
     name: user?.name || "",
     email: user?.email || "",
-    phone: "+1 (555) 123-4567",
-    bio: "HR Director with 10+ years of experience in employee management and development.",
+    phone: "",
+    bio: "",
     language: "english",
     timezone: "america-los_angeles",
   });
@@ -95,29 +135,147 @@ export default function Settings() {
   // Error state
   const [errors, setErrors] = useState({});
 
+  // Load user profile on mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profileData = await apiService.getUserProfile();
+        setProfile({
+          name: profileData.name || user?.name || "",
+          email: profileData.email || user?.email || "",
+          phone: profileData.phone || "",
+          bio: profileData.bio || "",
+          language: profileData.language || "english",
+          timezone: profileData.timezone || "america-los_angeles",
+        });
+        setAvatarUrl(profileData.avatar || null);
+
+        // Load notification settings
+        if (
+          profileData.notificationSettings &&
+          Object.keys(profileData.notificationSettings).length > 0
+        ) {
+          setNotificationSettings({
+            emailNotifications:
+              profileData.notificationSettings.emailNotifications ?? true,
+            pushNotifications:
+              profileData.notificationSettings.pushNotifications ?? true,
+            weeklyDigest: profileData.notificationSettings.weeklyDigest ?? true,
+            mentionAlerts:
+              profileData.notificationSettings.mentionAlerts ?? true,
+            taskReminders:
+              profileData.notificationSettings.taskReminders ?? true,
+            trainingUpdates:
+              profileData.notificationSettings.trainingUpdates ?? false,
+            employeeUpdates:
+              profileData.notificationSettings.employeeUpdates ?? true,
+          });
+        }
+
+        // Load security settings
+        if (
+          profileData.securitySettings &&
+          Object.keys(profileData.securitySettings).length > 0
+        ) {
+          setSecuritySettings({
+            twoFactor: profileData.securitySettings.twoFactor ?? false,
+            sessionTimeout: profileData.securitySettings.sessionTimeout || "30",
+            rememberDevices:
+              profileData.securitySettings.rememberDevices ?? true,
+            loginAlerts: profileData.securitySettings.loginAlerts ?? true,
+          });
+        }
+      } catch (error) {
+        console.error("Error loading profile:", error);
+        sonnerToast.error("Failed to load profile data");
+      }
+    };
+
+    if (user?.email) {
+      loadProfile();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email]);
+
+  // Handle avatar upload
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      sonnerToast.error("Please select an image file");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      sonnerToast.error("Image size must be less than 5MB");
+      return;
+    }
+
+    setLoading({ ...loading, avatar: true });
+    try {
+      const result = await apiService.uploadAvatar(file);
+      setAvatarUrl(result.avatar);
+      sonnerToast.success("Avatar uploaded successfully");
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+      sonnerToast.error(error.message || "Failed to upload avatar");
+    } finally {
+      setLoading({ ...loading, avatar: false });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  // Handle avatar remove
+  const handleAvatarRemove = async () => {
+    setLoading({ ...loading, avatar: true });
+    try {
+      await apiService.removeAvatar();
+      setAvatarUrl(null);
+      sonnerToast.success("Avatar removed successfully");
+    } catch (error) {
+      console.error("Error removing avatar:", error);
+      sonnerToast.error(error.message || "Failed to remove avatar");
+    } finally {
+      setLoading({ ...loading, avatar: false });
+    }
+  };
+
   // Handle profile update
-  const handleProfileUpdate = () => {
+  const handleProfileUpdate = async () => {
     if (!profile.name.trim()) {
       setErrors({ ...errors, profile: "Name cannot be empty" });
       return;
     }
 
     setLoading({ ...loading, profile: true });
-
-    // Simulate API call
-    setTimeout(() => {
-      setLoading({ ...loading, profile: false });
-      setErrors({ ...errors, profile: undefined });
-
-      toast({
-        title: "Profile updated",
-        description: "Your profile information has been updated successfully.",
+    try {
+      await apiService.updateUserProfile(user?.email, {
+        name: profile.name,
+        phone: profile.phone,
+        bio: profile.bio,
+        language: profile.language,
+        timezone: profile.timezone,
       });
-    }, 1500);
+
+      setErrors({ ...errors, profile: undefined });
+      sonnerToast.success("Profile updated successfully");
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      setErrors({
+        ...errors,
+        profile: error.message || "Failed to update profile",
+      });
+      sonnerToast.error(error.message || "Failed to update profile");
+    } finally {
+      setLoading({ ...loading, profile: false });
+    }
   };
 
   // Handle password update
-  const handlePasswordUpdate = () => {
+  const handlePasswordUpdate = async () => {
     const passwordErrors = {};
 
     if (!passwordForm.currentPassword) {
@@ -140,10 +298,12 @@ export default function Settings() {
     }
 
     setLoading({ ...loading, password: true });
+    try {
+      await apiService.updatePassword(
+        passwordForm.currentPassword,
+        passwordForm.newPassword
+      );
 
-    // Simulate API call
-    setTimeout(() => {
-      setLoading({ ...loading, password: false });
       setErrors({ ...errors, password: undefined });
 
       // Clear password fields
@@ -153,41 +313,53 @@ export default function Settings() {
         confirmPassword: "",
       });
 
-      toast({
-        title: "Password updated",
-        description: "Your password has been updated successfully.",
-      });
-    }, 1500);
+      sonnerToast.success("Password updated successfully");
+    } catch (error) {
+      console.error("Error updating password:", error);
+      const errorMessage = error.message || "Failed to update password";
+      if (errorMessage.includes("Current password")) {
+        setErrors({ ...errors, password: { current: errorMessage } });
+      } else {
+        setErrors({ ...errors, password: { new: errorMessage } });
+      }
+      sonnerToast.error(errorMessage);
+    } finally {
+      setLoading({ ...loading, password: false });
+    }
   };
 
   // Handle notification settings update
-  const handleNotificationUpdate = () => {
+  const handleNotificationUpdate = async () => {
     setLoading({ ...loading, notifications: true });
-
-    // Simulate API call
-    setTimeout(() => {
-      setLoading({ ...loading, notifications: false });
-
-      toast({
-        title: "Notification preferences saved",
-        description: "Your notification settings have been updated.",
+    try {
+      await apiService.updateUserProfile(user?.email, {
+        notificationSettings: notificationSettings,
       });
-    }, 1500);
+      sonnerToast.success("Notification preferences saved");
+    } catch (error) {
+      console.error("Error updating notification settings:", error);
+      sonnerToast.error(
+        error.message || "Failed to save notification settings"
+      );
+    } finally {
+      setLoading({ ...loading, notifications: false });
+    }
   };
 
   // Handle security settings update
-  const handleSecurityUpdate = () => {
+  const handleSecurityUpdate = async () => {
     setLoading({ ...loading, security: true });
-
-    // Simulate API call
-    setTimeout(() => {
-      setLoading({ ...loading, security: false });
-
-      toast({
-        title: "Security settings updated",
-        description: "Your security preferences have been saved.",
+    try {
+      await apiService.updateUserProfile(user?.email, {
+        securitySettings: securitySettings,
       });
-    }, 1500);
+      sonnerToast.success("Security settings updated");
+    } catch (error) {
+      console.error("Error updating security settings:", error);
+      sonnerToast.error(error.message || "Failed to save security settings");
+    } finally {
+      setLoading({ ...loading, security: false });
+    }
   };
 
   // Toggle two-factor auth
@@ -250,19 +422,48 @@ export default function Settings() {
               {/* Profile Picture */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <Avatar className="h-20 w-20">
-                  <AvatarImage src={user?.avatar} />
+                  <AvatarImage
+                    src={
+                      avatarUrl
+                        ? `${
+                            import.meta.env.VITE_API_URL ||
+                            "http://localhost:3001"
+                          }${avatarUrl}`
+                        : null
+                    }
+                  />
                   <AvatarFallback className="text-lg">
-                    {user?.name
+                    {profile.name
                       ?.split(" ")
                       .map((n) => n[0])
                       .join("") || "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div className="space-x-2">
-                  <Button variant="outline" size="sm">
-                    <Upload className="h-4 w-4 mr-2" /> Change
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading.avatar}>
+                    {loading.avatar ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    Change
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAvatarRemove}
+                    disabled={loading.avatar || !avatarUrl}>
                     Remove
                   </Button>
                 </div>
@@ -361,16 +562,12 @@ export default function Settings() {
                     <SelectTrigger>
                       <SelectValue placeholder="Select timezone" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="america-los_angeles">
-                        Pacific Time (US & Canada)
-                      </SelectItem>
-                      <SelectItem value="america-new_york">
-                        Eastern Time (US & Canada)
-                      </SelectItem>
-                      <SelectItem value="europe-london">London</SelectItem>
-                      <SelectItem value="europe-paris">Paris</SelectItem>
-                      <SelectItem value="asia-tokyo">Tokyo</SelectItem>
+                    <SelectContent className="max-h-[300px]">
+                      {TIMEZONES.map((tz) => (
+                        <SelectItem key={tz.value} value={tz.value}>
+                          {tz.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
