@@ -2,64 +2,155 @@ import { Router } from "express";
 import { Event } from "../models/Event.js";
 import { User } from "../models/User.js";
 import { authenticateToken } from "../middleware/auth.js";
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
+import { sequelize } from "../sequelize.js";
 
 const router = Router();
+
+// Cache for table columns to avoid querying on every request
+let tableColumnsCache = null;
+let columnsCacheTime = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Helper function to get actual table columns
+async function getTableColumns() {
+  const now = Date.now();
+  // Return cached columns if still valid
+  if (tableColumnsCache && (now - columnsCacheTime) < CACHE_TTL) {
+    return tableColumnsCache;
+  }
+
+  try {
+    const [results] = await sequelize.query(
+      `SELECT column_name 
+       FROM information_schema.columns 
+       WHERE table_name = 'events' 
+       ORDER BY ordinal_position`,
+      { type: QueryTypes.SELECT }
+    );
+    tableColumnsCache = results.map((r) => r.column_name);
+    columnsCacheTime = now;
+    return tableColumnsCache;
+  } catch (error) {
+    console.error("Error getting table columns:", error);
+    // Return default columns if query fails
+    return ['id', 'title', 'description', 'createdAt', 'updatedAt'];
+  }
+}
+
+// Helper function to transform event data to frontend format
+function transformEventData(eventData, columns) {
+  const hasStart = columns.includes('start');
+  const hasEnd = columns.includes('end');
+  const hasDate = columns.includes('date');
+  const hasStartTime = columns.includes('startTime');
+  const hasEndTime = columns.includes('endTime');
+  const hasAllDay = columns.includes('allDay');
+  const hasAttendees = columns.includes('attendees');
+
+  let attendees = [];
+  try {
+    if (eventData.attendees) {
+      attendees =
+        typeof eventData.attendees === "string"
+          ? JSON.parse(eventData.attendees)
+          : eventData.attendees;
+    }
+  } catch (e) {
+    console.error("Error parsing attendees:", e);
+    attendees = [];
+  }
+
+  // Handle date/time conversion
+  let startDate;
+  let endDate;
+
+  if (hasStart && eventData.start) {
+    startDate = new Date(eventData.start);
+  } else if (hasDate && hasStartTime && eventData.date && eventData.startTime) {
+    startDate = new Date(`${eventData.date}T${eventData.startTime}`);
+  } else if (hasDate && eventData.date) {
+    startDate = new Date(eventData.date);
+  } else {
+    startDate = new Date();
+  }
+
+  if (hasEnd && eventData.end) {
+    endDate = new Date(eventData.end);
+  } else if (hasDate && hasEndTime && eventData.date && eventData.endTime) {
+    endDate = new Date(`${eventData.date}T${eventData.endTime}`);
+  } else if (hasDate && eventData.date) {
+    endDate = new Date(eventData.date);
+  } else {
+    endDate = new Date(startDate.getTime() + 3600000); // Default 1 hour later
+  }
+
+  return {
+    id: `e${eventData.id}`,
+    title: eventData.title,
+    description: eventData.description || "",
+    type: "meeting", // Default type since column doesn't exist
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+    allDay: eventData.allDay || false,
+    attendees: Array.isArray(attendees) ? attendees : [],
+  };
+}
 
 // Get all events
 router.get("/", authenticateToken, async (req, res) => {
   try {
     const { type, start, end } = req.query;
 
+    // Get actual table columns
+    const columns = await getTableColumns();
+    const hasStart = columns.includes('start');
+    const hasEnd = columns.includes('end');
+    const hasDate = columns.includes('date');
+    const hasStartTime = columns.includes('startTime');
+    const hasEndTime = columns.includes('endTime');
+    const hasAllDay = columns.includes('allDay');
+    const hasAttendees = columns.includes('attendees');
+    const hasCreatedByEmail = columns.includes('createdByEmail');
+
+    // Build attributes list based on what exists
+    const attributes = ['id', 'title', 'description'];
+    if (hasStart) attributes.push('start');
+    if (hasEnd) attributes.push('end');
+    if (hasDate) attributes.push('date');
+    if (hasStartTime) attributes.push('startTime');
+    if (hasEndTime) attributes.push('endTime');
+    if (hasAllDay) attributes.push('allDay');
+    if (hasAttendees) attributes.push('attendees');
+    if (hasCreatedByEmail) attributes.push('createdByEmail');
+    attributes.push('createdAt', 'updatedAt');
+
+    // Build where clause
     let whereClause = {};
-
-    // Note: 'type' column may not exist in database, so we skip filtering by type
-    // if (type && type !== "all") {
-    //   whereClause.type = type;
-    // }
-
     if (start && end) {
-      whereClause.start = {
-        [Op.between]: [new Date(start), new Date(end)],
-      };
+      if (hasStart) {
+        whereClause.start = {
+          [Op.between]: [new Date(start), new Date(end)],
+        };
+      } else if (hasDate) {
+        whereClause.date = {
+          [Op.between]: [new Date(start), new Date(end)],
+        };
+      }
     }
+
+    // Determine order by column
+    const orderColumn = hasStart ? 'start' : hasDate ? 'date' : 'createdAt';
 
     const events = await Event.findAll({
       where: whereClause,
-      attributes: ['id', 'title', 'description', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt'],
-      order: [["start", "ASC"]],
+      attributes: attributes as any,
+      order: [[orderColumn, "ASC"]],
     });
 
     // Transform events to match frontend format
     const transformedEvents = events.map((event) => {
-      const eventData = event.toJSON();
-      let attendees = [];
-      try {
-        if (eventData.attendees) {
-          attendees =
-            typeof eventData.attendees === "string"
-              ? JSON.parse(eventData.attendees)
-              : eventData.attendees;
-        }
-      } catch (e) {
-        console.error("Error parsing attendees:", e);
-        attendees = [];
-      }
-
-      return {
-        id: `e${eventData.id}`,
-        title: eventData.title,
-        description: eventData.description || "",
-        type: eventData.type || "meeting", // Default to "meeting" if type column doesn't exist
-        start: eventData.start
-          ? new Date(eventData.start).toISOString()
-          : new Date().toISOString(),
-        end: eventData.end
-          ? new Date(eventData.end).toISOString()
-          : new Date().toISOString(),
-        allDay: eventData.allDay || false,
-        attendees: Array.isArray(attendees) ? attendees : [],
-      };
+      return transformEventData(event.toJSON(), columns);
     });
 
     res.json(transformedEvents);
@@ -78,42 +169,39 @@ router.get("/", authenticateToken, async (req, res) => {
 router.get("/:id", authenticateToken, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id.replace("e", ""));
+    
+    // Get actual table columns
+    const columns = await getTableColumns();
+    const hasStart = columns.includes('start');
+    const hasEnd = columns.includes('end');
+    const hasDate = columns.includes('date');
+    const hasStartTime = columns.includes('startTime');
+    const hasEndTime = columns.includes('endTime');
+    const hasAllDay = columns.includes('allDay');
+    const hasAttendees = columns.includes('attendees');
+    const hasCreatedByEmail = columns.includes('createdByEmail');
+
+    // Build attributes list based on what exists
+    const attributes = ['id', 'title', 'description'];
+    if (hasStart) attributes.push('start');
+    if (hasEnd) attributes.push('end');
+    if (hasDate) attributes.push('date');
+    if (hasStartTime) attributes.push('startTime');
+    if (hasEndTime) attributes.push('endTime');
+    if (hasAllDay) attributes.push('allDay');
+    if (hasAttendees) attributes.push('attendees');
+    if (hasCreatedByEmail) attributes.push('createdByEmail');
+    attributes.push('createdAt', 'updatedAt');
+
     const event = await Event.findByPk(eventId, {
-      attributes: ['id', 'title', 'description', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt']
+      attributes: attributes
     });
 
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    const eventData = event.toJSON();
-    let attendees = [];
-    try {
-      if (eventData.attendees) {
-        attendees =
-          typeof eventData.attendees === "string"
-            ? JSON.parse(eventData.attendees)
-            : eventData.attendees;
-      }
-    } catch (e) {
-      console.error("Error parsing attendees:", e);
-      attendees = [];
-    }
-
-    res.json({
-      id: `e${eventData.id}`,
-      title: eventData.title,
-      description: eventData.description || "",
-      type: eventData.type || "meeting",
-      start: eventData.start
-        ? new Date(eventData.start).toISOString()
-        : new Date().toISOString(),
-      end: eventData.end
-        ? new Date(eventData.end).toISOString()
-        : new Date().toISOString(),
-      allDay: eventData.allDay || false,
-      attendees: Array.isArray(attendees) ? attendees : [],
-    });
+    res.json(transformEventData(event.toJSON(), columns));
   } catch (error) {
     console.error("Error fetching event:", error);
     res.status(500).json({
@@ -153,44 +241,55 @@ router.post("/", authenticateToken, async (req, res) => {
       });
     }
 
-    // Create event without 'type' column if it doesn't exist in database
+    // Get actual table columns to determine which fields to use
+    const columns = await getTableColumns();
+    const hasStart = columns.includes('start');
+    const hasEnd = columns.includes('end');
+    const hasDate = columns.includes('date');
+    const hasStartTime = columns.includes('startTime');
+    const hasEndTime = columns.includes('endTime');
+    const hasAllDay = columns.includes('allDay');
+    const hasAttendees = columns.includes('attendees');
+    const hasCreatedByEmail = columns.includes('createdByEmail');
+
+    // Create event data based on what columns exist
     const eventDataToCreate = {
       title: title.trim(),
       description: description?.trim() || null,
-      start: new Date(start),
-      end: new Date(end),
-      allDay: allDay || false,
-      attendees:
-        attendees && attendees.length > 0 ? JSON.stringify(attendees) : null,
-      createdByEmail: userEmail,
     };
+
+    // Handle date/time fields
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    
+    if (hasStart) {
+      eventDataToCreate.start = startDate;
+    }
+    if (hasEnd) {
+      eventDataToCreate.end = endDate;
+    }
+    if (hasDate) {
+      eventDataToCreate.date = startDate.toISOString().split('T')[0];
+    }
+    if (hasStartTime) {
+      eventDataToCreate.startTime = startDate.toTimeString().split(' ')[0];
+    }
+    if (hasEndTime) {
+      eventDataToCreate.endTime = endDate.toTimeString().split(' ')[0];
+    }
+    if (hasAllDay) {
+      eventDataToCreate.allDay = allDay || false;
+    }
+    if (hasAttendees) {
+      eventDataToCreate.attendees = attendees && attendees.length > 0 ? JSON.stringify(attendees) : null;
+    }
+    if (hasCreatedByEmail) {
+      eventDataToCreate.createdByEmail = userEmail;
+    }
     
     const event = await Event.create(eventDataToCreate);
 
-    const eventData = event.toJSON();
-    let parsedAttendees = [];
-    try {
-      if (eventData.attendees) {
-        parsedAttendees =
-          typeof eventData.attendees === "string"
-            ? JSON.parse(eventData.attendees)
-            : eventData.attendees;
-      }
-    } catch (e) {
-      console.error("Error parsing attendees:", e);
-      parsedAttendees = [];
-    }
-
-    res.status(201).json({
-      id: `e${eventData.id}`,
-      title: eventData.title,
-      description: eventData.description || "",
-      type: eventData.type || "meeting",
-      start: new Date(eventData.start).toISOString(),
-      end: new Date(eventData.end).toISOString(),
-      allDay: eventData.allDay || false,
-      attendees: Array.isArray(parsedAttendees) ? parsedAttendees : [],
-    });
+    res.status(201).json(transformEventData(event.toJSON(), columns));
   } catch (error) {
     console.error("Error creating event:", error);
     res.status(500).json({
@@ -207,57 +306,62 @@ router.put("/:id", authenticateToken, async (req, res) => {
     const { title, description, type, start, end, allDay, attendees } =
       req.body;
 
+    // Get actual table columns
+    const columns = await getTableColumns();
+    const hasStart = columns.includes('start');
+    const hasEnd = columns.includes('end');
+    const hasDate = columns.includes('date');
+    const hasStartTime = columns.includes('startTime');
+    const hasEndTime = columns.includes('endTime');
+    const hasAllDay = columns.includes('allDay');
+    const hasAttendees = columns.includes('attendees');
+
+    // Build attributes list
+    const attributes = ['id', 'title', 'description'];
+    if (hasStart) attributes.push('start');
+    if (hasEnd) attributes.push('end');
+    if (hasDate) attributes.push('date');
+    if (hasStartTime) attributes.push('startTime');
+    if (hasEndTime) attributes.push('endTime');
+    if (hasAllDay) attributes.push('allDay');
+    if (hasAttendees) attributes.push('attendees');
+    if (columns.includes('createdByEmail')) attributes.push('createdByEmail');
+    attributes.push('createdAt', 'updatedAt');
+
     const event = await Event.findByPk(eventId, {
-      attributes: ['id', 'title', 'description', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt']
+      attributes: attributes
     });
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    // Update event without 'type' column if it doesn't exist in database
-    const updateData = {
-      title: title !== undefined ? title.trim() : event.title,
-      description:
-        description !== undefined
-          ? description?.trim() || null
-          : event.description,
-      start: start !== undefined ? new Date(start) : event.start,
-      end: end !== undefined ? new Date(end) : event.end,
-      allDay: allDay !== undefined ? allDay : event.allDay,
-      attendees:
-        attendees !== undefined
-          ? attendees && attendees.length > 0
-            ? JSON.stringify(attendees)
-            : null
-          : event.attendees,
-    };
+    // Update event data based on what columns exist
+    const updateData = {};
+    if (title !== undefined) updateData.title = title.trim();
+    if (description !== undefined) updateData.description = description?.trim() || null;
+    
+    // Handle date/time fields
+    if (start !== undefined) {
+      const startDate = new Date(start);
+      if (hasStart) updateData.start = startDate;
+      if (hasDate) updateData.date = startDate.toISOString().split('T')[0];
+      if (hasStartTime) updateData.startTime = startDate.toTimeString().split(' ')[0];
+    }
+    if (end !== undefined) {
+      const endDate = new Date(end);
+      if (hasEnd) updateData.end = endDate;
+      if (hasEndTime) updateData.endTime = endDate.toTimeString().split(' ')[0];
+    }
+    if (hasAllDay && allDay !== undefined) {
+      updateData.allDay = allDay;
+    }
+    if (hasAttendees && attendees !== undefined) {
+      updateData.attendees = attendees && attendees.length > 0 ? JSON.stringify(attendees) : null;
+    }
     
     await event.update(updateData);
 
-    const eventData = event.toJSON();
-    let parsedAttendees = [];
-    try {
-      if (eventData.attendees) {
-        parsedAttendees =
-          typeof eventData.attendees === "string"
-            ? JSON.parse(eventData.attendees)
-            : eventData.attendees;
-      }
-    } catch (e) {
-      console.error("Error parsing attendees:", e);
-      parsedAttendees = [];
-    }
-
-    res.json({
-      id: `e${eventData.id}`,
-      title: eventData.title,
-      description: eventData.description || "",
-      type: eventData.type || "meeting",
-      start: new Date(eventData.start).toISOString(),
-      end: new Date(eventData.end).toISOString(),
-      allDay: eventData.allDay || false,
-      attendees: Array.isArray(parsedAttendees) ? parsedAttendees : [],
-    });
+    res.json(transformEventData(event.toJSON(), columns));
   } catch (error) {
     console.error("Error updating event:", error);
     res.status(500).json({
@@ -271,8 +375,10 @@ router.put("/:id", authenticateToken, async (req, res) => {
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id.replace("e", ""));
+    
+    // For delete, we only need the ID
     const event = await Event.findByPk(eventId, {
-      attributes: ['id', 'title', 'description', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt']
+      attributes: ['id']
     });
 
     if (!event) {
