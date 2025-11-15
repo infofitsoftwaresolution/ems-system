@@ -102,36 +102,151 @@ router.post('/generate', authenticateToken, async (req, res) => {
       return total + diffDays;
     }, 0);
 
-    // Calculate salary components
-    const basicSalary = employee.salary || 0;
-    const dailyRate = basicSalary / 30; // Assuming 30 days per month
-    const earnedSalary = dailyRate * workingDays;
+    // Calculate salary components (Indian Standard)
+    const ctc = parseFloat(employee.salary || 0);
+    
+    // Basic Salary: 50% of CTC (standard Indian structure)
+    const basicSalary = Math.round(ctc * 0.50);
+    
+    // HRA: 40% of Basic (standard for non-metro, 50% for metro)
+    const hra = Math.round(basicSalary * 0.40);
+    
+    // DA: 5% of Basic (can vary)
+    const da = Math.round(basicSalary * 0.05);
+    
+    // Fixed Allowances (Indian standard)
+    const transportAllowance = 1600; // Standard transport allowance
+    const medicalAllowance = 1250; // Standard medical allowance
+    
+    // Special Allowance: Remaining amount to match CTC
+    const specialAllowance = ctc - basicSalary - hra - da - transportAllowance - medicalAllowance;
+    
+    // Calculate pro-rated amounts based on working days
+    const dailyRate = ctc / 30;
+    const earnedBasic = (basicSalary / 30) * workingDays;
+    const earnedHra = (hra / 30) * workingDays;
+    const earnedDa = (da / 30) * workingDays;
+    const earnedTransport = (transportAllowance / 30) * workingDays;
+    const earnedMedical = (medicalAllowance / 30) * workingDays;
+    const earnedSpecial = (specialAllowance / 30) * workingDays;
+    
+    // Gross Salary (earned)
+    const grossSalary = earnedBasic + earnedHra + earnedDa + earnedTransport + earnedMedical + earnedSpecial;
+    
+    // Leave Deduction
     const leaveDeduction = dailyRate * leaveDays;
-    const netSalary = earnedSalary - leaveDeduction;
+    
+    // Deductions (Indian Standard)
+    // PF: 12% of Basic (employee contribution)
+    const pf = Math.round(earnedBasic * 0.12);
+    
+    // ESI: 0.75% of Gross (if gross < 21000, otherwise 0)
+    const esi = grossSalary < 21000 ? Math.round(grossSalary * 0.0075) : 0;
+    
+    // Professional Tax: ₹200/month (standard, varies by state)
+    const professionalTax = 200;
+    
+    // TDS: Simplified calculation (can be enhanced with tax slabs)
+    // Assuming 5% TDS for annual income > 2.5L
+    const annualIncome = ctc * 12;
+    const tds = annualIncome > 250000 ? Math.round((grossSalary - leaveDeduction) * 0.05 / 12) : 0;
+    
+    // Other deductions (if any)
+    const otherDeductions = 0;
+    
+    // Total Deductions
+    const totalDeductions = pf + esi + tds + professionalTax + leaveDeduction + otherDeductions;
+    
+    // Net Salary
+    const netSalary = grossSalary - totalDeductions;
     
     // Create payslip
     // Note: Payslip model expects employeeId as INTEGER, so we use employee.id
-    const payslip = await Payslip.create({
-      employeeId: employee.id, // Use employee.id (INTEGER) instead of employee.employeeId (STRING)
-      employeeName: employee.name,
-      employeeEmail: employee.email,
-      month: month,
-      year: year,
-      basicSalary: parseFloat(basicSalary),
-      earnedSalary: parseFloat(earnedSalary),
-      leaveDeduction: parseFloat(leaveDeduction),
-      netSalary: parseFloat(netSalary),
-      workingDays: workingDays,
-      totalDays: totalDays,
-      leaveDays: leaveDays,
-      status: 'generated',
-      generatedAt: new Date()
-    });
+    try {
+      const payslip = await Payslip.create({
+        employeeId: employee.id, // Use employee.id (INTEGER) instead of employee.employeeId (STRING)
+        employeeName: employee.name,
+        employeeEmail: employee.email,
+        month: month,
+        year: year,
+        // Earnings
+        basicSalary: parseFloat(earnedBasic) || 0,
+        hra: parseFloat(earnedHra) || 0,
+        da: parseFloat(earnedDa) || 0,
+        transportAllowance: parseFloat(earnedTransport) || 0,
+        medicalAllowance: parseFloat(earnedMedical) || 0,
+        specialAllowance: parseFloat(earnedSpecial) || 0,
+        earnedSalary: parseFloat(grossSalary) || 0,
+        grossSalary: parseFloat(grossSalary) || 0,
+        // Deductions
+        pf: parseFloat(pf) || 0,
+        esi: parseFloat(esi) || 0,
+        tds: parseFloat(tds) || 0,
+        professionalTax: parseFloat(professionalTax) || 0,
+        leaveDeduction: parseFloat(leaveDeduction) || 0,
+        otherDeductions: parseFloat(otherDeductions) || 0,
+        totalDeductions: parseFloat(totalDeductions) || 0,
+        // Net Salary
+        netSalary: parseFloat(netSalary) || 0,
+        // Attendance
+        workingDays: workingDays,
+        totalDays: totalDays,
+        leaveDays: leaveDays,
+        status: 'generated',
+        generatedAt: new Date()
+      });
 
-    res.status(201).json({
-      message: 'Payslip generated successfully',
-      payslip: payslip
-    });
+      res.status(201).json({
+        message: 'Payslip generated successfully',
+        payslip: payslip
+      });
+    } catch (createError) {
+      console.error('Error creating payslip record:', createError);
+      // If it's a column error, try to sync the model
+      if (createError.name === 'SequelizeDatabaseError' || createError.message.includes('no such column')) {
+        console.log('Attempting to sync Payslip model...');
+        try {
+          await Payslip.sync({ alter: true });
+          // Retry creation
+          const payslip = await Payslip.create({
+            employeeId: employee.id,
+            employeeName: employee.name,
+            employeeEmail: employee.email,
+            month: month,
+            year: year,
+            basicSalary: parseFloat(earnedBasic) || 0,
+            hra: parseFloat(earnedHra) || 0,
+            da: parseFloat(earnedDa) || 0,
+            transportAllowance: parseFloat(earnedTransport) || 0,
+            medicalAllowance: parseFloat(earnedMedical) || 0,
+            specialAllowance: parseFloat(earnedSpecial) || 0,
+            earnedSalary: parseFloat(grossSalary) || 0,
+            grossSalary: parseFloat(grossSalary) || 0,
+            pf: parseFloat(pf) || 0,
+            esi: parseFloat(esi) || 0,
+            tds: parseFloat(tds) || 0,
+            professionalTax: parseFloat(professionalTax) || 0,
+            leaveDeduction: parseFloat(leaveDeduction) || 0,
+            otherDeductions: parseFloat(otherDeductions) || 0,
+            totalDeductions: parseFloat(totalDeductions) || 0,
+            netSalary: parseFloat(netSalary) || 0,
+            workingDays: workingDays,
+            totalDays: totalDays,
+            leaveDays: leaveDays,
+            status: 'generated',
+            generatedAt: new Date()
+          });
+          res.status(201).json({
+            message: 'Payslip generated successfully',
+            payslip: payslip
+          });
+        } catch (retryError) {
+          throw retryError;
+        }
+      } else {
+        throw createError;
+      }
+    }
 
   } catch (error) {
     console.error('Error generating payslip:', error);

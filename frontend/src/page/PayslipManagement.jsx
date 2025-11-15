@@ -386,7 +386,7 @@ export default function PayslipManagement() {
                 <TableRow>
                   <TableHead>Employee</TableHead>
                   <TableHead>Period</TableHead>
-                  <TableHead>Basic Salary</TableHead>
+                  <TableHead>Gross Salary</TableHead>
                   <TableHead>Net Salary</TableHead>
                   <TableHead>Working Days</TableHead>
                   <TableHead>Status</TableHead>
@@ -411,16 +411,18 @@ export default function PayslipManagement() {
                         {getMonthName(payslip.month)} {payslip.year}
                       </div>
                     </TableCell>
-                    <TableCell>₹{payslip.basicSalary?.toLocaleString() || '0'}</TableCell>
-                    <TableCell className="font-medium">
-                      ₹{payslip.netSalary?.toLocaleString() || '0'}
+                    <TableCell>
+                      ₹{((payslip.grossSalary || payslip.earnedSalary || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="font-medium text-green-600">
+                      ₹{(payslip.netSalary || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell>
                       {payslip.workingDays}/{payslip.totalDays}
                     </TableCell>
                     <TableCell>{getStatusBadge(payslip.status)}</TableCell>
                     <TableCell>
-                      {new Date(payslip.generatedAt).toLocaleDateString()}
+                      {new Date(payslip.generatedAt).toLocaleDateString('en-IN')}
                     </TableCell>
                     <TableCell>
                       <Button

@@ -48,6 +48,15 @@ class ApiService {
       return await response.json();
     } catch (error) {
       console.error(`API request failed for ${endpoint}:`, error);
+      
+      // Check if it's a connection error (backend server not running)
+      if (error.message.includes('Failed to fetch') || 
+          error.message.includes('ERR_CONNECTION_REFUSED') || 
+          error.name === 'TypeError' ||
+          error.message.includes('NetworkError')) {
+        throw new Error('Backend server is not running. Please start the backend server on port 3001.');
+      }
+      
       throw error;
     }
   }
@@ -455,6 +464,42 @@ class ApiService {
     return this.request(`/api/events/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  // Message endpoints
+  async getMessages() {
+    return this.request('/api/messages');
+  }
+
+  async getConversations() {
+    return this.request('/api/messages/conversations');
+  }
+
+  async getConversation(recipientEmail) {
+    return this.request(`/api/messages/conversation/${encodeURIComponent(recipientEmail)}`);
+  }
+
+  async sendMessage(recipientEmail, content, channelId = null, channelName = null) {
+    return this.request('/api/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        recipientEmail,
+        content,
+        channelId,
+        channelName
+      }),
+    });
+  }
+
+  async markMessagesAsRead(senderEmail) {
+    return this.request('/api/messages/read', {
+      method: 'PUT',
+      body: JSON.stringify({ senderEmail }),
+    });
+  }
+
+  async getUnreadCount() {
+    return this.request('/api/messages/unread-count');
   }
 }
 
