@@ -333,7 +333,7 @@ router.post("/", authenticateToken, async (req, res) => {
       }
       
       // Use raw query to insert
-      const rawResult = await sequelize.query(
+      const [rawResult] = await sequelize.query(
         `INSERT INTO events (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`,
         {
           bind: values,
@@ -341,9 +341,9 @@ router.post("/", authenticateToken, async (req, res) => {
         }
       );
       
-      // Fetch the created event - rawResult is [rows, metadata] format
-      const insertedRow = Array.isArray(rawResult) && rawResult.length > 0 ? rawResult[0] : null;
-      const eventId = insertedRow?.id || (Array.isArray(insertedRow) && insertedRow[0]?.id);
+      // Fetch the created event - rawResult is an array of rows
+      const insertedRow = Array.isArray(rawResult) && rawResult.length > 0 ? rawResult[0] : rawResult;
+      const eventId = insertedRow?.id;
       
       if (eventId) {
         const allColumns = await getTableColumns();
