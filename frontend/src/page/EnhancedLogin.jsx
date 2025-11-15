@@ -27,6 +27,7 @@ export default function EnhancedLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
+  const [logoError, setLogoError] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -146,11 +147,20 @@ export default function EnhancedLogin() {
             }}>
             <div className="relative">
               <div className="absolute inset-0 bg-green-400/30 rounded-full blur-xl animate-pulse" />
-              <img
-                src="/rsamriddhi_logo.png"
-                alt="Rural Samridhi Logo"
-                className="relative h-24 w-auto object-contain drop-shadow-lg"
-              />
+              {!logoError ? (
+                <img
+                  src="/rsamriddhi_logo.png"
+                  alt="Rural Samridhi Logo"
+                  className="relative h-24 w-auto object-contain drop-shadow-lg"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <div className="relative h-24 flex items-center justify-center">
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent drop-shadow-lg">
+                    Rural Samridhi
+                  </h1>
+                </div>
+              )}
             </div>
           </motion.div>
 
