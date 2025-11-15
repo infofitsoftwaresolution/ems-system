@@ -51,7 +51,17 @@ export default function EnhancedLogin() {
       }, 500);
     } catch (error) {
       console.error("Login error in component:", error);
-      toast.error("Invalid credentials. Please try again.");
+      
+      // Show specific error message based on error type
+      if (error.message && error.message.includes('Backend server is not running')) {
+        toast.error("Backend server is not running. Please start the server on port 3001.", {
+          duration: 5000,
+        });
+      } else if (error.message && error.message.includes('Invalid credentials')) {
+        toast.error("Invalid email or password. Please try again.");
+      } else {
+        toast.error(error.message || "Login failed. Please check if the backend server is running.");
+      }
     } finally {
       setIsLoading(false);
     }
