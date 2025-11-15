@@ -28,6 +28,9 @@ export default function EnhancedLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [logoError, setLogoError] = useState(false);
+  
+  // Cache busting for logo - timestamp ensures fresh load
+  const logoUrl = `/rsamriddhi_logo.svg?t=${Date.now()}`;
 
   const handleLogin = async (e) => {
     e.preventDefault();
