@@ -17,6 +17,7 @@ import "./models/Attendance.js";
 import "./models/Leave.js";
 import "./models/Payslip.js";
 import "./models/Task.js";
+import "./models/Message.js";
 import authRouter from "./routes/auth.js";
 import employeesRouter from "./routes/employees.js";
 import usersRouter from "./routes/users.js";
@@ -28,6 +29,7 @@ import healthRouter from "./routes/health.js";
 import coursesRouter from "./routes/courses.js";
 import tasksRouter from "./routes/tasks.js";
 import eventsRouter from "./routes/events.js";
+import messagesRouter from "./routes/messages.js";
 
 const app = express();
 
@@ -84,6 +86,7 @@ app.use("/api/payslip", payslipRouter);
 app.use("/api/courses", coursesRouter);
 app.use("/api/tasks", tasksRouter);
 app.use("/api/events", eventsRouter);
+app.use("/api/messages", messagesRouter);
 
 const PORT = process.env.PORT || 3001;
 

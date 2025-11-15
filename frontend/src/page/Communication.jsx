@@ -47,6 +47,7 @@ import {
   MoreVertical,
   ChevronRight,
   Flag,
+  RefreshCw,
 } from "lucide-react";
 import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { users } from "@/lib/data";
@@ -259,133 +260,138 @@ export default function Communication() {
   const [availableUsers, setAvailableUsers] = useState([]);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Initialize conversations
+  // Load conversations from API
   useEffect(() => {
-    if (activeTab === "direct") {
-      // Group messages by conversation partner
-      const conversationMap = new Map();
+    const loadConversations = async () => {
+      if (activeTab === "direct" && user?.email) {
+        try {
+          setIsLoadingConversations(true);
+          const conversationsData = await apiService.getConversations();
+          
+          // Transform API data to match component format
+          const transformedConversations = conversationsData.map((conv) => ({
+            id: conv.email, // Use email as ID
+            email: conv.email,
+            name: conv.name,
+            lastMessage: conv.lastMessage || "No messages yet",
+            timestamp: conv.lastMessageTime || new Date().toISOString(),
+            unread: conv.unread || 0,
+            online: false, // Can be enhanced later with real-time status
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.name)}`,
+          }));
 
-      directMessages.forEach((msg) => {
-        let partnerId;
-        if (msg.senderId === user?.id) {
-          partnerId = msg.recipientId;
-        } else if (msg.recipientId === user?.id) {
-          partnerId = msg.senderId;
+          setConversations(transformedConversations);
+        } catch (error) {
+          console.error('Error loading conversations:', error);
+          toast.error('Failed to load conversations');
+          setConversations([]);
+        } finally {
+          setIsLoadingConversations(false);
         }
+      } else if (activeTab === "channels") {
+        // Channels functionality - keep mock for now or implement later
+        setConversations(
+          channels
+            .filter((channel) => channel.members.includes(user?.id || ""))
+            .map((channel) => {
+              const lastChannelMsg = channelMessages
+                .filter((msg) => msg.channelId === channel.id)
+                .sort(
+                  (a, b) =>
+                    new Date(b.timestamp).getTime() -
+                    new Date(a.timestamp).getTime()
+                )[0];
 
-        if (!partnerId) return;
+              return {
+                id: channel.id,
+                name: channel.name,
+                lastMessage: lastChannelMsg?.content || "No messages yet",
+                timestamp: lastChannelMsg?.timestamp || channel.createdAt,
+                unread: channelMessages.filter(
+                  (msg) =>
+                    msg.channelId === channel.id &&
+                    !msg.read &&
+                    msg.senderId !== user?.id
+                ).length,
+                online: true,
+              };
+            })
+            .sort(
+              (a, b) =>
+                new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            )
+        );
+      }
+    };
 
-        const partner = users.find((u) => u.id === partnerId);
-        if (!partner) return;
-
-        if (!conversationMap.has(partnerId)) {
-          conversationMap.set(partnerId, {
-            id: partnerId,
-            name: partner.name,
-            lastMessage: msg.content,
-            timestamp: msg.timestamp,
-            unread: msg.senderId !== user?.id && !msg.read ? 1 : 0,
-            online: Math.random() > 0.5, // Random online status for demo
-            avatar: partner.avatar,
-          });
-        } else {
-          const existing = conversationMap.get(partnerId);
-          if (new Date(msg.timestamp) > new Date(existing.timestamp)) {
-            existing.lastMessage = msg.content;
-            existing.timestamp = msg.timestamp;
-            if (msg.senderId !== user?.id && !msg.read) {
-              existing.unread += 1;
-            }
-          }
-        }
-      });
-
-      setConversations(
-        Array.from(conversationMap.values()).sort(
-          (a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        )
-      );
-    } else {
-      // Set up channels
-      setConversations(
-        channels
-          .filter((channel) => channel.members.includes(user?.id || ""))
-          .map((channel) => {
-            const lastChannelMsg = channelMessages
-              .filter((msg) => msg.channelId === channel.id)
-              .sort(
-                (a, b) =>
-                  new Date(b.timestamp).getTime() -
-                  new Date(a.timestamp).getTime()
-              )[0];
-
-            return {
-              id: channel.id,
-              name: channel.name,
-              lastMessage: lastChannelMsg?.content || "No messages yet",
-              timestamp: lastChannelMsg?.timestamp || channel.createdAt,
-              unread: channelMessages.filter(
-                (msg) =>
-                  msg.channelId === channel.id &&
-                  !msg.read &&
-                  msg.senderId !== user?.id
-              ).length,
-              online: true, // Channels are always "online"
-            };
-          })
-          .sort(
-            (a, b) =>
-              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          )
-      );
-    }
-  }, [activeTab, user?.id]);
+    loadConversations();
+  }, [activeTab, user?.email]);
 
   // Load messages when a conversation is selected
   useEffect(() => {
-    if (!activeConversation) return;
+    const loadMessages = async () => {
+      if (!activeConversation || !user?.email) return;
 
-    if (activeConversation.type === "direct") {
-      setMessages(
-        directMessages
-          .filter(
-            (msg) =>
-              (msg.senderId === user?.id &&
-                msg.recipientId === activeConversation.id) ||
-              (msg.recipientId === user?.id &&
-                msg.senderId === activeConversation.id)
-          )
-          .sort(
-            (a, b) =>
-              new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          )
-      );
-    } else {
-      setMessages(
-        channelMessages
-          .filter((msg) => msg.channelId === activeConversation.id)
-          .sort(
-            (a, b) =>
-              new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          )
-      );
-    }
+      if (activeConversation.type === "direct") {
+        try {
+          setIsLoadingMessages(true);
+          const messagesData = await apiService.getConversation(activeConversation.email || activeConversation.id);
+          
+          // Transform API data to match component format
+          const transformedMessages = messagesData.map((msg) => ({
+            id: msg.id.toString(),
+            senderId: msg.senderEmail,
+            senderEmail: msg.senderEmail,
+            senderName: msg.senderName,
+            recipientId: msg.recipientEmail,
+            recipientEmail: msg.recipientEmail,
+            content: msg.content,
+            timestamp: msg.createdAt || msg.timestamp,
+            read: msg.read,
+            attachments: msg.attachments ? JSON.parse(msg.attachments) : [],
+          }));
 
-    // Mark messages as read
-    if (activeTab === "direct") {
-      setConversations((prevConversations) =>
-        prevConversations.map((conv) =>
-          conv.id === activeConversation.id ? { ...conv, unread: 0 } : conv
-        )
-      );
-    }
+          setMessages(transformedMessages);
 
-    // Scroll to bottom of messages
-    scrollToBottom();
-  }, [activeConversation, user?.id, activeTab]);
+          // Mark messages as read
+          if (activeConversation.email) {
+            await apiService.markMessagesAsRead(activeConversation.email);
+            setConversations((prevConversations) =>
+              prevConversations.map((conv) =>
+                conv.email === activeConversation.email ? { ...conv, unread: 0 } : conv
+              )
+            );
+          }
+        } catch (error) {
+          console.error('Error loading messages:', error);
+          toast.error('Failed to load messages');
+          setMessages([]);
+        } finally {
+          setIsLoadingMessages(false);
+        }
+      } else {
+        // Channel messages - keep mock for now
+        setMessages(
+          channelMessages
+            .filter((msg) => msg.channelId === activeConversation.id)
+            .sort(
+              (a, b) =>
+                new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+            )
+        );
+      }
+
+      // Scroll to bottom of messages
+      scrollToBottom();
+    };
+
+    loadMessages();
+  }, [activeConversation, user?.email, activeTab]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -396,23 +402,91 @@ export default function Communication() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleSendMessage = () => {
-    if (!message.trim() || !activeConversation) return;
+  const handleSendMessage = async () => {
+    if (!message.trim() || !activeConversation || !user?.email) return;
 
-    const newMessage = {
-      id: `msg-${Date.now()}`,
-      senderId: user?.id || "u1",
-      recipientId:
-        activeConversation.type === "direct" ? activeConversation.id : null,
-      channelId:
-        activeConversation.type === "channel" ? activeConversation.id : null,
-      content: message,
-      timestamp: new Date().toISOString(),
-      read: false,
-    };
+    const messageContent = message.trim();
+    setMessage(""); // Clear input immediately for better UX
 
-    setMessages([...messages, newMessage]);
-    setMessage("");
+    if (activeConversation.type === "direct") {
+      try {
+        setIsSendingMessage(true);
+        const recipientEmail = activeConversation.email || activeConversation.id;
+        
+        // Send message via API
+        const sentMessage = await apiService.sendMessage(recipientEmail, messageContent);
+        
+        // Add message to local state
+        const newMessage = {
+          id: sentMessage.id.toString(),
+          senderId: sentMessage.senderEmail,
+          senderEmail: sentMessage.senderEmail,
+          senderName: sentMessage.senderName,
+          recipientId: sentMessage.recipientEmail,
+          recipientEmail: sentMessage.recipientEmail,
+          content: sentMessage.content,
+          timestamp: sentMessage.createdAt || new Date().toISOString(),
+          read: false,
+          attachments: [],
+        };
+
+        setMessages((prev) => [...prev, newMessage]);
+        
+        // Update conversation last message
+        setConversations((prevConversations) =>
+          prevConversations.map((conv) =>
+            conv.email === recipientEmail
+              ? {
+                  ...conv,
+                  lastMessage: messageContent,
+                  timestamp: newMessage.timestamp,
+                }
+              : conv
+          )
+        );
+
+        scrollToBottom();
+        
+        // Refresh conversations list to update last message
+        if (activeTab === "direct" && user?.email) {
+          try {
+            const conversationsData = await apiService.getConversations();
+            const transformedConversations = conversationsData.map((conv) => ({
+              id: conv.email,
+              email: conv.email,
+              name: conv.name,
+              lastMessage: conv.lastMessage || "No messages yet",
+              timestamp: conv.lastMessageTime || new Date().toISOString(),
+              unread: conv.unread || 0,
+              online: false,
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.name)}`,
+            }));
+            setConversations(transformedConversations);
+          } catch (error) {
+            console.error('Error refreshing conversations:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+        toast.error('Failed to send message');
+        setMessage(messageContent); // Restore message on error
+      } finally {
+        setIsSendingMessage(false);
+      }
+    } else {
+      // Channel messages - keep local for now
+      const newMessage = {
+        id: `msg-${Date.now()}`,
+        senderId: user?.id || "u1",
+        recipientId: null,
+        channelId: activeConversation.id,
+        content: messageContent,
+        timestamp: new Date().toISOString(),
+        read: false,
+      };
+
+      setMessages([...messages, newMessage]);
+    }
   };
 
   // Format date for messages
@@ -428,13 +502,29 @@ export default function Communication() {
   };
 
   // Get sender info
-  const getSenderInfo = (senderId) => {
-    return (
-      users.find((u) => u.id === senderId) || {
-        name: "Unknown User",
-        avatar: "",
-      }
-    );
+  const getSenderInfo = (senderEmail) => {
+    // Try to find in current messages first
+    const message = messages.find((m) => m.senderEmail === senderEmail);
+    if (message) {
+      return {
+        name: message.senderName || "Unknown User",
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(message.senderName || "Unknown")}`,
+      };
+    }
+    
+    // Fallback to users list
+    const foundUser = users.find((u) => u.email === senderEmail || u.id === senderEmail);
+    if (foundUser) {
+      return {
+        name: foundUser.name,
+        avatar: foundUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(foundUser.name)}`,
+      };
+    }
+    
+    return {
+      name: "Unknown User",
+      avatar: `https://ui-avatars.com/api/?name=Unknown`,
+    };
   };
 
   // Load available users for new conversation
@@ -442,31 +532,49 @@ export default function Communication() {
     const loadUsers = async () => {
       if (!isNewConversationDialogOpen) return;
       
-      try {
-        setIsLoadingUsers(true);
-        // Try to get employees first, fallback to users
-        let usersData = [];
         try {
-          const employees = await apiService.getEmployees();
-          usersData = employees.map((emp) => ({
-            id: emp.employeeId || emp.id?.toString(),
-            name: emp.name,
-            email: emp.email,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.name)}`,
-          }));
+          setIsLoadingUsers(true);
+          // Get all employees/users for messaging
+          let usersData = [];
+          try {
+            // Try to get employees first
+            const employees = await apiService.getEmployees();
+            usersData = employees
+              .filter((emp) => emp.email !== user?.email) // Exclude current user
+              .map((emp) => ({
+                id: emp.email, // Use email as ID
+                email: emp.email,
+                name: emp.name,
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.name)}`,
+              }));
+            
+            // Also try to get users (for admins)
+            try {
+              const allUsers = await apiService.getUsers();
+              allUsers.forEach((u) => {
+                if (u.email !== user?.email && !usersData.find((ud) => ud.email === u.email)) {
+                  usersData.push({
+                    id: u.email,
+                    email: u.email,
+                    name: u.name,
+                    avatar: u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}`,
+                  });
+                }
+              });
+            } catch (userError) {
+              console.error("Error loading users:", userError);
+            }
+          } catch (error) {
+            console.error("Error loading employees:", error);
+            toast.error("Failed to load users");
+          }
+          setAvailableUsers(usersData);
         } catch (error) {
-          console.error("Error loading employees:", error);
-          // Fallback to mock users
-          usersData = users.filter((u) => u.id !== user?.id);
+          console.error("Error loading users:", error);
+          toast.error("Failed to load users");
+        } finally {
+          setIsLoadingUsers(false);
         }
-        setAvailableUsers(usersData);
-      } catch (error) {
-        console.error("Error loading users:", error);
-        // Fallback to mock users
-        setAvailableUsers(users.filter((u) => u.id !== user?.id));
-      } finally {
-        setIsLoadingUsers(false);
-      }
     };
 
     loadUsers();
@@ -493,7 +601,8 @@ export default function Communication() {
     } else {
       // Create new conversation
       const newConversation = {
-        id: selectedUser.id,
+        id: selectedUser.email || selectedUser.id,
+        email: selectedUser.email || selectedUser.id,
         name: selectedUser.name,
         lastMessage: "No messages yet",
         timestamp: new Date().toISOString(),
@@ -504,7 +613,8 @@ export default function Communication() {
 
       setConversations((prev) => [newConversation, ...prev]);
       setActiveConversation({
-        id: selectedUser.id,
+        id: selectedUser.email || selectedUser.id,
+        email: selectedUser.email || selectedUser.id,
         type: "direct",
         name: selectedUser.name,
       });
@@ -544,13 +654,47 @@ export default function Communication() {
           <CardHeader className="px-4 space-y-3">
             <div className="flex justify-between items-center">
               <CardTitle>Messages</CardTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsNewConversationDialogOpen(true)}
-                title="New Conversation">
-                <Plus className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={async () => {
+                    if (activeTab === "direct" && user?.email) {
+                      try {
+                        setIsLoadingConversations(true);
+                        const conversationsData = await apiService.getConversations();
+                        const transformedConversations = conversationsData.map((conv) => ({
+                          id: conv.email,
+                          email: conv.email,
+                          name: conv.name,
+                          lastMessage: conv.lastMessage || "No messages yet",
+                          timestamp: conv.lastMessageTime || new Date().toISOString(),
+                          unread: conv.unread || 0,
+                          online: false,
+                          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.name)}`,
+                        }));
+                        setConversations(transformedConversations);
+                        toast.success("Conversations refreshed");
+                      } catch (error) {
+                        console.error('Error refreshing conversations:', error);
+                        toast.error('Failed to refresh conversations');
+                      } finally {
+                        setIsLoadingConversations(false);
+                      }
+                    }
+                  }}
+                  title="Refresh"
+                  disabled={isLoadingConversations}>
+                  <RefreshCw className={`h-4 w-4 ${isLoadingConversations ? 'animate-spin' : ''}`} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsNewConversationDialogOpen(true)}
+                  title="New Conversation">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -580,7 +724,14 @@ export default function Communication() {
           </CardHeader>
           <CardContent className="px-3 flex-1 overflow-y-auto">
             <div className="space-y-1">
-              {filteredConversations.length === 0 ? (
+              {isLoadingConversations ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-2 text-sm text-gray-600">Loading conversations...</p>
+                  </div>
+                </div>
+              ) : filteredConversations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 text-center">
                   <MessageSquare className="h-10 w-10 text-muted-foreground mb-2" />
                   <h3 className="font-medium">No conversations</h3>
@@ -602,6 +753,7 @@ export default function Communication() {
                     onClick={() =>
                       setActiveConversation({
                         id: conversation.id,
+                        email: conversation.email || conversation.id,
                         type: activeTab,
                         name: conversation.name,
                       })
@@ -724,9 +876,17 @@ export default function Communication() {
               <Separator />
               <CardContent className="flex-1 overflow-y-auto px-6 py-4">
                 <div className="space-y-4">
-                  {messages.map((msg, index) => {
-                    const isCurrentUser = msg.senderId === user?.id;
-                    const sender = getSenderInfo(msg.senderId);
+                  {isLoadingMessages ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="mt-2 text-sm text-gray-600">Loading messages...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    messages.map((msg, index) => {
+                      const isCurrentUser = msg.senderEmail === user?.email || msg.senderId === user?.id;
+                      const sender = getSenderInfo(msg.senderEmail || msg.senderId);
 
                     // Check for date change
                     const showDateDivider =
@@ -811,7 +971,7 @@ export default function Communication() {
                         </div>
                       </div>
                     );
-                  })}
+                  }))}
                   <div ref={messagesEndRef} />
                 </div>
               </CardContent>
@@ -837,9 +997,13 @@ export default function Communication() {
                   />
                   <Button
                     size="icon"
-                    disabled={!message.trim()}
+                    disabled={!message.trim() || isSendingMessage}
                     onClick={handleSendMessage}>
-                    <Send className="h-4 w-4" />
+                    {isSendingMessage ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               </CardFooter>

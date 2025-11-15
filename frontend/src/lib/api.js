@@ -456,6 +456,42 @@ class ApiService {
       method: 'DELETE',
     });
   }
+
+  // Message endpoints
+  async getMessages() {
+    return this.request('/api/messages');
+  }
+
+  async getConversations() {
+    return this.request('/api/messages/conversations');
+  }
+
+  async getConversation(recipientEmail) {
+    return this.request(`/api/messages/conversation/${encodeURIComponent(recipientEmail)}`);
+  }
+
+  async sendMessage(recipientEmail, content, channelId = null, channelName = null) {
+    return this.request('/api/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        recipientEmail,
+        content,
+        channelId,
+        channelName
+      }),
+    });
+  }
+
+  async markMessagesAsRead(senderEmail) {
+    return this.request('/api/messages/read', {
+      method: 'PUT',
+      body: JSON.stringify({ senderEmail }),
+    });
+  }
+
+  async getUnreadCount() {
+    return this.request('/api/messages/unread-count');
+  }
 }
 
 // Create and export a singleton instance
