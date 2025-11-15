@@ -275,9 +275,12 @@ jobs:
             echo "⚠️ nginx.production.conf not found, skipping nginx update"
           fi
           
-          # Pull latest images (force pull to ensure latest)
-          echo "📦 Pulling latest Docker images (forcing pull)..."
-          docker-compose -f docker-compose.production.yml pull --ignore-pull-failures || true
+          # Check disk space before deployment
+          echo "💾 Checking disk space..."
+          df -h
+          
+          # Clean up Docker resources to free space
+          echo "🧹 Cleaning up Docker resources to free disk space..."
           
           # Stop and remove existing containers forcefully
           echo "🛑 Stopping and removing existing containers..."
@@ -287,13 +290,38 @@ jobs:
           echo "🧹 Force removing any remaining containers..."
           docker rm -f ems-backend ems-frontend ems-nginx 2>/dev/null || true
           
-          # Remove any orphaned containers
-          docker container prune -f || true
+          # Remove all stopped containers
+          docker container prune -af || true
+          
+          # Remove unused images (keep only the ones we need)
+          echo "🗑️ Removing unused Docker images..."
+          docker image prune -af --filter "until=24h" || true
+          
+          # Remove unused volumes
+          echo "🗑️ Removing unused Docker volumes..."
+          docker volume prune -af || true
+          
+          # Remove build cache
+          echo "🗑️ Removing Docker build cache..."
+          docker builder prune -af || true
           
           # Remove old images to force pull of new ones
-          echo "🗑️ Removing old images to force fresh pull..."
+          echo "🗑️ Removing old application images to force fresh pull..."
           docker rmi ghcr.io/infofitsoftwaresolution/ems-system-backend:latest 2>/dev/null || true
           docker rmi ghcr.io/infofitsoftwaresolution/ems-system-frontend:latest 2>/dev/null || true
+          
+          # Clean up system logs if disk space is still low
+          echo "🧹 Cleaning up system logs..."
+          sudo journalctl --vacuum-time=3d || true
+          sudo find /var/log -type f -name "*.log" -mtime +7 -delete || true
+          
+          # Show disk space after cleanup
+          echo "💾 Disk space after cleanup:"
+          df -h
+          
+          # Pull latest images (force pull to ensure latest)
+          echo "📦 Pulling latest Docker images (forcing pull)..."
+          docker-compose -f docker-compose.production.yml pull --ignore-pull-failures || true
           
           # Pull images again after cleanup
           echo "📦 Pulling fresh Docker images..."
