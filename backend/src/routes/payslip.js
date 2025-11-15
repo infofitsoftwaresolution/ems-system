@@ -51,7 +51,8 @@ router.post('/generate', authenticateToken, async (req, res) => {
         employeeId: employee.id, // Use employee.id (INTEGER) for Payslip model
         month: month,
         year: year
-      }
+      },
+      attributes: ['id', 'employeeId', 'employeeName', 'employeeEmail', 'month', 'year']
     });
     
     if (existingPayslip) {
@@ -285,6 +286,7 @@ router.get('/employee/:employeeId', authenticateToken, async (req, res) => {
 
     const payslips = await Payslip.findAll({
       where: whereClause,
+      attributes: ['id', 'employeeId', 'employeeName', 'employeeEmail', 'month', 'year', 'basicSalary', 'earnedSalary', 'leaveDeduction', 'allowances', 'deductions', 'netSalary', 'workingDays', 'totalDays', 'leaveDays', 'status', 'generatedAt', 'paidAt', 'createdAt', 'updatedAt'],
       order: [['year', 'DESC'], ['month', 'DESC']]
     });
 
@@ -316,6 +318,7 @@ router.get('/all', async (req, res) => {
 
     const payslips = await Payslip.findAll({
       where: whereClause,
+      attributes: ['id', 'employeeId', 'employeeName', 'employeeEmail', 'month', 'year', 'basicSalary', 'earnedSalary', 'leaveDeduction', 'allowances', 'deductions', 'netSalary', 'workingDays', 'totalDays', 'leaveDays', 'status', 'generatedAt', 'paidAt', 'createdAt', 'updatedAt'],
       order: [['year', 'DESC'], ['month', 'DESC']]
     });
 
@@ -332,7 +335,9 @@ router.get('/all', async (req, res) => {
 // Get payslip by ID
 router.get('/:id', async (req, res) => {
   try {
-    const payslip = await Payslip.findByPk(req.params.id);
+    const payslip = await Payslip.findByPk(req.params.id, {
+      attributes: ['id', 'employeeId', 'employeeName', 'employeeEmail', 'month', 'year', 'basicSalary', 'earnedSalary', 'leaveDeduction', 'allowances', 'deductions', 'netSalary', 'workingDays', 'totalDays', 'leaveDays', 'status', 'generatedAt', 'paidAt', 'createdAt', 'updatedAt']
+    });
     
     if (!payslip) {
       return res.status(404).json({ message: 'Payslip not found' });
