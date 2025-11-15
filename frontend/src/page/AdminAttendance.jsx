@@ -135,7 +135,10 @@ export default function AdminAttendance() {
   // Get location display
   const getLocationDisplay = (latitude, longitude, address) => {
     if (!latitude || !longitude) return 'No location data';
-    return address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (isNaN(lat) || isNaN(lng)) return 'Invalid location data';
+    return address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   };
 
   // Export attendance data
@@ -428,7 +431,7 @@ export default function AdminAttendance() {
                                 </p>
                                 {record.checkInLatitude && record.checkInLongitude && (
                                   <p className="text-xs text-gray-500">
-                                    {record.checkInLatitude.toFixed(6)}, {record.checkInLongitude.toFixed(6)}
+                                    {Number(record.checkInLatitude).toFixed(6)}, {Number(record.checkInLongitude).toFixed(6)}
                                   </p>
                                 )}
                               </div>
@@ -450,7 +453,7 @@ export default function AdminAttendance() {
                                 </p>
                                 {record.checkOutLatitude && record.checkOutLongitude && (
                                   <p className="text-xs text-gray-500">
-                                    {record.checkOutLatitude.toFixed(6)}, {record.checkOutLongitude.toFixed(6)}
+                                    {Number(record.checkOutLatitude).toFixed(6)}, {Number(record.checkOutLongitude).toFixed(6)}
                                   </p>
                                 )}
                               </div>
