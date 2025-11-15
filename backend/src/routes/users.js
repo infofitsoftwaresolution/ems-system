@@ -168,7 +168,11 @@ router.get('/me/profile', authenticateToken, async (req, res) => {
     // Get user ID from token (req.user.sub contains the user ID)
     const userId = req.user.sub || req.user.id;
     
+    console.log('Profile request - req.user:', req.user);
+    console.log('Profile request - userId:', userId);
+    
     if (!userId) {
+      console.error('Profile request - No user ID found in token');
       return res.status(401).json({ message: 'Invalid token: user ID not found' });
     }
     
@@ -177,8 +181,11 @@ router.get('/me/profile', authenticateToken, async (req, res) => {
     });
     
     if (!user) {
+      console.error('Profile request - User not found for ID:', userId);
       return res.status(404).json({ message: 'User not found' });
     }
+    
+    console.log('Profile request - User found:', user.email);
     
     const userData = user.toJSON();
     // Parse JSON fields
@@ -205,6 +212,7 @@ router.get('/me/profile', authenticateToken, async (req, res) => {
     res.json(userData);
   } catch (error) {
     console.error('Error fetching user profile:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ message: 'Error fetching user profile', error: error.message });
   }
 });
