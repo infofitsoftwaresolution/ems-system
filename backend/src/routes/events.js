@@ -144,7 +144,7 @@ router.get("/", authenticateToken, async (req, res) => {
 
     const events = await Event.findAll({
       where: whereClause,
-      attributes: attributes as any,
+      attributes: attributes,
       order: [[orderColumn, "ASC"]],
     });
 
