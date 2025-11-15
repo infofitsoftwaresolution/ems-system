@@ -32,6 +32,61 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Get current user profile with settings - MUST be before /:email route
+router.get('/me/profile', authenticateToken, async (req, res) => {
+  try {
+    // Get user ID from token (req.user.sub contains the user ID)
+    const userId = req.user.sub || req.user.id;
+    
+    console.log('Profile request - req.user:', req.user);
+    console.log('Profile request - userId:', userId);
+    
+    if (!userId) {
+      console.error('Profile request - No user ID found in token');
+      return res.status(401).json({ message: 'Invalid token: user ID not found' });
+    }
+    
+    const user = await User.findByPk(userId, {
+      attributes: ['id', 'name', 'email', 'role', 'avatar', 'phone', 'bio', 'language', 'timezone', 'notificationSettings', 'securitySettings']
+    });
+    
+    if (!user) {
+      console.error('Profile request - User not found for ID:', userId);
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    console.log('Profile request - User found:', user.email);
+    
+    const userData = user.toJSON();
+    // Parse JSON fields
+    if (userData.notificationSettings) {
+      try {
+        userData.notificationSettings = JSON.parse(userData.notificationSettings);
+      } catch (e) {
+        userData.notificationSettings = {};
+      }
+    } else {
+      userData.notificationSettings = {};
+    }
+    
+    if (userData.securitySettings) {
+      try {
+        userData.securitySettings = JSON.parse(userData.securitySettings);
+      } catch (e) {
+        userData.securitySettings = {};
+      }
+    } else {
+      userData.securitySettings = {};
+    }
+    
+    res.json(userData);
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ message: 'Error fetching user profile', error: error.message });
+  }
+});
+
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../../uploads/avatars');
 if (!fs.existsSync(uploadsDir)) {
@@ -159,61 +214,6 @@ router.put('/:email', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error updating user:', error);
     res.status(500).json({ message: 'Error updating user', error: error.message });
-  }
-});
-
-// Get current user profile with settings
-router.get('/me/profile', authenticateToken, async (req, res) => {
-  try {
-    // Get user ID from token (req.user.sub contains the user ID)
-    const userId = req.user.sub || req.user.id;
-    
-    console.log('Profile request - req.user:', req.user);
-    console.log('Profile request - userId:', userId);
-    
-    if (!userId) {
-      console.error('Profile request - No user ID found in token');
-      return res.status(401).json({ message: 'Invalid token: user ID not found' });
-    }
-    
-    const user = await User.findByPk(userId, {
-      attributes: ['id', 'name', 'email', 'role', 'avatar', 'phone', 'bio', 'language', 'timezone', 'notificationSettings', 'securitySettings']
-    });
-    
-    if (!user) {
-      console.error('Profile request - User not found for ID:', userId);
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    console.log('Profile request - User found:', user.email);
-    
-    const userData = user.toJSON();
-    // Parse JSON fields
-    if (userData.notificationSettings) {
-      try {
-        userData.notificationSettings = JSON.parse(userData.notificationSettings);
-      } catch (e) {
-        userData.notificationSettings = {};
-      }
-    } else {
-      userData.notificationSettings = {};
-    }
-    
-    if (userData.securitySettings) {
-      try {
-        userData.securitySettings = JSON.parse(userData.securitySettings);
-      } catch (e) {
-        userData.securitySettings = {};
-      }
-    } else {
-      userData.securitySettings = {};
-    }
-    
-    res.json(userData);
-  } catch (error) {
-    console.error('Error fetching user profile:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ message: 'Error fetching user profile', error: error.message });
   }
 });
 
