@@ -47,6 +47,172 @@ export default function EmployeeProfile() {
   const [panCardFile, setPanCardFile] = useState(null);
   const [aadharCardFile, setAadharCardFile] = useState(null);
   const [submittingKyc, setSubmittingKyc] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
+
+  // Validation functions
+  const validatePAN = (pan) => {
+    if (!pan) return "PAN Number is required";
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    if (!panRegex.test(pan.toUpperCase())) {
+      return "PAN must be in format: ABCDE1234F (5 letters, 4 digits, 1 letter)";
+    }
+    return "";
+  };
+
+  const validateAadhar = (aadhar) => {
+    if (!aadhar) return "Aadhar Number is required";
+    const aadharRegex = /^[0-9]{12}$/;
+    if (!aadharRegex.test(aadhar.replace(/\s/g, ""))) {
+      return "Aadhar must be exactly 12 digits";
+    }
+    return "";
+  };
+
+  const validateDOB = (dob) => {
+    if (!dob) return "Date of Birth is required";
+    const selectedDate = new Date(dob);
+    const today = new Date();
+    const minAge = new Date();
+    minAge.setFullYear(today.getFullYear() - 100); // Max age 100 years
+    
+    if (selectedDate > today) {
+      return "Date of Birth cannot be in the future";
+    }
+    if (selectedDate < minAge) {
+      return "Please enter a valid date of birth";
+    }
+    const age = today.getFullYear() - selectedDate.getFullYear();
+    if (age < 18) {
+      return "You must be at least 18 years old";
+    }
+    return "";
+  };
+
+  const validateAddress = (address) => {
+    if (!address) return "Address is required";
+    if (address.trim().length < 10) {
+      return "Address must be at least 10 characters long";
+    }
+    return "";
+  };
+
+  const validatePhone = (phone) => {
+    if (!phone) return ""; // Optional field
+    const phoneRegex = /^[0-9]{10}$/;
+    const cleanedPhone = phone.replace(/\s|-/g, "");
+    if (!phoneRegex.test(cleanedPhone)) {
+      return "Phone number must be exactly 10 digits";
+    }
+    return "";
+  };
+
+  const validateEmergencyContact = (contact) => {
+    if (!contact) return ""; // Optional field
+    if (contact.trim().length < 2) {
+      return "Emergency contact name must be at least 2 characters";
+    }
+    return "";
+  };
+
+  const validateFile = (file, fieldName) => {
+    if (!file) return `${fieldName} is required`;
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    
+    if (!allowedTypes.includes(file.type)) {
+      return "Please upload a valid image file (JPEG, PNG, or WebP)";
+    }
+    if (file.size > maxSize) {
+      return "File size must be less than 5MB";
+    }
+    return "";
+  };
+
+  // Handle field validation on change
+  const handleFieldChange = (field, value) => {
+    setKycFormData({ ...kycFormData, [field]: value });
+    
+    // Clear error when user starts typing
+    if (validationErrors[field]) {
+      setValidationErrors({ ...validationErrors, [field]: "" });
+    }
+  };
+
+  // Handle field validation on blur
+  const handleFieldBlur = (field, value) => {
+    let error = "";
+    
+    switch (field) {
+      case "panNumber":
+        error = validatePAN(value);
+        break;
+      case "aadharNumber":
+        error = validateAadhar(value);
+        break;
+      case "dob":
+        error = validateDOB(value);
+        break;
+      case "address":
+        error = validateAddress(value);
+        break;
+      case "phoneNumber":
+        error = validatePhone(value);
+        break;
+      case "emergencyContact":
+        error = validateEmergencyContact(value);
+        break;
+      case "emergencyPhone":
+        error = validatePhone(value);
+        break;
+      default:
+        break;
+    }
+    
+    setValidationErrors({ ...validationErrors, [field]: error });
+  };
+
+  // Handle file upload with validation
+  const handleFileUpload = (file, fieldName) => {
+    if (!file) {
+      // User cancelled file selection
+      if (fieldName === "panCard") {
+        setPanCardFile(null);
+      } else if (fieldName === "aadharCard") {
+        setAadharCardFile(null);
+      }
+      setValidationErrors({ ...validationErrors, [fieldName]: "" });
+      return;
+    }
+    
+    const error = validateFile(file, fieldName);
+    setValidationErrors({ ...validationErrors, [fieldName]: error });
+    
+    if (!error && fieldName === "panCard") {
+      setPanCardFile(file);
+    } else if (!error && fieldName === "aadharCard") {
+      setAadharCardFile(file);
+    }
+  };
+
+  // Validate all fields before submission
+  const validateAllFields = () => {
+    const errors = {};
+    
+    errors.panNumber = validatePAN(kycFormData.panNumber);
+    errors.aadharNumber = validateAadhar(kycFormData.aadharNumber);
+    errors.dob = validateDOB(kycFormData.dob);
+    errors.address = validateAddress(kycFormData.address);
+    errors.phoneNumber = validatePhone(kycFormData.phoneNumber);
+    errors.emergencyContact = validateEmergencyContact(kycFormData.emergencyContact);
+    errors.emergencyPhone = validatePhone(kycFormData.emergencyPhone);
+    errors.panCard = validateFile(panCardFile, "PAN Card");
+    errors.aadharCard = validateFile(aadharCardFile, "Aadhar Card");
+    
+    setValidationErrors(errors);
+    
+    // Check if there are any errors
+    return !Object.values(errors).some(error => error !== "");
+  };
 
   // Load KYC status (only for non-admin users)
   useEffect(() => {
@@ -101,13 +267,9 @@ export default function EmployeeProfile() {
   const handleKycSubmit = async (e) => {
     e.preventDefault();
     
-    if (!kycFormData.panNumber || !kycFormData.aadharNumber || !kycFormData.address || !kycFormData.dob) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    if (!panCardFile || !aadharCardFile) {
-      toast.error("Please upload both PAN card and Aadhar card photos");
+    // Validate all fields before submission
+    if (!validateAllFields()) {
+      toast.error("Please fix all validation errors before submitting");
       return;
     }
 
@@ -185,6 +347,7 @@ export default function EmployeeProfile() {
       });
       setPanCardFile(null);
       setAadharCardFile(null);
+      setValidationErrors({});
       
       // Reload KYC status
       const kycInfo = await apiService.getKycStatus(user.email);
@@ -478,21 +641,32 @@ export default function EmployeeProfile() {
                   <Label htmlFor="panNumber">PAN Number *</Label>
                   <Input
                     id="panNumber"
-                    placeholder="Enter PAN number"
+                    placeholder="Enter PAN number (e.g., ABCDE1234F)"
                     value={kycFormData.panNumber}
-                    onChange={(e) => setKycFormData({...kycFormData, panNumber: e.target.value})}
+                    onChange={(e) => handleFieldChange("panNumber", e.target.value.toUpperCase())}
+                    onBlur={(e) => handleFieldBlur("panNumber", e.target.value)}
+                    className={validationErrors.panNumber ? "border-red-500" : ""}
                     required
                   />
+                  {validationErrors.panNumber && (
+                    <p className="text-sm text-red-500">{validationErrors.panNumber}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="aadharNumber">Aadhar Number *</Label>
                   <Input
                     id="aadharNumber"
-                    placeholder="Enter Aadhar number"
+                    placeholder="Enter Aadhar number (12 digits)"
                     value={kycFormData.aadharNumber}
-                    onChange={(e) => setKycFormData({...kycFormData, aadharNumber: e.target.value})}
+                    onChange={(e) => handleFieldChange("aadharNumber", e.target.value.replace(/\D/g, ""))}
+                    onBlur={(e) => handleFieldBlur("aadharNumber", e.target.value)}
+                    className={validationErrors.aadharNumber ? "border-red-500" : ""}
+                    maxLength={12}
                     required
                   />
+                  {validationErrors.aadharNumber && (
+                    <p className="text-sm text-red-500">{validationErrors.aadharNumber}</p>
+                  )}
                 </div>
               </div>
               
@@ -502,9 +676,15 @@ export default function EmployeeProfile() {
                   id="dob"
                   type="date"
                   value={kycFormData.dob}
-                  onChange={(e) => setKycFormData({...kycFormData, dob: e.target.value})}
+                  onChange={(e) => handleFieldChange("dob", e.target.value)}
+                  onBlur={(e) => handleFieldBlur("dob", e.target.value)}
+                  className={validationErrors.dob ? "border-red-500" : ""}
+                  max={new Date().toISOString().split('T')[0]}
                   required
                 />
+                {validationErrors.dob && (
+                  <p className="text-sm text-red-500">{validationErrors.dob}</p>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -513,9 +693,14 @@ export default function EmployeeProfile() {
                   id="address"
                   placeholder="Enter your complete address"
                   value={kycFormData.address}
-                  onChange={(e) => setKycFormData({...kycFormData, address: e.target.value})}
+                  onChange={(e) => handleFieldChange("address", e.target.value)}
+                  onBlur={(e) => handleFieldBlur("address", e.target.value)}
+                  className={validationErrors.address ? "border-red-500" : ""}
                   required
                 />
+                {validationErrors.address && (
+                  <p className="text-sm text-red-500">{validationErrors.address}</p>
+                )}
               </div>
               
               <div className="grid grid-cols-2 gap-4">
@@ -523,10 +708,16 @@ export default function EmployeeProfile() {
                   <Label htmlFor="phoneNumber">Phone Number</Label>
                   <Input
                     id="phoneNumber"
-                    placeholder="Enter phone number"
+                    placeholder="Enter phone number (10 digits)"
                     value={kycFormData.phoneNumber}
-                    onChange={(e) => setKycFormData({...kycFormData, phoneNumber: e.target.value})}
+                    onChange={(e) => handleFieldChange("phoneNumber", e.target.value.replace(/\D/g, ""))}
+                    onBlur={(e) => handleFieldBlur("phoneNumber", e.target.value)}
+                    className={validationErrors.phoneNumber ? "border-red-500" : ""}
+                    maxLength={10}
                   />
+                  {validationErrors.phoneNumber && (
+                    <p className="text-sm text-red-500">{validationErrors.phoneNumber}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="emergencyContact">Emergency Contact</Label>
@@ -534,8 +725,13 @@ export default function EmployeeProfile() {
                     id="emergencyContact"
                     placeholder="Emergency contact name"
                     value={kycFormData.emergencyContact}
-                    onChange={(e) => setKycFormData({...kycFormData, emergencyContact: e.target.value})}
+                    onChange={(e) => handleFieldChange("emergencyContact", e.target.value)}
+                    onBlur={(e) => handleFieldBlur("emergencyContact", e.target.value)}
+                    className={validationErrors.emergencyContact ? "border-red-500" : ""}
                   />
+                  {validationErrors.emergencyContact && (
+                    <p className="text-sm text-red-500">{validationErrors.emergencyContact}</p>
+                  )}
                 </div>
               </div>
               
@@ -543,10 +739,16 @@ export default function EmployeeProfile() {
                 <Label htmlFor="emergencyPhone">Emergency Contact Phone</Label>
                 <Input
                   id="emergencyPhone"
-                  placeholder="Emergency contact phone number"
+                  placeholder="Emergency contact phone number (10 digits)"
                   value={kycFormData.emergencyPhone}
-                  onChange={(e) => setKycFormData({...kycFormData, emergencyPhone: e.target.value})}
+                  onChange={(e) => handleFieldChange("emergencyPhone", e.target.value.replace(/\D/g, ""))}
+                  onBlur={(e) => handleFieldBlur("emergencyPhone", e.target.value)}
+                  className={validationErrors.emergencyPhone ? "border-red-500" : ""}
+                  maxLength={10}
                 />
+                {validationErrors.emergencyPhone && (
+                  <p className="text-sm text-red-500">{validationErrors.emergencyPhone}</p>
+                )}
               </div>
               
               {/* File Upload Section */}
@@ -556,7 +758,7 @@ export default function EmployeeProfile() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="panCard">PAN Card Photo *</Label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <div className={`border-2 border-dashed rounded-lg p-4 ${validationErrors.panCard ? "border-red-500" : "border-gray-300"}`}>
                       {panCardFile ? (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
@@ -567,7 +769,10 @@ export default function EmployeeProfile() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => setPanCardFile(null)}
+                            onClick={() => {
+                              setPanCardFile(null);
+                              setValidationErrors({ ...validationErrors, panCard: "" });
+                            }}
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -579,8 +784,8 @@ export default function EmployeeProfile() {
                           <Input
                             id="panCard"
                             type="file"
-                            accept="image/*"
-                            onChange={(e) => setPanCardFile(e.target.files[0])}
+                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                            onChange={(e) => handleFileUpload(e.target.files[0], "panCard")}
                             className="hidden"
                           />
                           <Button
@@ -594,11 +799,14 @@ export default function EmployeeProfile() {
                         </div>
                       )}
                     </div>
+                    {validationErrors.panCard && (
+                      <p className="text-sm text-red-500">{validationErrors.panCard}</p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="aadharCard">Aadhar Card Photo *</Label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <div className={`border-2 border-dashed rounded-lg p-4 ${validationErrors.aadharCard ? "border-red-500" : "border-gray-300"}`}>
                       {aadharCardFile ? (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
@@ -609,7 +817,10 @@ export default function EmployeeProfile() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => setAadharCardFile(null)}
+                            onClick={() => {
+                              setAadharCardFile(null);
+                              setValidationErrors({ ...validationErrors, aadharCard: "" });
+                            }}
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -621,8 +832,8 @@ export default function EmployeeProfile() {
                           <Input
                             id="aadharCard"
                             type="file"
-                            accept="image/*"
-                            onChange={(e) => setAadharCardFile(e.target.files[0])}
+                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                            onChange={(e) => handleFileUpload(e.target.files[0], "aadharCard")}
                             className="hidden"
                           />
                           <Button
@@ -636,6 +847,9 @@ export default function EmployeeProfile() {
                         </div>
                       )}
                     </div>
+                    {validationErrors.aadharCard && (
+                      <p className="text-sm text-red-500">{validationErrors.aadharCard}</p>
+                    )}
                   </div>
                 </div>
               </div>
