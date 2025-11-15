@@ -28,9 +28,6 @@ export default function EnhancedLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [logoError, setLogoError] = useState(false);
-  
-  // Cache busting for logo - timestamp ensures fresh load
-  const logoUrl = `/rsamriddhi_logo.svg?t=${Date.now()}`;
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -150,7 +147,7 @@ export default function EnhancedLogin() {
             }}>
             {!logoError ? (
               <img
-                src={logoUrl}
+                src={`/rsamriddhi_logo.svg?v=5`}
                 alt="Rural Samridhi Logo"
                 className="h-32 w-auto object-contain"
                 onError={(e) => {
