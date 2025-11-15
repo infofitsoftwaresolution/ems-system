@@ -275,9 +275,9 @@ jobs:
             echo "⚠️ nginx.production.conf not found, skipping nginx update"
           fi
           
-          # Pull latest images
-          echo "📦 Pulling latest Docker images..."
-          docker-compose -f docker-compose.production.yml pull || true
+          # Pull latest images (force pull to ensure latest)
+          echo "📦 Pulling latest Docker images (forcing pull)..."
+          docker-compose -f docker-compose.production.yml pull --ignore-pull-failures || true
           
           # Stop and remove existing containers forcefully
           echo "🛑 Stopping and removing existing containers..."
@@ -290,9 +290,17 @@ jobs:
           # Remove any orphaned containers
           docker container prune -f || true
           
+          # Remove old images to force pull of new ones
+          echo "🗑️ Removing old frontend image to force fresh pull..."
+          docker rmi ghcr.io/infofitsoftwaresolution/ems-system-frontend:latest 2>/dev/null || true
+          
+          # Pull images again after cleanup
+          echo "📦 Pulling fresh Docker images..."
+          docker-compose -f docker-compose.production.yml pull || true
+          
           # Start new containers
           echo "🚀 Starting new containers..."
-          docker-compose -f docker-compose.production.yml up -d
+          docker-compose -f docker-compose.production.yml up -d --force-recreate
           
           # Restart nginx container to ensure it's using the latest config
           echo "🔄 Restarting Nginx container..."
