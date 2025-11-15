@@ -293,9 +293,13 @@ jobs:
           # Remove all stopped containers
           docker container prune -af || true
           
-          # Remove unused images (keep only the ones we need)
-          echo "🗑️ Removing unused Docker images..."
-          docker image prune -af --filter "until=24h" || true
+          # Remove ALL unused images (more aggressive cleanup)
+          echo "🗑️ Removing ALL unused Docker images..."
+          docker image prune -af || true
+          
+          # Remove all images except the ones we're about to pull
+          echo "🗑️ Removing all existing application images..."
+          docker images | grep -E "ems-system|ghcr.io/infofitsoftwaresolution" | awk '{print $3}' | xargs -r docker rmi -f || true
           
           # Remove unused volumes
           echo "🗑️ Removing unused Docker volumes..."
@@ -305,10 +309,9 @@ jobs:
           echo "🗑️ Removing Docker build cache..."
           docker builder prune -af || true
           
-          # Remove old images to force pull of new ones
-          echo "🗑️ Removing old application images to force fresh pull..."
-          docker rmi ghcr.io/infofitsoftwaresolution/ems-system-backend:latest 2>/dev/null || true
-          docker rmi ghcr.io/infofitsoftwaresolution/ems-system-frontend:latest 2>/dev/null || true
+          # Remove dangling images
+          echo "🗑️ Removing dangling images..."
+          docker image prune -f || true
           
           # Clean up system logs if disk space is still low
           echo "🧹 Cleaning up system logs..."
