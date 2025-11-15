@@ -56,15 +56,53 @@ export default function EmployeePayslip() {
   const handleDownloadPayslip = async (payslipId) => {
     try {
       const payslip = payslips.find(p => p.id === payslipId);
-      if (payslip) {
-        PayslipPDFService.downloadPayslipPDF(payslip);
-        toast.success("Payslip downloaded successfully");
-      } else {
+      if (!payslip) {
         toast.error("Payslip not found");
+        return;
       }
+
+      // Validate required fields
+      if (!payslip.employeeName || !payslip.month || !payslip.year) {
+        toast.error("Payslip data is incomplete. Cannot generate PDF.");
+        console.error("Incomplete payslip data:", payslip);
+        return;
+      }
+
+      // Ensure numeric fields are properly formatted
+      const payslipData = {
+        ...payslip,
+        basicSalary: parseFloat(payslip.basicSalary || 0),
+        hra: parseFloat(payslip.hra || 0),
+        da: parseFloat(payslip.da || 0),
+        transportAllowance: parseFloat(payslip.transportAllowance || 0),
+        medicalAllowance: parseFloat(payslip.medicalAllowance || 0),
+        specialAllowance: parseFloat(payslip.specialAllowance || 0),
+        grossSalary: parseFloat(payslip.grossSalary || payslip.earnedSalary || 0),
+        pf: parseFloat(payslip.pf || 0),
+        esi: parseFloat(payslip.esi || 0),
+        tds: parseFloat(payslip.tds || 0),
+        professionalTax: parseFloat(payslip.professionalTax || 0),
+        leaveDeduction: parseFloat(payslip.leaveDeduction || 0),
+        otherDeductions: parseFloat(payslip.otherDeductions || 0),
+        totalDeductions: parseFloat(payslip.totalDeductions || 0),
+        netSalary: parseFloat(payslip.netSalary || 0),
+        workingDays: parseInt(payslip.workingDays || 0),
+        totalDays: parseInt(payslip.totalDays || 0),
+        leaveDays: parseInt(payslip.leaveDays || 0),
+        month: parseInt(payslip.month),
+        year: parseInt(payslip.year),
+      };
+
+      PayslipPDFService.downloadPayslipPDF(payslipData);
+      toast.success("Payslip downloaded successfully");
     } catch (error) {
       console.error("Error downloading payslip:", error);
-      toast.error("Failed to download payslip");
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack,
+        payslipId
+      });
+      toast.error(error.message || "Failed to download payslip. Please check the console for details.");
     }
   };
 

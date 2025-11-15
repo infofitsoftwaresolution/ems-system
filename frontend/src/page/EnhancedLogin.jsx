@@ -128,14 +128,14 @@ export default function EnhancedLogin() {
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-200/20 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
 
       <motion.div
-        className="relative z-20 w-full max-w-md flex flex-col items-center justify-center px-6 py-8"
+        className="relative z-20 w-full max-w-md flex flex-col items-center justify-center px-1 py-8"
         initial="hidden"
         animate="visible"
         variants={containerVariants}>
-        <motion.div variants={itemVariants} className="mb-8 text-center w-full">
+        <motion.div variants={itemVariants} className="mb-6 text-center w-full">
           {/* Enhanced Logo with shadow and glow */}
           <motion.div
-            className="mb-8 flex justify-center -translate-x-1"
+            className="mb-6 flex justify-start ml-[55px]"
             initial={{ scale: 0, opacity: 0, y: -20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             transition={{
@@ -153,27 +153,6 @@ export default function EnhancedLogin() {
               />
             </div>
           </motion.div>
-
-          {/* Enhanced Title with green gradient */}
-          <motion.div
-            initial={{ rotateY: -90, opacity: 0 }}
-            animate={{ rotateY: 0, opacity: 1 }}
-            transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}>
-            {/* <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent mb-2">
-              Rural Samridhi
-            </h1> */}
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-700 dark:text-gray-300">
-              Employee Management System
-            </h2>
-          </motion.div>
-
-          <motion.p
-            className="mt-4 text-base text-gray-600 dark:text-gray-400"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}>
-            Welcome back! Please sign in to continue.
-          </motion.p>
         </motion.div>
 
         <motion.div variants={itemVariants} className="w-full">
