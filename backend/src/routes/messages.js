@@ -3,9 +3,28 @@ import { Message } from '../models/Message.js';
 import { User } from '../models/User.js';
 import { Employee } from '../models/Employee.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
+import { sequelize } from '../sequelize.js';
 
 const router = Router();
+
+// Helper function to get actual table columns for messages
+async function getMessageTableColumns() {
+  try {
+    const [results] = await sequelize.query(
+      `SELECT column_name 
+       FROM information_schema.columns 
+       WHERE table_name = 'messages' 
+       ORDER BY ordinal_position`,
+      { type: QueryTypes.SELECT }
+    );
+    return results.map((r) => r.column_name);
+  } catch (error) {
+    console.error("Error getting messages table columns:", error);
+    // Return default columns if query fails
+    return ['id', 'senderEmail', 'senderName', 'recipientEmail', 'recipientName', 'content', 'createdAt', 'updatedAt'];
+  }
+}
 
 // Helper function to get user email from token
 const getUserEmailFromToken = async (req) => {
@@ -38,6 +57,26 @@ router.get('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Unable to determine user email' });
     }
     
+    // Get actual table columns
+    const columns = await getMessageTableColumns();
+    const hasRead = columns.includes('read');
+    const hasReadAt = columns.includes('readAt');
+    const hasChannelId = columns.includes('channelId');
+    const hasChannelName = columns.includes('channelName');
+    const hasAttachments = columns.includes('attachments');
+    const hasCreatedAt = columns.includes('createdAt');
+    const hasUpdatedAt = columns.includes('updatedAt');
+
+    // Build attributes list
+    const attributes = ['id', 'senderEmail', 'senderName', 'recipientEmail', 'recipientName', 'content'];
+    if (hasRead) attributes.push('read');
+    if (hasReadAt) attributes.push('readAt');
+    if (hasChannelId) attributes.push('channelId');
+    if (hasChannelName) attributes.push('channelName');
+    if (hasAttachments) attributes.push('attachments');
+    if (hasCreatedAt) attributes.push('createdAt');
+    if (hasUpdatedAt) attributes.push('updatedAt');
+
     // Get all messages where user is sender or recipient
     const messages = await Message.findAll({
       where: {
@@ -46,8 +85,8 @@ router.get('/', authenticateToken, async (req, res) => {
           { recipientEmail: userEmail }
         ]
       },
-      order: [['createdAt', 'DESC']],
-      attributes: ['id', 'senderEmail', 'senderName', 'recipientEmail', 'recipientName', 'content', 'createdAt', 'read', 'channelId', 'channelName']
+      order: hasCreatedAt ? [['createdAt', 'DESC']] : [['id', 'DESC']],
+      attributes: attributes
     });
 
     res.json(messages);
@@ -69,35 +108,67 @@ router.get('/conversation/:recipientEmail', authenticateToken, async (req, res) 
     
     const recipientEmail = decodeURIComponent(req.params.recipientEmail);
 
+    // Get actual table columns
+    const columns = await getMessageTableColumns();
+    const hasRead = columns.includes('read');
+    const hasReadAt = columns.includes('readAt');
+    const hasChannelId = columns.includes('channelId');
+    const hasChannelName = columns.includes('channelName');
+    const hasAttachments = columns.includes('attachments');
+    const hasCreatedAt = columns.includes('createdAt');
+    const hasUpdatedAt = columns.includes('updatedAt');
+
+    // Build attributes list
+    const attributes = ['id', 'senderEmail', 'senderName', 'recipientEmail', 'recipientName', 'content'];
+    if (hasRead) attributes.push('read');
+    if (hasReadAt) attributes.push('readAt');
+    if (hasChannelId) attributes.push('channelId');
+    if (hasChannelName) attributes.push('channelName');
+    if (hasAttachments) attributes.push('attachments');
+    if (hasCreatedAt) attributes.push('createdAt');
+    if (hasUpdatedAt) attributes.push('updatedAt');
+
+    // Build where clause
+    const whereClause = {
+      [Op.or]: [
+        {
+          senderEmail: senderEmail,
+          recipientEmail: recipientEmail
+        },
+        {
+          senderEmail: recipientEmail,
+          recipientEmail: senderEmail
+        }
+      ]
+    };
+    
+    if (hasChannelId) {
+      whereClause.channelId = null; // Only direct messages
+    }
+
     const messages = await Message.findAll({
-      where: {
-        [Op.or]: [
-          {
-            senderEmail: senderEmail,
-            recipientEmail: recipientEmail
-          },
-          {
-            senderEmail: recipientEmail,
-            recipientEmail: senderEmail
-          }
-        ],
-        channelId: null // Only direct messages
-      },
-      order: [['createdAt', 'ASC']],
-      attributes: ['id', 'senderEmail', 'senderName', 'recipientEmail', 'recipientName', 'content', 'createdAt', 'read', 'channelId']
+      where: whereClause,
+      order: hasCreatedAt ? [['createdAt', 'ASC']] : [['id', 'ASC']],
+      attributes: attributes
     });
 
-    // Mark messages as read
-    await Message.update(
-      { read: true, readAt: new Date() },
-      {
-        where: {
-          recipientEmail: senderEmail,
-          senderEmail: recipientEmail,
-          read: false
-        }
+    // Mark messages as read (only if read column exists)
+    if (hasRead) {
+      const updateData = { read: true };
+      if (hasReadAt) {
+        updateData.readAt = new Date();
       }
-    );
+      await Message.update(
+        updateData,
+        {
+          where: {
+            recipientEmail: senderEmail,
+            senderEmail: recipientEmail,
+            read: false
+          }
+        }
+      );
+    }
 
     res.json(messages);
   } catch (error) {
@@ -115,17 +186,44 @@ router.get('/conversations', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Unable to determine user email' });
     }
 
+    // Get actual table columns
+    const columns = await getMessageTableColumns();
+    const hasRead = columns.includes('read');
+    const hasReadAt = columns.includes('readAt');
+    const hasChannelId = columns.includes('channelId');
+    const hasChannelName = columns.includes('channelName');
+    const hasAttachments = columns.includes('attachments');
+    const hasCreatedAt = columns.includes('createdAt');
+    const hasUpdatedAt = columns.includes('updatedAt');
+
+    // Build attributes list based on what exists
+    const attributes = ['id', 'senderEmail', 'senderName', 'recipientEmail', 'recipientName', 'content'];
+    if (hasRead) attributes.push('read');
+    if (hasReadAt) attributes.push('readAt');
+    if (hasChannelId) attributes.push('channelId');
+    if (hasChannelName) attributes.push('channelName');
+    if (hasAttachments) attributes.push('attachments');
+    if (hasCreatedAt) attributes.push('createdAt');
+    if (hasUpdatedAt) attributes.push('updatedAt');
+
+    // Build where clause
+    const whereClause = {
+      [Op.or]: [
+        { senderEmail: userEmail, recipientEmail: { [Op.ne]: null } },
+        { recipientEmail: userEmail, senderEmail: { [Op.ne]: null } }
+      ]
+    };
+    
+    // Only filter by channelId if the column exists
+    if (hasChannelId) {
+      whereClause.channelId = null; // Only direct messages
+    }
+
     // Get all messages for this user
     const allMessages = await Message.findAll({
-      where: {
-        [Op.or]: [
-          { senderEmail: userEmail, recipientEmail: { [Op.ne]: null } },
-          { recipientEmail: userEmail, senderEmail: { [Op.ne]: null } }
-        ],
-        channelId: null // Only direct messages
-      },
-      order: [['createdAt', 'DESC']],
-      attributes: ['id', 'senderEmail', 'senderName', 'recipientEmail', 'recipientName', 'content', 'createdAt', 'read', 'channelId']
+      where: whereClause,
+      order: hasCreatedAt ? [['createdAt', 'DESC']] : [['id', 'DESC']],
+      attributes: attributes
     });
 
     // Group by conversation partner
@@ -155,16 +253,19 @@ router.get('/conversations', authenticateToken, async (req, res) => {
       }
     });
 
-    // Calculate unread counts for each conversation
+    // Calculate unread counts for each conversation (only if read column exists)
     const conversations = await Promise.all(
       Array.from(conversationMap.values()).map(async (conv) => {
-        const unreadCount = await Message.count({
-          where: {
-            senderEmail: conv.email,
-            recipientEmail: userEmail,
-            read: false
-          }
-        });
+        let unreadCount = 0;
+        if (hasRead) {
+          unreadCount = await Message.count({
+            where: {
+              senderEmail: conv.email,
+              recipientEmail: userEmail,
+              read: false
+            }
+          });
+        }
 
         return {
           ...conv,
@@ -219,16 +320,34 @@ router.post('/', authenticateToken, async (req, res) => {
       }
     }
 
-    const message = await Message.create({
+    // Get actual table columns
+    const columns = await getMessageTableColumns();
+    const hasRead = columns.includes('read');
+    const hasReadAt = columns.includes('readAt');
+    const hasChannelId = columns.includes('channelId');
+    const hasChannelName = columns.includes('channelName');
+    const hasAttachments = columns.includes('attachments');
+
+    // Build message data based on what columns exist
+    const messageData = {
       senderEmail: senderEmail,
       senderName: sender.name,
       recipientEmail: recipientEmail || null,
       recipientName: recipientName,
-      channelId: channelId || null,
-      channelName: channelName || null,
-      content: content.trim(),
-      read: false
-    });
+      content: content.trim()
+    };
+
+    if (hasChannelId) {
+      messageData.channelId = channelId || null;
+    }
+    if (hasChannelName) {
+      messageData.channelName = channelName || null;
+    }
+    if (hasRead) {
+      messageData.read = false;
+    }
+
+    const message = await Message.create(messageData);
 
     res.status(201).json(message);
   } catch (error) {
@@ -243,16 +362,27 @@ router.put('/read', authenticateToken, async (req, res) => {
     const { senderEmail } = req.body;
     const recipientEmail = await getUserEmailFromToken(req);
 
-    await Message.update(
-      { read: true, readAt: new Date() },
-      {
-        where: {
-          senderEmail: senderEmail,
-          recipientEmail: recipientEmail,
-          read: false
-        }
+    // Get actual table columns
+    const columns = await getMessageTableColumns();
+    const hasRead = columns.includes('read');
+    const hasReadAt = columns.includes('readAt');
+
+    if (hasRead) {
+      const updateData = { read: true };
+      if (hasReadAt) {
+        updateData.readAt = new Date();
       }
-    );
+      await Message.update(
+        updateData,
+        {
+          where: {
+            senderEmail: senderEmail,
+            recipientEmail: recipientEmail,
+            read: false
+          }
+        }
+      );
+    }
 
     res.json({ success: true, message: 'Messages marked as read' });
   } catch (error) {
@@ -266,12 +396,19 @@ router.get('/unread-count', authenticateToken, async (req, res) => {
   try {
     const userEmail = await getUserEmailFromToken(req);
 
-    const count = await Message.count({
-      where: {
-        recipientEmail: userEmail,
-        read: false
-      }
-    });
+    // Get actual table columns
+    const columns = await getMessageTableColumns();
+    const hasRead = columns.includes('read');
+
+    let count = 0;
+    if (hasRead) {
+      count = await Message.count({
+        where: {
+          recipientEmail: userEmail,
+          read: false
+        }
+      });
+    }
 
     res.json({ count });
   } catch (error) {
