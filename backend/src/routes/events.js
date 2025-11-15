@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { Event } from "../models/Event.js";
+import { User } from "../models/User.js";
 import { authenticateToken } from "../middleware/auth.js";
 import { Op } from "sequelize";
 
@@ -121,7 +122,18 @@ router.post("/", authenticateToken, async (req, res) => {
   try {
     const { title, description, type, start, end, allDay, attendees } =
       req.body;
-    const userEmail = req.user?.email || req.body.createdByEmail;
+    
+    // Get user email from database using user ID from token
+    let userEmail = req.body.createdByEmail;
+    if (!userEmail) {
+      const userId = req.user?.sub || req.user?.id;
+      if (userId) {
+        const user = await User.findByPk(userId);
+        if (user) {
+          userEmail = user.email;
+        }
+      }
+    }
 
     if (!title) {
       return res.status(400).json({
