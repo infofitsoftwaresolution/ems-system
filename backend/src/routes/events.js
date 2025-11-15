@@ -12,7 +12,7 @@ let tableColumnsCache = null;
 let columnsCacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// Helper function to get actual table columns
+// Helper function to get actual table columns with their nullability
 async function getTableColumns() {
   const now = Date.now();
   // Return cached columns if still valid
@@ -22,7 +22,7 @@ async function getTableColumns() {
 
   try {
     const [results] = await sequelize.query(
-      `SELECT column_name 
+      `SELECT column_name, is_nullable 
        FROM information_schema.columns 
        WHERE table_name = 'events' 
        ORDER BY ordinal_position`,
@@ -31,8 +31,14 @@ async function getTableColumns() {
     
     // Handle both array and object formats
     let columns = [];
+    let requiredColumns = []; // Track columns that are NOT NULL
+    
     if (Array.isArray(results) && results.length > 0) {
       columns = results.map((r) => r.column_name);
+      // Store required columns (NOT NULL) for reference
+      requiredColumns = results
+        .filter((r) => r.is_nullable === 'NO')
+        .map((r) => r.column_name);
     } else {
       // Fallback: Try raw query to detect columns
       const [rawResults] = await sequelize.query(
@@ -44,14 +50,21 @@ async function getTableColumns() {
       }
     }
     
-    tableColumnsCache = columns;
+    // Store both columns and required columns in cache
+    tableColumnsCache = {
+      columns: columns,
+      required: requiredColumns
+    };
     columnsCacheTime = now;
     return tableColumnsCache;
   } catch (error) {
     console.error("Error getting table columns:", error);
     console.error("Error details:", error.message, error.stack);
     // Return default columns if query fails
-    return ['id', 'title', 'description', 'createdAt', 'updatedAt'];
+    return {
+      columns: ['id', 'title', 'description', 'createdAt', 'updatedAt'],
+      required: ['id', 'title']
+    };
   }
 }
 
@@ -120,7 +133,8 @@ router.get("/", authenticateToken, async (req, res) => {
     const { type, start, end } = req.query;
 
     // Get actual table columns
-    const columns = await getTableColumns();
+    const columnsResult = await getTableColumns();
+    const columns = Array.isArray(columnsResult) ? columnsResult : (columnsResult.columns || []);
     const hasStart = columns.includes('start');
     const hasEnd = columns.includes('end');
     const hasDate = columns.includes('date');
@@ -188,7 +202,8 @@ router.get("/:id", authenticateToken, async (req, res) => {
     const eventId = parseInt(req.params.id.replace("e", ""));
     
     // Get actual table columns
-    const columns = await getTableColumns();
+    const columnsResult = await getTableColumns();
+    const columns = Array.isArray(columnsResult) ? columnsResult : (columnsResult.columns || []);
     const hasStart = columns.includes('start');
     const hasEnd = columns.includes('end');
     const hasDate = columns.includes('date');
@@ -272,7 +287,14 @@ router.post("/", authenticateToken, async (req, res) => {
     }
 
     // Get actual table columns to determine which fields to use
-    const columns = await getTableColumns();
+    const columnsResult = await getTableColumns();
+    // Handle both old format (array) and new format (object with columns/required)
+    const columns = Array.isArray(columnsResult) ? columnsResult : (columnsResult.columns || []);
+    const requiredColumns = Array.isArray(columnsResult) ? [] : (columnsResult.required || []);
+    
+    console.log('Detected columns:', columns);
+    console.log('Required columns (NOT NULL):', requiredColumns);
+    
     const hasStart = columns.includes('start');
     const hasEnd = columns.includes('end');
     const hasDate = columns.includes('date');
@@ -281,6 +303,9 @@ router.post("/", authenticateToken, async (req, res) => {
     const hasAllDay = columns.includes('allDay');
     const hasAttendees = columns.includes('attendees');
     const hasCreatedByEmail = columns.includes('createdByEmail');
+    
+    // Check if date is required but we detected it
+    const dateIsRequired = requiredColumns.includes('date');
 
     // Handle date/time fields
     const startDate = new Date(start);
@@ -291,50 +316,71 @@ router.post("/", authenticateToken, async (req, res) => {
     // If database doesn't have start/end columns, use raw query to bypass model validation
     if (!hasStart || !hasEnd) {
       // Build column names and values for raw query
-      const columns = ['title'];
+      const insertColumns = ['title'];
       const values = [title.trim()];
       const placeholders = ['$1'];
       let paramIndex = 2;
       
-      if (hasDate) {
-        columns.push('date');
+      // Always include date if the column exists (it might be required)
+      // If date is required, we MUST include it
+      if (hasDate || dateIsRequired) {
+        insertColumns.push('date');
         values.push(startDate.toISOString().split('T')[0]);
         placeholders.push(`$${paramIndex++}`);
+        console.log('Including date column in INSERT (required or exists)');
+      } else {
+        console.warn('Warning: date column not detected but might be required');
       }
+      // Always include startTime if the column exists
       if (hasStartTime) {
-        columns.push('"startTime"');
+        insertColumns.push('"startTime"');
         values.push(startDate.toTimeString().split(' ')[0]);
         placeholders.push(`$${paramIndex++}`);
       }
+      // Always include endTime if the column exists
       if (hasEndTime) {
-        columns.push('"endTime"');
+        insertColumns.push('"endTime"');
         values.push(endDate.toTimeString().split(' ')[0]);
         placeholders.push(`$${paramIndex++}`);
       }
+      // Include description if provided
       if (description) {
-        columns.push('description');
+        insertColumns.push('description');
         values.push(description.trim());
         placeholders.push(`$${paramIndex++}`);
       }
+      // Include allDay if the column exists
       if (hasAllDay) {
-        columns.push('"allDay"');
+        insertColumns.push('"allDay"');
         values.push(allDay || false);
         placeholders.push(`$${paramIndex++}`);
       }
+      // Include attendees if provided and column exists
       if (hasAttendees && attendees && attendees.length > 0) {
-        columns.push('attendees');
+        insertColumns.push('attendees');
         values.push(JSON.stringify(attendees));
         placeholders.push(`$${paramIndex++}`);
       }
+      // Include createdByEmail if column exists
       if (hasCreatedByEmail && userEmail) {
-        columns.push('"createdByEmail"');
+        insertColumns.push('"createdByEmail"');
         values.push(userEmail);
         placeholders.push(`$${paramIndex++}`);
       }
       
+      // Check for any other required columns we might have missed
+      for (const reqCol of requiredColumns) {
+        if (!insertColumns.includes(reqCol) && reqCol !== 'id') {
+          console.warn(`Warning: Required column ${reqCol} not included in INSERT`);
+        }
+      }
+      
+      console.log('INSERT columns:', insertColumns);
+      console.log('INSERT values count:', values.length);
+      
       // Use raw query to insert
       const [rawResult] = await sequelize.query(
-        `INSERT INTO events (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`,
+        `INSERT INTO events (${insertColumns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`,
         {
           bind: values,
           type: QueryTypes.SELECT
@@ -346,7 +392,8 @@ router.post("/", authenticateToken, async (req, res) => {
       const eventId = insertedRow?.id;
       
       if (eventId) {
-        const allColumns = await getTableColumns();
+        const allColumnsResult = await getTableColumns();
+        const allColumns = Array.isArray(allColumnsResult) ? allColumnsResult : (allColumnsResult.columns || []);
         event = await Event.findByPk(eventId, {
           attributes: allColumns
         });
@@ -386,7 +433,8 @@ router.post("/", authenticateToken, async (req, res) => {
     }
 
     // Get columns again for transform (in case we used raw query)
-    const allColumns = await getTableColumns();
+    const allColumnsResult = await getTableColumns();
+    const allColumns = Array.isArray(allColumnsResult) ? allColumnsResult : (allColumnsResult.columns || []);
     res.status(201).json(transformEventData(event.toJSON(), allColumns));
   } catch (error) {
     console.error("Error creating event:", error);
@@ -409,7 +457,8 @@ router.put("/:id", authenticateToken, async (req, res) => {
       req.body;
 
     // Get actual table columns
-    const columns = await getTableColumns();
+    const columnsResult = await getTableColumns();
+    const columns = Array.isArray(columnsResult) ? columnsResult : (columnsResult.columns || []);
     const hasStart = columns.includes('start');
     const hasEnd = columns.includes('end');
     const hasDate = columns.includes('date');
@@ -463,7 +512,8 @@ router.put("/:id", authenticateToken, async (req, res) => {
     
     await event.update(updateData);
 
-    res.json(transformEventData(event.toJSON(), columns));
+    const columnsForTransform = Array.isArray(columnsResult) ? columnsResult : (columnsResult.columns || []);
+    res.json(transformEventData(event.toJSON(), columnsForTransform));
   } catch (error) {
     console.error("Error updating event:", error);
     res.status(500).json({
