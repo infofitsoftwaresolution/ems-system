@@ -75,7 +75,7 @@ export function EnhancedHeader({ toggleSidebar }) {
       </motion.div>
 
       <Link to="/" className="flex items-center gap-2 font-semibold">
-        <motion.span
+        <motion.img
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{
@@ -84,15 +84,16 @@ export function EnhancedHeader({ toggleSidebar }) {
             damping: 20,
             delay: 0.1,
           }}
-          className="text-xl bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
-          EMS
-        </motion.span>
+          src="/rsamriddhi_logo.png"
+          alt="Rural samriddhi EMS"
+          className="h-8 w-auto"
+        />
         <motion.span
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
           className="hidden md:inline font-medium">
-          Employee Management System
+          Rural samriddhi EMS
         </motion.span>
       </Link>
 

@@ -48,10 +48,10 @@ router.post('/login', async (req, res) => {
 
 router.post('/update-password', async (req, res) => {
   try {
-    const { email, currentPassword, newPassword } = req.body;
+    const { email, currentPassword, newPassword, forceChange } = req.body;
     
-    if (!email || !currentPassword || !newPassword) {
-      return res.status(400).json({ message: 'Email, current password, and new password are required' });
+    if (!email || !newPassword) {
+      return res.status(400).json({ message: 'Email and new password are required' });
     }
     
     const user = await User.findOne({ where: { email, active: true } });
@@ -59,10 +59,44 @@ router.post('/update-password', async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    // Verify current password
-    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!isCurrentPasswordValid) {
-      return res.status(401).json({ message: 'Current password is incorrect' });
+    // Check if this is a forced password change (mustChangePassword = true)
+    const isForcedChange = forceChange || user.mustChangePassword;
+    
+    if (isForcedChange) {
+      // For forced password changes, verify token instead of current password
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Authentication token required for forced password change' });
+      }
+      
+      const token = authHeader.substring(7);
+      let decoded;
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+      } catch (err) {
+        return res.status(401).json({ message: 'Invalid or expired token' });
+      }
+      
+      // Verify the token belongs to the user
+      if (decoded.sub !== user.id) {
+        return res.status(403).json({ message: 'Token does not match user' });
+      }
+      
+      // Verify user actually needs to change password
+      if (!user.mustChangePassword) {
+        return res.status(400).json({ message: 'Password change is not required for this user' });
+      }
+    } else {
+      // Regular password change requires current password
+      if (!currentPassword) {
+        return res.status(400).json({ message: 'Current password is required' });
+      }
+      
+      // Verify current password
+      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isCurrentPasswordValid) {
+        return res.status(401).json({ message: 'Current password is incorrect' });
+      }
     }
     
     // Validate new password

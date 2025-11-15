@@ -42,8 +42,12 @@ export function Header({ toggleSidebar }) {
       </Button>
 
       <Link to="/" className="flex items-center gap-2 font-semibold">
-        <span className="text-primary text-xl">EMS</span>
-        <span className="hidden md:inline">Employee Management System</span>
+        <img
+          src="/rsamriddhi_logo.png"
+          alt="Rural samriddhi EMS"
+          className="h-8 w-auto"
+        />
+        <span className="hidden md:inline">Rural samriddhi EMS</span>
       </Link>
 
       <div className="ml-auto flex items-center gap-4">
