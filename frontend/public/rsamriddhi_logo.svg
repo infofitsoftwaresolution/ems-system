@@ -1,29 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120">
-  <defs>
-    <style>
-      .rural-text { 
-        font-family: Arial, Helvetica, sans-serif; 
-        font-size: 34px; 
-        font-weight: 900; 
-        fill: #166534; 
-        letter-spacing: 1px;
-      }
-      .samriddhi-text { 
-        font-family: Arial, Helvetica, sans-serif; 
-        font-size: 34px; 
-        font-weight: 900; 
-        fill: #FF6B35; 
-        letter-spacing: 1px;
-      }
-    </style>
-  </defs>
-  <!-- Orange circle with black caret - thicker lines -->
-  <circle cx="60" cy="60" r="50" fill="#FF6B35" stroke="#000000" stroke-width="1.5"/>
-  <path d="M60 32 L38 82 L82 82 Z" fill="#000000" stroke="#000000" stroke-width="2"/>
-  
-  <!-- RURAL text in dark green -->
-  <text x="130" y="54" class="rural-text">RURAL</text>
-  
-  <!-- SAMRIDDHI text in orange -->
-  <text x="130" y="89" class="samriddhi-text">SAMRIDDHI</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 200">
+  <!-- Background black (as in the logo) -->
+  <rect width="100%" height="100%" fill="#000000"/>
+
+  <!-- Left icon -->
+  <g transform="translate(90,100)">
+    <!-- Outer orange ring -->
+    <circle cx="0" cy="0" r="55" fill="#f97316"/>
+    <circle cx="0" cy="0" r="43" fill="none" stroke="#000000" stroke-width="6"/>
+
+    <!-- Inner chevron -->
+    <path d="M -22 15 L 0 -18 L 22 15" 
+          stroke="#000000" stroke-width="10" fill="none" 
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Text "RURAL" -->
+  <text x="170" y="90" 
+        font-family="Georgia, 'Times New Roman', serif"
+        font-weight="900"
+        font-size="80"
+        fill="#16763a"
+        letter-spacing="4">
+    RURAL
+  </text>
+
+  <!-- Text "SAMRIDDHI" -->
+  <text x="170" y="160" 
+        font-family="Georgia, 'Times New Roman', serif"
+        font-weight="900"
+        font-size="70"
+        fill="#f97316"
+        letter-spacing="3">
+    SAMRIDDHI
+  </text>
 </svg>
