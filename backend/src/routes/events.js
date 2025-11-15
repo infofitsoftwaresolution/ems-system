@@ -28,11 +28,28 @@ async function getTableColumns() {
        ORDER BY ordinal_position`,
       { type: QueryTypes.SELECT }
     );
-    tableColumnsCache = results.map((r) => r.column_name);
+    
+    // Handle both array and object formats
+    let columns = [];
+    if (Array.isArray(results) && results.length > 0) {
+      columns = results.map((r) => r.column_name);
+    } else {
+      // Fallback: Try raw query to detect columns
+      const [rawResults] = await sequelize.query(
+        `SELECT * FROM events LIMIT 1`,
+        { type: QueryTypes.SELECT }
+      );
+      if (rawResults && rawResults.length > 0) {
+        columns = Object.keys(rawResults[0]);
+      }
+    }
+    
+    tableColumnsCache = columns;
     columnsCacheTime = now;
     return tableColumnsCache;
   } catch (error) {
     console.error("Error getting table columns:", error);
+    console.error("Error details:", error.message, error.stack);
     // Return default columns if query fails
     return ['id', 'title', 'description', 'createdAt', 'updatedAt'];
   }
