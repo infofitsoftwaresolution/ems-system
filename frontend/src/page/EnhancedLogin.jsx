@@ -150,7 +150,7 @@ export default function EnhancedLogin() {
                 <>
                   <div className="absolute inset-0 bg-green-400/30 rounded-full blur-xl animate-pulse" />
                   <img
-                    src="/rsamriddhi_logo.png"
+                    src="/rsamriddhi_logo.svg"
                     alt="Rural Samridhi Logo"
                     className="relative h-24 w-auto object-contain drop-shadow-lg"
                     onError={() => setLogoError(true)}
@@ -159,9 +159,17 @@ export default function EnhancedLogin() {
               ) : (
                 <div className="relative h-24 flex items-center justify-center px-4">
                   <div className="absolute inset-0 bg-green-400/30 rounded-full blur-xl animate-pulse" />
-                  <h1 className="relative text-4xl font-bold bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent drop-shadow-lg">
-                    Rural Samridhi
-                  </h1>
+                  <div className="relative flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#FF6B35] flex items-center justify-center">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 6 L8 16 L16 16 Z" fill="#1a1a1a"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-bold text-[#10B981] leading-tight">RURAL</h1>
+                      <h1 className="text-2xl font-bold text-[#FF6B35] leading-tight">SAMRIDDHI</h1>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
