@@ -74,7 +74,10 @@ export function EnhancedHeader({ toggleSidebar }) {
         </Button>
       </motion.div>
 
-      <Link to="/" className="flex items-center gap-2 font-semibold">
+      <Link 
+        to="/" 
+        className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity"
+        aria-label="Rural Samridhi EMS Home">
         <motion.img
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -85,15 +88,19 @@ export function EnhancedHeader({ toggleSidebar }) {
             delay: 0.1,
           }}
           src="/rsamriddhi_logo.png"
-          alt="Rural samriddhi EMS"
+          alt=""
           className="h-8 w-auto"
+          onError={(e) => {
+            // Fallback if logo doesn't load
+            e.target.style.display = 'none';
+          }}
         />
         <motion.span
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="hidden md:inline font-medium">
-          Rural samriddhi EMS
+          className="hidden md:inline font-medium text-foreground">
+          Rural Samridhi EMS
         </motion.span>
       </Link>
 
