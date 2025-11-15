@@ -110,8 +110,16 @@ router.put('/:email', authenticateToken, async (req, res) => {
     const { email } = req.params;
     const updateData = req.body;
     
+    // Get current user from database to check email
+    const currentUserId = req.user.sub || req.user.id;
+    const currentUser = await User.findByPk(currentUserId);
+    
+    if (!currentUser) {
+      return res.status(404).json({ message: 'Current user not found' });
+    }
+    
     // Only allow users to update their own profile, or admins to update any profile
-    if (req.user.email !== email && req.user.role !== 'admin') {
+    if (currentUser.email !== email && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'You can only update your own profile' });
     }
     
@@ -157,8 +165,14 @@ router.put('/:email', authenticateToken, async (req, res) => {
 // Get current user profile with settings
 router.get('/me/profile', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findOne({ 
-      where: { email: req.user.email },
+    // Get user ID from token (req.user.sub contains the user ID)
+    const userId = req.user.sub || req.user.id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: 'Invalid token: user ID not found' });
+    }
+    
+    const user = await User.findByPk(userId, {
       attributes: ['id', 'name', 'email', 'role', 'avatar', 'phone', 'bio', 'language', 'timezone', 'notificationSettings', 'securitySettings']
     });
     
@@ -202,7 +216,13 @@ router.post('/upload-avatar', authenticateToken, upload.single('avatar'), async 
       return res.status(400).json({ message: 'No file uploaded' });
     }
     
-    const user = await User.findOne({ where: { email: req.user.email } });
+    // Get user ID from token
+    const userId = req.user.sub || req.user.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Invalid token: user ID not found' });
+    }
+    
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -226,7 +246,13 @@ router.post('/upload-avatar', authenticateToken, upload.single('avatar'), async 
 // Remove avatar
 router.delete('/remove-avatar', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findOne({ where: { email: req.user.email } });
+    // Get user ID from token
+    const userId = req.user.sub || req.user.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Invalid token: user ID not found' });
+    }
+    
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
