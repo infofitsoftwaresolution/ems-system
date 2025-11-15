@@ -147,9 +147,9 @@ export default function EnhancedLogin() {
             }}>
             {!logoError ? (
               <img
-                src="/rsamriddhi_logo.svg"
+                src="/rsamriddhi_logo.svg?v=2"
                 alt="Rural Samridhi Logo"
-                className="h-20 w-auto object-contain"
+                className="h-24 w-auto object-contain"
                 onError={() => setLogoError(true)}
               />
             ) : (
@@ -160,7 +160,7 @@ export default function EnhancedLogin() {
                   </svg>
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-[#10B981] leading-tight">RURAL</h1>
+                  <h1 className="text-2xl font-bold text-[#166534] leading-tight">RURAL</h1>
                   <h1 className="text-2xl font-bold text-[#FF6B35] leading-tight">SAMRIDDHI</h1>
                 </div>
               </div>

@@ -3,27 +3,27 @@
     <style>
       .rural-text { 
         font-family: Arial, Helvetica, sans-serif; 
-        font-size: 32px; 
-        font-weight: bold; 
+        font-size: 34px; 
+        font-weight: 900; 
         fill: #166534; 
-        letter-spacing: 0.5px;
+        letter-spacing: 1px;
       }
       .samriddhi-text { 
         font-family: Arial, Helvetica, sans-serif; 
-        font-size: 32px; 
-        font-weight: bold; 
+        font-size: 34px; 
+        font-weight: 900; 
         fill: #FF6B35; 
-        letter-spacing: 0.5px;
+        letter-spacing: 1px;
       }
     </style>
   </defs>
-  <!-- Orange circle with black caret -->
-  <circle cx="60" cy="60" r="50" fill="#FF6B35" stroke="#000000" stroke-width="1"/>
-  <path d="M60 35 L40 80 L80 80 Z" fill="#000000"/>
+  <!-- Orange circle with black caret - thicker lines -->
+  <circle cx="60" cy="60" r="50" fill="#FF6B35" stroke="#000000" stroke-width="1.5"/>
+  <path d="M60 32 L38 82 L82 82 Z" fill="#000000" stroke="#000000" stroke-width="2"/>
   
   <!-- RURAL text in dark green -->
-  <text x="130" y="52" class="rural-text">RURAL</text>
+  <text x="130" y="54" class="rural-text">RURAL</text>
   
   <!-- SAMRIDDHI text in orange -->
-  <text x="130" y="87" class="samriddhi-text">SAMRIDDHI</text>
+  <text x="130" y="89" class="samriddhi-text">SAMRIDDHI</text>
 </svg>
