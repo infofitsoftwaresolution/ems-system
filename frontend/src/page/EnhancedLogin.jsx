@@ -39,28 +39,40 @@ export default function EnhancedLogin() {
     setIsLoading(true);
 
     try {
-      console.log('Starting login process...');
+      console.log("Starting login process...");
       await login(email, password);
-      console.log('Login function completed successfully');
+      console.log("Login function completed successfully");
       toast.success("Login successful!");
-      
+
       // Wait a bit longer to ensure authentication state is updated
       setTimeout(() => {
-        console.log('Navigating to dashboard...');
+        console.log("Navigating to dashboard...");
         navigate("/");
       }, 500);
     } catch (error) {
       console.error("Login error in component:", error);
-      
+
       // Show specific error message based on error type
-      if (error.message && error.message.includes('Backend server is not running')) {
-        toast.error("Backend server is not running. Please start the server on port 3001.", {
-          duration: 5000,
-        });
-      } else if (error.message && error.message.includes('Invalid credentials')) {
+      if (
+        error.message &&
+        error.message.includes("Backend server is not running")
+      ) {
+        toast.error(
+          "Backend server is not running. Please start the server on port 3001.",
+          {
+            duration: 5000,
+          }
+        );
+      } else if (
+        error.message &&
+        error.message.includes("Invalid credentials")
+      ) {
         toast.error("Invalid email or password. Please try again.");
       } else {
-        toast.error(error.message || "Login failed. Please check if the backend server is running.");
+        toast.error(
+          error.message ||
+            "Login failed. Please check if the backend server is running."
+        );
       }
     } finally {
       setIsLoading(false);
@@ -89,51 +101,88 @@ export default function EnhancedLogin() {
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center">
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden">
+      {/* Enhanced gradient background with green/earth tones */}
+      <div className="fixed inset-0 z-0 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900" />
+
+      {/* Animated gradient overlay */}
       <AnimatedGradientBackground
         intensity="subtle"
         speed="slow"
-        className="fixed inset-0 z-0"
+        className="fixed inset-0 z-0 opacity-60"
       />
 
+      {/* Particle background with green theme */}
       <div className="absolute inset-0 z-10">
         <ParticleBackground
-          particleCount={30}
+          particleCount={40}
           particleSize={2}
-          particleColor="rgba(59, 130, 246, 0.3)"
+          particleColor="rgba(16, 185, 129, 0.2)"
           connectParticles={true}
           interactive={true}
         />
       </div>
 
+      {/* Decorative elements */}
+      <div className="absolute top-0 left-0 w-96 h-96 bg-green-200/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-200/20 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
+
       <motion.div
-        className="container relative z-20 flex max-w-md flex-col items-center justify-center px-6"
+        className="container relative z-20 flex max-w-md flex-col items-center justify-center px-6 py-8"
         initial="hidden"
         animate="visible"
         variants={containerVariants}>
-        <motion.div variants={itemVariants} className="mb-8 text-center">
+        <motion.div variants={itemVariants} className="mb-8 text-center w-full">
+          {/* Enhanced Logo with shadow and glow */}
           <motion.div
-            initial={{ rotateY: -90 }}
-            animate={{ rotateY: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}>
-            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Employee Management System
-            </h1>
+            className="mb-8 flex justify-center"
+            initial={{ scale: 0, opacity: 0, y: -20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.6,
+              ease: "easeOut",
+              type: "spring",
+              stiffness: 200,
+            }}>
+            <div className="relative">
+              <div className="absolute inset-0 bg-green-400/30 rounded-full blur-xl animate-pulse" />
+              <img
+                src="/rsamriddhi_logo.png"
+                alt="Rural Samridhi Logo"
+                className="relative h-24 w-auto object-contain drop-shadow-lg"
+              />
+            </div>
           </motion.div>
+
+          {/* Enhanced Title with green gradient */}
+          <motion.div
+            initial={{ rotateY: -90, opacity: 0 }}
+            animate={{ rotateY: 0, opacity: 1 }}
+            transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent mb-2">
+              Rural Samridhi
+            </h1>
+            <h2 className="text-xl md:text-2xl font-semibold text-gray-700 dark:text-gray-300">
+              Employee Management System
+            </h2>
+          </motion.div>
+
           <motion.p
-            className="mt-2 text-lg text-muted-foreground"
+            className="mt-4 text-base text-gray-600 dark:text-gray-400"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}>
+            transition={{ delay: 0.4 }}>
             Welcome back! Please sign in to continue.
           </motion.p>
         </motion.div>
 
         <motion.div variants={itemVariants} className="w-full">
-          <Card className="backdrop-blur-md bg-white/80 dark:bg-background/80 shadow-lg border-opacity-50">
-            <CardHeader>
-              <CardTitle>Login</CardTitle>
-              <CardDescription>
+          <Card className="backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 shadow-2xl border border-green-100/50 dark:border-gray-700/50">
+            <CardHeader className="space-y-2 pb-6">
+              <CardTitle className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                Sign In
+              </CardTitle>
+              <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
                 Enter your credentials to access your account
               </CardDescription>
             </CardHeader>
@@ -145,10 +194,14 @@ export default function EnhancedLogin() {
                   animate={{
                     boxShadow:
                       focusedField === "email"
-                        ? "0 0 0 2px rgba(37, 99, 235, 0.1)"
+                        ? "0 0 0 3px rgba(16, 185, 129, 0.1)"
                         : "none",
                   }}>
-                  <Label htmlFor="email">Email</Label>
+                  <Label
+                    htmlFor="email"
+                    className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Email Address
+                  </Label>
                   <div className="relative">
                     <Input
                       id="email"
@@ -160,8 +213,8 @@ export default function EnhancedLogin() {
                       onBlur={() => setFocusedField(null)}
                       className={`transition-all duration-300 ${
                         focusedField === "email"
-                          ? "border-primary ring-2 ring-primary/10"
-                          : "border-input"
+                          ? "border-green-500 ring-2 ring-green-500/20 dark:border-green-400 dark:ring-green-400/20"
+                          : "border-gray-300 dark:border-gray-600"
                       }`}
                       disabled={isLoading}
                     />
@@ -174,11 +227,15 @@ export default function EnhancedLogin() {
                   animate={{
                     boxShadow:
                       focusedField === "password"
-                        ? "0 0 0 2px rgba(37, 99, 235, 0.1)"
+                        ? "0 0 0 3px rgba(16, 185, 129, 0.1)"
                         : "none",
                   }}>
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
+                    <Label
+                      htmlFor="password"
+                      className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Password
+                    </Label>
                     <Button
                       type="button"
                       variant="link"
@@ -201,8 +258,8 @@ export default function EnhancedLogin() {
                       onBlur={() => setFocusedField(null)}
                       className={`transition-all duration-300 pr-10 ${
                         focusedField === "password"
-                          ? "border-primary ring-2 ring-primary/10"
-                          : "border-input"
+                          ? "border-green-500 ring-2 ring-green-500/20 dark:border-green-400 dark:ring-green-400/20"
+                          : "border-gray-300 dark:border-gray-600"
                       }`}
                       disabled={isLoading}
                     />
@@ -222,14 +279,17 @@ export default function EnhancedLogin() {
                   </div>
                 </motion.div>
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-6 shadow-lg hover:shadow-xl transition-all duration-300"
+                  disabled={isLoading}>
                   {isLoading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Please
-                      wait
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
                     </>
                   ) : (
-                    "Sign in"
+                    "Sign In"
                   )}
                 </Button>
               </form>
@@ -255,9 +315,13 @@ export default function EnhancedLogin() {
 
         <motion.div
           variants={itemVariants}
-          className="mt-8 text-center text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} Employee Management System. All
-          rights reserved.
+          className="mt-8 text-center text-sm text-gray-600 dark:text-gray-400">
+          <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
+            &copy; {new Date().getFullYear()} Rural Samridhi
+          </p>
+          <p className="text-xs">
+            Employee Management System. All rights reserved.
+          </p>
         </motion.div>
       </motion.div>
     </div>
