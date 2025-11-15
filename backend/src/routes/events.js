@@ -230,12 +230,13 @@ router.get("/:id", authenticateToken, async (req, res) => {
 
 // Create new event
 router.post("/", authenticateToken, async (req, res) => {
+  let userEmail = null; // Declare outside try block for error handler
   try {
     const { title, description, type, start, end, allDay, attendees } =
       req.body;
     
     // Get user email from database using user ID from token
-    let userEmail = req.body.createdByEmail;
+    userEmail = req.body.createdByEmail;
     if (!userEmail) {
       const userId = req.user?.sub || req.user?.id;
       if (userId) {
@@ -281,49 +282,117 @@ router.post("/", authenticateToken, async (req, res) => {
     const hasAttendees = columns.includes('attendees');
     const hasCreatedByEmail = columns.includes('createdByEmail');
 
-    // Create event data based on what columns exist
-    const eventDataToCreate = {
-      title: title.trim(),
-      description: description?.trim() || null,
-    };
-
     // Handle date/time fields
     const startDate = new Date(start);
     const endDate = new Date(end);
-    
-    if (hasStart) {
-      eventDataToCreate.start = startDate;
-    }
-    if (hasEnd) {
-      eventDataToCreate.end = endDate;
-    }
-    if (hasDate) {
-      eventDataToCreate.date = startDate.toISOString().split('T')[0];
-    }
-    if (hasStartTime) {
-      eventDataToCreate.startTime = startDate.toTimeString().split(' ')[0];
-    }
-    if (hasEndTime) {
-      eventDataToCreate.endTime = endDate.toTimeString().split(' ')[0];
-    }
-    if (hasAllDay) {
-      eventDataToCreate.allDay = allDay || false;
-    }
-    if (hasAttendees) {
-      eventDataToCreate.attendees = attendees && attendees.length > 0 ? JSON.stringify(attendees) : null;
-    }
-    if (hasCreatedByEmail && userEmail) {
-      eventDataToCreate.createdByEmail = userEmail;
-    }
-    
-    const event = await Event.create(eventDataToCreate);
 
-    res.status(201).json(transformEventData(event.toJSON(), columns));
+    let event;
+    
+    // If database doesn't have start/end columns, use raw query to bypass model validation
+    if (!hasStart || !hasEnd) {
+      // Build column names and values for raw query
+      const columns = ['title'];
+      const values = [title.trim()];
+      const placeholders = ['$1'];
+      let paramIndex = 2;
+      
+      if (hasDate) {
+        columns.push('date');
+        values.push(startDate.toISOString().split('T')[0]);
+        placeholders.push(`$${paramIndex++}`);
+      }
+      if (hasStartTime) {
+        columns.push('"startTime"');
+        values.push(startDate.toTimeString().split(' ')[0]);
+        placeholders.push(`$${paramIndex++}`);
+      }
+      if (hasEndTime) {
+        columns.push('"endTime"');
+        values.push(endDate.toTimeString().split(' ')[0]);
+        placeholders.push(`$${paramIndex++}`);
+      }
+      if (description) {
+        columns.push('description');
+        values.push(description.trim());
+        placeholders.push(`$${paramIndex++}`);
+      }
+      if (hasAllDay) {
+        columns.push('"allDay"');
+        values.push(allDay || false);
+        placeholders.push(`$${paramIndex++}`);
+      }
+      if (hasAttendees && attendees && attendees.length > 0) {
+        columns.push('attendees');
+        values.push(JSON.stringify(attendees));
+        placeholders.push(`$${paramIndex++}`);
+      }
+      if (hasCreatedByEmail && userEmail) {
+        columns.push('"createdByEmail"');
+        values.push(userEmail);
+        placeholders.push(`$${paramIndex++}`);
+      }
+      
+      // Use raw query to insert
+      const rawResult = await sequelize.query(
+        `INSERT INTO events (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`,
+        {
+          bind: values,
+          type: QueryTypes.SELECT
+        }
+      );
+      
+      // Fetch the created event - rawResult is [rows, metadata] format
+      const insertedRow = Array.isArray(rawResult) && rawResult.length > 0 ? rawResult[0] : null;
+      const eventId = insertedRow?.id || (Array.isArray(insertedRow) && insertedRow[0]?.id);
+      
+      if (eventId) {
+        const allColumns = await getTableColumns();
+        event = await Event.findByPk(eventId, {
+          attributes: allColumns
+        });
+      } else {
+        throw new Error('Failed to create event - no ID returned');
+      }
+    } else {
+      // Database has start/end columns, use normal Sequelize create
+      const eventDataToCreate = {
+        title: title.trim(),
+        description: description?.trim() || null,
+        start: startDate,
+        end: endDate,
+      };
+
+      // Set additional fields based on what columns exist
+      if (hasDate) {
+        eventDataToCreate.date = startDate.toISOString().split('T')[0];
+      }
+      if (hasStartTime) {
+        eventDataToCreate.startTime = startDate.toTimeString().split(' ')[0];
+      }
+      if (hasEndTime) {
+        eventDataToCreate.endTime = endDate.toTimeString().split(' ')[0];
+      }
+      if (hasAllDay) {
+        eventDataToCreate.allDay = allDay || false;
+      }
+      if (hasAttendees) {
+        eventDataToCreate.attendees = attendees && attendees.length > 0 ? JSON.stringify(attendees) : null;
+      }
+      if (hasCreatedByEmail && userEmail) {
+        eventDataToCreate.createdByEmail = userEmail;
+      }
+      
+      event = await Event.create(eventDataToCreate);
+    }
+
+    // Get columns again for transform (in case we used raw query)
+    const allColumns = await getTableColumns();
+    res.status(201).json(transformEventData(event.toJSON(), allColumns));
   } catch (error) {
     console.error("Error creating event:", error);
     console.error("Error stack:", error.stack);
     console.error("Request user object:", req.user);
-    console.error("UserEmail used:", userEmail);
+    console.error("UserEmail used:", userEmail || 'not determined');
     res.status(500).json({
       message: "Error creating event",
       error: error.message,
