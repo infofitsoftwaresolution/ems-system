@@ -304,9 +304,13 @@ router.post("/", authenticateToken, async (req, res) => {
     res.status(201).json(transformEventData(event.toJSON(), columns));
   } catch (error) {
     console.error("Error creating event:", error);
+    console.error("Error stack:", error.stack);
+    console.error("Request user object:", req.user);
+    console.error("UserEmail used:", userEmail);
     res.status(500).json({
       message: "Error creating event",
       error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 });

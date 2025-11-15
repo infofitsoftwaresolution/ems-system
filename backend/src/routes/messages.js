@@ -34,6 +34,10 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const userEmail = await getUserEmailFromToken(req);
     
+    if (!userEmail) {
+      return res.status(400).json({ message: 'Unable to determine user email' });
+    }
+    
     // Get all messages where user is sender or recipient
     const messages = await Message.findAll({
       where: {
@@ -42,12 +46,14 @@ router.get('/', authenticateToken, async (req, res) => {
           { recipientEmail: userEmail }
         ]
       },
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'senderEmail', 'senderName', 'recipientEmail', 'recipientName', 'content', 'createdAt', 'read', 'channelId', 'channelName']
     });
 
     res.json(messages);
   } catch (error) {
     console.error('Error fetching messages:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ message: 'Error fetching messages', error: error.message });
   }
 });
@@ -56,6 +62,11 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/conversation/:recipientEmail', authenticateToken, async (req, res) => {
   try {
     const senderEmail = await getUserEmailFromToken(req);
+    
+    if (!senderEmail) {
+      return res.status(400).json({ message: 'Unable to determine user email' });
+    }
+    
     const recipientEmail = decodeURIComponent(req.params.recipientEmail);
 
     const messages = await Message.findAll({
@@ -72,7 +83,8 @@ router.get('/conversation/:recipientEmail', authenticateToken, async (req, res) 
         ],
         channelId: null // Only direct messages
       },
-      order: [['createdAt', 'ASC']]
+      order: [['createdAt', 'ASC']],
+      attributes: ['id', 'senderEmail', 'senderName', 'recipientEmail', 'recipientName', 'content', 'createdAt', 'read', 'channelId']
     });
 
     // Mark messages as read
@@ -167,7 +179,13 @@ router.get('/conversations', authenticateToken, async (req, res) => {
     res.json(conversations);
   } catch (error) {
     console.error('Error fetching conversations:', error);
-    res.status(500).json({ message: 'Error fetching conversations', error: error.message });
+    console.error('Error stack:', error.stack);
+    console.error('Request user object:', req.user);
+    res.status(500).json({ 
+      message: 'Error fetching conversations', 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
