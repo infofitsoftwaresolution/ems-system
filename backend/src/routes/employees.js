@@ -6,7 +6,8 @@ import { Attendance } from '../models/Attendance.js';
 import { Leave } from '../models/Leave.js';
 import { Payslip } from '../models/Payslip.js';
 import { AccessLog } from '../models/AccessLog.js';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
+import { sequelize } from '../sequelize.js';
 import bcrypt from 'bcryptjs';
 import path from 'path';
 import fs from 'fs';
@@ -271,19 +272,38 @@ router.delete('/:id', async (req, res) => {
     }
     
     // 4. Delete associated payslip records
-    const payslipRecords = await Payslip.findAll({ 
-      where: { 
-        [Op.or]: [
-          { employeeId: emp.id },
-          { employeeEmail: emp.email.toLowerCase() }
-        ]
-      } 
-    });
-    
-    for (const payslipRecord of payslipRecords) {
-      await payslipRecord.destroy();
-      deletionSummary.payslipRecords++;
-      console.log(`Deleted payslip record for employee: ${emp.name} (${payslipRecord.month}/${payslipRecord.year})`);
+    try {
+      const payslipRecords = await Payslip.findAll({ 
+        where: { 
+          [Op.or]: [
+            { employeeId: emp.id },
+            { employeeEmail: emp.email.toLowerCase() }
+          ]
+        },
+        attributes: ['id', 'employeeId', 'employeeEmail', 'month', 'year'] // Only select columns that exist
+      });
+      
+      for (const payslipRecord of payslipRecords) {
+        await payslipRecord.destroy();
+        deletionSummary.payslipRecords++;
+        console.log(`Deleted payslip record for employee: ${emp.name} (${payslipRecord.month}/${payslipRecord.year})`);
+      }
+    } catch (payslipError) {
+      console.error('Error deleting payslip records (continuing with deletion):', payslipError.message);
+      // Try alternative approach - delete by raw query if model query fails
+      try {
+        await sequelize.query(
+          `DELETE FROM payslips WHERE "employeeId" = :employeeId OR "employeeEmail" = :email`,
+          {
+            replacements: { employeeId: emp.id, email: emp.email.toLowerCase() },
+            type: QueryTypes.DELETE
+          }
+        );
+        console.log('Deleted payslip records using raw query');
+      } catch (rawQueryError) {
+        console.error('Error with raw query deletion:', rawQueryError.message);
+        // Continue with deletion even if payslip deletion fails
+      }
     }
     
     // 5. Delete associated access logs
