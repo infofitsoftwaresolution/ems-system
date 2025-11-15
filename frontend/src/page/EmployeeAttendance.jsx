@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,12 @@ import { apiService } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function EmployeeAttendance() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  
+  // Redirect admins to admin attendance page (wait for auth to load first)
+  if (!authLoading && user?.role === "admin") {
+    return <Navigate to="/admin-attendance" replace />;
+  }
   const [attendance, setAttendance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [kycStatus, setKycStatus] = useState(null);
@@ -42,9 +48,10 @@ export default function EmployeeAttendance() {
       try {
         setLoading(true);
         
-          // Check KYC status first
-          if (user?.email) {
-            console.log('🔍 Checking KYC status for:', user.email);
+        if (user?.email && user?.role !== 'admin') {
+          // Check KYC status first (skip for admins)
+          console.log('🔍 Checking KYC status for:', user.email);
+          try {
             const kycInfo = await apiService.getKycStatus(user.email);
             console.log('📋 KYC Info received:', kycInfo);
             
@@ -64,19 +71,28 @@ export default function EmployeeAttendance() {
             }
             
             setKycStatus(kycStatusValue);
-            
-            if (kycStatusValue === 'approved') {
-              console.log('✅ KYC approved, loading attendance data');
-              // Load attendance data
-              const attendanceData = await apiService.getTodayAttendance(user.email);
-              setAttendance(attendanceData);
-            } else {
-              console.log('❌ KYC not approved, status:', kycStatusValue);
+          } catch (kycError) {
+            console.error('Error loading KYC status:', kycError);
+            setKycStatus('not_submitted');
+          }
+          
+          // Always load attendance data, regardless of KYC status
+          console.log('📊 Loading attendance data for:', user.email);
+          try {
+            const attendanceData = await apiService.getTodayAttendance(user.email);
+            console.log('✅ Attendance data loaded:', attendanceData);
+            setAttendance(attendanceData);
+          } catch (attendanceError) {
+            console.error('Error loading attendance:', attendanceError);
+            // Don't show error if it's just no data
+            if (!attendanceError.message.includes('not found')) {
+              toast.error('Failed to load attendance data');
             }
           }
+        }
       } catch (err) {
-        console.error('Error loading attendance data:', err);
-        toast.error('Failed to load attendance data');
+        console.error('Error loading data:', err);
+        toast.error('Failed to load data');
       } finally {
         setLoading(false);
       }
@@ -306,25 +322,31 @@ export default function EmployeeAttendance() {
     );
   }
 
-  if (kycStatus !== 'approved') {
-    return (
-      <div className="space-y-6">
-        <div className="text-center py-12">
-          <AlertCircle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold mb-2">KYC Required</h2>
-          <p className="text-gray-600 mb-4">
-            You need to complete and get your KYC approved to access attendance features.
-          </p>
-          <Button asChild>
-            <a href="/profile">Complete KYC</a>
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Show KYC warning banner if not approved, but still show attendance records
+  const showKycWarning = kycStatus !== 'approved' && kycStatus !== null;
 
   return (
     <div className="space-y-6">
+      {/* KYC Warning Banner */}
+      {showKycWarning && (
+        <Card className="border-yellow-500 bg-yellow-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="h-5 w-5 text-yellow-600" />
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-yellow-800">KYC Required</h3>
+                <p className="text-sm text-yellow-700">
+                  You need to complete and get your KYC approved to use check-in/check-out features.
+                </p>
+              </div>
+              <Button asChild size="sm" variant="outline" className="border-yellow-600 text-yellow-700 hover:bg-yellow-100">
+                <a href="/profile">Complete KYC</a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -450,8 +472,9 @@ export default function EmployeeAttendance() {
                   {!attendance.checkIn && (
                     <Button 
                       onClick={handleCheckIn} 
-                      disabled={checkingIn || locationLoading}
+                      disabled={checkingIn || locationLoading || kycStatus !== 'approved'}
                       className="flex items-center space-x-2"
+                      title={kycStatus !== 'approved' ? 'KYC approval required to check in' : ''}
                     >
                       {checkingIn || locationLoading ? (
                         <>
@@ -471,8 +494,9 @@ export default function EmployeeAttendance() {
                     <Button 
                       onClick={handleCheckOut} 
                       variant="outline"
-                      disabled={checkingOut || locationLoading}
+                      disabled={checkingOut || locationLoading || kycStatus !== 'approved'}
                       className="flex items-center space-x-2"
+                      title={kycStatus !== 'approved' ? 'KYC approval required to check out' : ''}
                     >
                       {checkingOut || locationLoading ? (
                         <>
@@ -527,8 +551,9 @@ export default function EmployeeAttendance() {
               
               <Button 
                 onClick={handleCheckIn} 
-                disabled={checkingIn || locationLoading}
+                disabled={checkingIn || locationLoading || kycStatus !== 'approved'}
                 className="flex items-center space-x-2 mx-auto"
+                title={kycStatus !== 'approved' ? 'KYC approval required to check in' : ''}
               >
                 {checkingIn || locationLoading ? (
                   <>
