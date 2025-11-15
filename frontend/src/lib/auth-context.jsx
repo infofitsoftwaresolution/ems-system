@@ -110,17 +110,17 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Update password function
+  // Update password function (for forced password changes)
   const updatePassword = async (newPassword) => {
     try {
-      console.log('Updating password for user:', user.email);
-      await apiService.updatePassword(user.email, newPassword);
+      console.log('Updating password for user:', user?.email);
+      await apiService.forcePasswordChange(newPassword);
       setRequiresPasswordChange(false);
       
-      // Check if KYC is required after password change
-      console.log('Checking KYC status after password change...');
+      // Update user state to reflect password change
       const userData = await apiService.verifyToken();
       console.log('User data after password change:', userData);
+      setUser(userData);
       
       // KYC is now handled in the profile page, not as a popup
       console.log('KYC status after password change:', userData.kycStatus);

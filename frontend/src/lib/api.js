@@ -65,14 +65,6 @@ class ApiService {
     return this.request('/api/auth/verify');
   }
 
-  async updatePassword(email, newPassword) {
-    return this.request('/api/auth/update-password', {
-      method: 'POST',
-      body: JSON.stringify({ email, newPassword }),
-      includeAuth: false,
-    });
-  }
-
   // Employee endpoints
   async getEmployees() {
     return this.request('/api/employees');
@@ -129,6 +121,18 @@ class ApiService {
         email: this.getCurrentUserEmail(),
         currentPassword,
         newPassword 
+      }),
+    });
+  }
+
+  // Force password change (for mustChangePassword scenarios)
+  async forcePasswordChange(newPassword) {
+    return this.request('/api/auth/update-password', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        email: this.getCurrentUserEmail(),
+        newPassword,
+        forceChange: true
       }),
     });
   }
