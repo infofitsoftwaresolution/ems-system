@@ -45,7 +45,7 @@ export default function AdminAttendance() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateFilter, setDateFilter] = useState("today");
+  const [dateFilter, setDateFilter] = useState("all"); // Default to "all" to show all records
   const [selectedAttendance, setSelectedAttendance] = useState(null);
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
 
@@ -56,13 +56,28 @@ export default function AdminAttendance() {
         setLoading(true);
         setError(null);
         
+        console.log('Loading attendance data with filter:', dateFilter);
         // Get all attendance data
         const data = await apiService.getAllAttendance(dateFilter);
-        setAttendanceData(data);
+        console.log('Attendance data received:', data);
+        console.log('Number of records:', data?.length || 0);
+        
+        if (Array.isArray(data)) {
+          setAttendanceData(data);
+        } else {
+          console.warn('Received non-array data:', data);
+          setAttendanceData([]);
+        }
       } catch (err) {
         console.error('Error loading attendance data:', err);
-        setError('Failed to load attendance data');
-        toast.error('Failed to load attendance data');
+        console.error('Error details:', {
+          message: err.message,
+          stack: err.stack,
+          response: err.response
+        });
+        setError(err.message || 'Failed to load attendance data');
+        toast.error(err.message || 'Failed to load attendance data');
+        setAttendanceData([]);
       } finally {
         setLoading(false);
       }
@@ -185,7 +200,19 @@ export default function AdminAttendance() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={exportAttendanceData} variant="outline">
+          <Button 
+            onClick={() => {
+              setDateFilter("all");
+              setSearchTerm("");
+              setAppliedSearchTerm("");
+            }} 
+            variant="outline"
+            title="Refresh data"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button onClick={exportAttendanceData} variant="outline" disabled={filteredAttendance.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -250,10 +277,10 @@ export default function AdminAttendance() {
                 onChange={(e) => setDateFilter(e.target.value)}
                 className="w-full p-2 border rounded-md"
               >
+                <option value="all">All Time</option>
                 <option value="today">Today</option>
                 <option value="week">This Week</option>
                 <option value="month">This Month</option>
-                <option value="all">All Time</option>
               </select>
             </div>
             <div className="space-y-2">
@@ -446,11 +473,45 @@ export default function AdminAttendance() {
             </TableBody>
           </Table>
           
-          {filteredAttendance.length === 0 && (
-            <div className="text-center py-8">
-              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No attendance records found</p>
-              <p className="text-sm text-gray-500">Try adjusting your filters or date range</p>
+          {filteredAttendance.length === 0 && !loading && (
+            <div className="text-center py-12">
+              <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-lg font-medium text-gray-700 mb-2">No attendance records found</p>
+              <p className="text-sm text-gray-500 mb-4">
+                {appliedSearchTerm 
+                  ? `No records match your search for "${appliedSearchTerm}"`
+                  : dateFilter === "today"
+                  ? "No attendance records for today. Try selecting 'All Time' to see all records."
+                  : "No attendance records found for the selected date range. Try adjusting your filters."}
+              </p>
+              <div className="flex justify-center gap-2">
+                {appliedSearchTerm && (
+                  <Button onClick={handleClearSearch} variant="outline" size="sm">
+                    Clear Search
+                  </Button>
+                )}
+                {dateFilter !== "all" && (
+                  <Button 
+                    onClick={() => setDateFilter("all")} 
+                    variant="outline" 
+                    size="sm"
+                  >
+                    Show All Records
+                  </Button>
+                )}
+                <Button 
+                  onClick={() => {
+                    setDateFilter("all");
+                    setSearchTerm("");
+                    setAppliedSearchTerm("");
+                  }} 
+                  variant="default" 
+                  size="sm"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

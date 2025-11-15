@@ -103,17 +103,6 @@ const App = () => (
                   </div>
                 }
               />
-              <Route
-                path="/profile"
-                element={
-                  <div className="p-6">
-                    <h1 className="text-2xl font-bold mb-6">User Profile</h1>
-                    <p className="text-muted-foreground">
-                      Profile management coming soon...
-                    </p>
-                  </div>
-                }
-              />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
