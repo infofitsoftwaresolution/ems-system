@@ -48,6 +48,15 @@ class ApiService {
       return await response.json();
     } catch (error) {
       console.error(`API request failed for ${endpoint}:`, error);
+      
+      // Check if it's a connection error (backend server not running)
+      if (error.message.includes('Failed to fetch') || 
+          error.message.includes('ERR_CONNECTION_REFUSED') || 
+          error.name === 'TypeError' ||
+          error.message.includes('NetworkError')) {
+        throw new Error('Backend server is not running. Please start the backend server on port 3001.');
+      }
+      
       throw error;
     }
   }

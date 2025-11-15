@@ -200,14 +200,14 @@ export default function EmployeePayslip() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <DollarSign className="h-4 w-4" />
-                      Basic Salary
+                      Gross Salary
                     </div>
                     <div className="font-semibold">
-                      {formatCurrency(payslip.basicSalary || 0)}
+                      {formatCurrency(payslip.grossSalary || payslip.earnedSalary || 0)}
                     </div>
                   </div>
                   
@@ -272,47 +272,116 @@ export default function EmployeePayslip() {
                     <h4 className="font-semibold mb-3">Payslip Details</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
-                        <div className="font-medium text-muted-foreground mb-2">Salary Breakdown</div>
+                        <div className="font-medium text-muted-foreground mb-2">Earnings</div>
                         <div className="space-y-1">
                           <div className="flex justify-between">
                             <span>Basic Salary:</span>
                             <span>{formatCurrency(payslip.basicSalary || 0)}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span>Earned Salary:</span>
-                            <span>{formatCurrency(payslip.earnedSalary || 0)}</span>
+                          {(payslip.hra || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span>HRA:</span>
+                              <span>{formatCurrency(payslip.hra)}</span>
+                            </div>
+                          )}
+                          {(payslip.da || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span>DA:</span>
+                              <span>{formatCurrency(payslip.da)}</span>
+                            </div>
+                          )}
+                          {(payslip.transportAllowance || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span>Transport Allowance:</span>
+                              <span>{formatCurrency(payslip.transportAllowance)}</span>
+                            </div>
+                          )}
+                          {(payslip.medicalAllowance || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span>Medical Allowance:</span>
+                              <span>{formatCurrency(payslip.medicalAllowance)}</span>
+                            </div>
+                          )}
+                          {(payslip.specialAllowance || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span>Special Allowance:</span>
+                              <span>{formatCurrency(payslip.specialAllowance)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between font-semibold border-t pt-1 mt-1">
+                            <span>Gross Salary:</span>
+                            <span>{formatCurrency(payslip.grossSalary || payslip.earnedSalary || 0)}</span>
                           </div>
-                          {payslip.leaveDeduction > 0 && (
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-medium text-muted-foreground mb-2">Deductions</div>
+                        <div className="space-y-1">
+                          {(payslip.pf || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span>PF:</span>
+                              <span className="text-red-600">-{formatCurrency(payslip.pf)}</span>
+                            </div>
+                          )}
+                          {(payslip.esi || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span>ESI:</span>
+                              <span className="text-red-600">-{formatCurrency(payslip.esi)}</span>
+                            </div>
+                          )}
+                          {(payslip.tds || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span>TDS:</span>
+                              <span className="text-red-600">-{formatCurrency(payslip.tds)}</span>
+                            </div>
+                          )}
+                          {(payslip.professionalTax || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span>Professional Tax:</span>
+                              <span className="text-red-600">-{formatCurrency(payslip.professionalTax)}</span>
+                            </div>
+                          )}
+                          {(payslip.leaveDeduction || 0) > 0 && (
                             <div className="flex justify-between text-orange-600">
                               <span>Leave Deduction:</span>
                               <span>-{formatCurrency(payslip.leaveDeduction)}</span>
                             </div>
                           )}
-                          <div className="flex justify-between font-semibold border-t pt-1">
+                          {(payslip.otherDeductions || 0) > 0 && (
+                            <div className="flex justify-between text-red-600">
+                              <span>Other Deductions:</span>
+                              <span>-{formatCurrency(payslip.otherDeductions)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between font-semibold border-t pt-1 mt-1">
+                            <span>Total Deductions:</span>
+                            <span className="text-red-600">-{formatCurrency(payslip.totalDeductions || 0)}</span>
+                          </div>
+                          <div className="flex justify-between font-bold border-t-2 pt-2 mt-2 text-lg">
                             <span>Net Salary:</span>
-                            <span>{formatCurrency(payslip.netSalary || 0)}</span>
+                            <span className="text-green-600">{formatCurrency(payslip.netSalary || 0)}</span>
                           </div>
                         </div>
                       </div>
-                      <div>
-                        <div className="font-medium text-muted-foreground mb-2">Attendance Summary</div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <span>Total Days:</span>
-                            <span>{payslip.totalDays}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Working Days:</span>
-                            <span>{payslip.workingDays}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Leave Days:</span>
-                            <span>{payslip.leaveDays || 0}</span>
-                          </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="font-medium text-muted-foreground mb-2">Attendance Summary</div>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Total Days:</span>
+                          <span className="ml-2 font-semibold">{payslip.totalDays}</span>
                         </div>
-            </div>
-            </div>
-          </div>
+                        <div>
+                          <span className="text-muted-foreground">Working Days:</span>
+                          <span className="ml-2 font-semibold">{payslip.workingDays}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Leave Days:</span>
+                          <span className="ml-2 font-semibold">{payslip.leaveDays || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
         </CardContent>
       </Card>

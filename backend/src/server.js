@@ -108,7 +108,8 @@ async function start() {
     // Sync database schema - use force: false to avoid migration issues with SQLite
     // If schema changes are needed, delete database.sqlite and restart
     try {
-      await sequelize.sync({ force: false, alter: false });
+      // Use alter: true to add new columns to existing tables
+      await sequelize.sync({ force: false, alter: true });
     } catch (syncError) {
       console.error("Database sync error:", syncError.message);
       // If alter fails, try without alter

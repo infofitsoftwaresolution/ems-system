@@ -11,6 +11,27 @@ const router = Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Get all users (admin only)
+router.get('/', authenticateToken, async (req, res) => {
+  try {
+    // Only admins can get all users
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Admin only.' });
+    }
+    
+    const users = await User.findAll({
+      attributes: ['id', 'name', 'email', 'role', 'active', 'createdAt'],
+      where: { active: true },
+      order: [['name', 'ASC']]
+    });
+    
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ message: 'Error fetching users', error: error.message });
+  }
+});
+
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../../uploads/avatars');
 if (!fs.existsSync(uploadsDir)) {

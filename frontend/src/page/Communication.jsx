@@ -548,21 +548,26 @@ export default function Communication() {
                 avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.name)}`,
               }));
             
-            // Also try to get users (for admins)
-            try {
-              const allUsers = await apiService.getUsers();
-              allUsers.forEach((u) => {
-                if (u.email !== user?.email && !usersData.find((ud) => ud.email === u.email)) {
-                  usersData.push({
-                    id: u.email,
-                    email: u.email,
-                    name: u.name,
-                    avatar: u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}`,
+            // Also try to get users (for admins) - only if user is admin
+            if (user?.role === 'admin') {
+              try {
+                const allUsers = await apiService.getUsers();
+                if (Array.isArray(allUsers)) {
+                  allUsers.forEach((u) => {
+                    if (u.email !== user?.email && !usersData.find((ud) => ud.email === u.email)) {
+                      usersData.push({
+                        id: u.email,
+                        email: u.email,
+                        name: u.name,
+                        avatar: u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}`,
+                      });
+                    }
                   });
                 }
-              });
-            } catch (userError) {
-              console.error("Error loading users:", userError);
+              } catch (userError) {
+                console.error("Error loading users:", userError);
+                // Don't show error toast for this, as employees endpoint might be sufficient
+              }
             }
           } catch (error) {
             console.error("Error loading employees:", error);

@@ -6,9 +6,22 @@ import { Employee } from "./models/Employee.js";
 
 async function seed() {
   try {
+    // Test database connection first
+    await sequelize.authenticate();
+    console.log("✅ Database connection established");
+    
     // Sync database first to ensure tables exist
-    await sequelize.sync({ force: false });
-    console.log("Database synced successfully");
+    try {
+      await sequelize.sync({ force: false });
+      console.log("✅ Database synced successfully");
+    } catch (syncError) {
+      if (syncError.message.includes('SQLITE_BUSY') || syncError.message.includes('locked')) {
+        console.error("❌ Database is locked. Please stop the backend server first!");
+        console.error("   Run: Stop the server (Ctrl+C) then try again");
+        process.exit(1);
+      }
+      throw syncError;
+    }
     
     // Check if admin user already exists
     const existingAdmin = await User.findOne({ where: { email: "s24346379@gmail.com" } });
