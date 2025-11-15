@@ -279,9 +279,16 @@ jobs:
           echo "📦 Pulling latest Docker images..."
           docker-compose -f docker-compose.production.yml pull || true
           
-          # Stop existing containers
-          echo "🛑 Stopping existing containers..."
-          docker-compose -f docker-compose.production.yml down || true
+          # Stop and remove existing containers forcefully
+          echo "🛑 Stopping and removing existing containers..."
+          docker-compose -f docker-compose.production.yml down -v || true
+          
+          # Force remove containers by name if they still exist
+          echo "🧹 Force removing any remaining containers..."
+          docker rm -f ems-backend ems-frontend ems-nginx 2>/dev/null || true
+          
+          # Remove any orphaned containers
+          docker container prune -f || true
           
           # Start new containers
           echo "🚀 Starting new containers..."
