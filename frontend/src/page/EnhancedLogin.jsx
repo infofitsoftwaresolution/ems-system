@@ -147,7 +147,7 @@ export default function EnhancedLogin() {
             }}>
             {!logoError ? (
               <img
-                src={`/rsamriddhi_logo.svg?v=6`}
+                src={`/rsamriddhi_logo.svg?v=7`}
                 alt="Rural Samridhi Logo"
                 className="h-32 w-auto object-contain"
                 onError={(e) => {

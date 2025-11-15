@@ -1,33 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 200">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220">
 
   <!-- Left icon -->
-  <g transform="translate(90,100)">
-    <!-- Outer orange circle -->
+  <g transform="translate(120,110)">
     <circle cx="0" cy="0" r="55" fill="#f97316"/>
-    <!-- Inner dark ring -->
     <circle cx="0" cy="0" r="43" fill="none" stroke="#000000" stroke-width="6"/>
-
-    <!-- Chevron -->
     <path d="M -22 15 L 0 -18 L 22 15"
           stroke="#000000" stroke-width="10" fill="none"
           stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 
-  <!-- RURAL (top) -->
-  <text x="170" y="95"
+  <!-- RURAL -->
+  <text x="235" y="105"
         font-family="Georgia, 'Times New Roman', serif"
         font-weight="900"
-        font-size="82"
+        font-size="88"
         fill="#16763a"
         letter-spacing="4">
     RURAL
   </text>
 
-  <!-- SAMRIDDHI (slightly hidden under the H) -->
-  <text x="170" y="160"
+  <!-- SAMRIDDHI (I fully visible now) -->
+  <text x="235" y="178"
         font-family="Georgia, 'Times New Roman', serif"
         font-weight="900"
-        font-size="70"
+        font-size="74"
         fill="#f97316"
         letter-spacing="3">
     SAMRIDDHI
