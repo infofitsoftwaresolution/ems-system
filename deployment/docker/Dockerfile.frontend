@@ -21,7 +21,7 @@ COPY frontend/tailwind.config.js ./
 COPY frontend/postcss.config.js ./
 
 # Set environment variable for API URL
-ENV VITE_API_URL=http://13.233.73.43/api
+ENV VITE_API_URL=https://app.rsamriddhi.com/api
 
 # Build the application
 RUN npm run build

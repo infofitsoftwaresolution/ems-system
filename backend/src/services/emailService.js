@@ -116,7 +116,7 @@ const emailTemplates = {
           <h3 style="color: #2c3e50; margin-top: 0;">Your Temporary Credentials:</h3>
           <p><strong>Temporary Employee ID:</strong> ${employeeData.tempEmployeeId}</p>
           <p><strong>Temporary Password:</strong> ${employeeData.tempPassword}</p>
-          <p><strong>Login URL:</strong> <a href="${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'http://13.234.30.222'}/login">${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'http://13.234.30.222'}/login</a></p>
+          <p><strong>Login URL:</strong> <a href="${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'https://app.rsamriddhi.com'}/login">${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'https://app.rsamriddhi.com'}/login</a></p>
         </div>
         
         <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
@@ -148,7 +148,7 @@ const emailTemplates = {
           <h3 style="color: #155724; margin-top: 0;">Your Permanent Credentials:</h3>
           <p><strong>Permanent Employee ID:</strong> ${employeeData.permanentEmployeeId}</p>
           <p><strong>Password:</strong> ${employeeData.password}</p>
-          <p><strong>Login URL:</strong> <a href="${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'http://13.234.30.222'}/login">${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'http://13.234.30.222'}/login</a></p>
+          <p><strong>Login URL:</strong> <a href="${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'https://app.rsamriddhi.com'}/login">${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'https://app.rsamriddhi.com'}/login</a></p>
         </div>
         
         <div style="background-color: #e7f3ff; padding: 20px; border-radius: 8px; margin: 20px 0;">

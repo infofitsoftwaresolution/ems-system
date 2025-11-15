@@ -53,7 +53,7 @@ jobs:
       working-directory: ./frontend
       env:
         VITE_API_URL: /api
-        VITE_APP_URL: http://13.234.30.222
+        VITE_APP_URL: https://app.rsamriddhi.com
       run: npm run build
 
     # Docker Build
@@ -260,6 +260,15 @@ jobs:
           echo "🔐 Logging in to GitHub Container Registry..."
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
           
+          # Update Nginx configuration
+          echo "⚙️ Updating Nginx configuration with domain..."
+          if [ -f "nginx.production.conf" ]; then
+            sudo cp nginx.production.conf /etc/nginx/conf.d/default.conf
+            sudo nginx -t && sudo systemctl restart nginx || echo "⚠️ Nginx config update skipped (nginx may not be installed)"
+          else
+            echo "⚠️ nginx.production.conf not found, skipping nginx update"
+          fi
+          
           # Pull latest images
           echo "📦 Pulling latest Docker images..."
           docker-compose -f docker-compose.production.yml pull || true
@@ -271,6 +280,13 @@ jobs:
           # Start new containers
           echo "🚀 Starting new containers..."
           docker-compose -f docker-compose.production.yml up -d
+          
+          # Restart nginx container to ensure it's using the latest config
+          echo "🔄 Restarting Nginx container..."
+          docker-compose -f docker-compose.production.yml restart nginx || echo "⚠️ Nginx container restart skipped"
+          
+          # Also restart system nginx if it exists (for non-containerized setups)
+          sudo systemctl restart nginx || echo "⚠️ System nginx restart skipped (may not be installed)"
           
           # Wait for services to be healthy
           echo "⏳ Waiting for services to start..."
@@ -304,7 +320,9 @@ jobs:
           docker-compose -f docker-compose.production.yml ps
           
           echo "✅ Deployment completed successfully!"
-          echo "🌐 Application should be available at: http://${{ env.EC2_HOST }}"
+          echo "🌐 Application should be available at:"
+          echo "   - Domain: https://app.rsamriddhi.com"
+          echo "   - IP: http://${{ env.EC2_HOST }}"
 
     - name: Deployment Summary
       if: always()

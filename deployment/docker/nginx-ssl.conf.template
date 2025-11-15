@@ -37,7 +37,7 @@ http {
     # HTTP server (default)
     server {
         listen 80;
-        server_name _;
+        server_name app.rsamriddhi.com 13.234.30.222 _;
         root /usr/share/nginx/html;
         index index.html;
 
@@ -82,7 +82,7 @@ http {
     # HTTPS server (if SSL certificates are available)
     server {
         listen 443 ssl;
-        server_name _;
+        server_name app.rsamriddhi.com 13.234.30.222 _;
         
         # SSL certificate paths (will be mounted if available)
         ssl_certificate /etc/ssl/certs/cert.pem;
