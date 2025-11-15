@@ -126,6 +126,14 @@ export default function Calendar() {
       return;
     }
 
+    // Get user email from user object or localStorage
+    const userEmail = user?.email || localStorage.getItem('currentUserEmail') || "";
+
+    if (!userEmail) {
+      toast.error("Unable to identify user. Please log in again.");
+      return;
+    }
+
     setIsLoading(true);
     try {
       const createdEvent = await apiService.createEvent({
@@ -136,7 +144,7 @@ export default function Calendar() {
         end: newEvent.end,
         allDay: newEvent.allDay,
         attendees: newEvent.attendees,
-        createdByEmail: user?.email || "",
+        createdByEmail: userEmail,
       });
 
       setAllEvents([...allEvents, createdEvent]);
