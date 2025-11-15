@@ -323,10 +323,6 @@ jobs:
           echo "📦 Pulling latest Docker images (forcing pull)..."
           docker-compose -f docker-compose.production.yml pull --ignore-pull-failures || true
           
-          # Pull images again after cleanup
-          echo "📦 Pulling fresh Docker images..."
-          docker-compose -f docker-compose.production.yml pull || true
-          
           # Start new containers
           echo "🚀 Starting new containers..."
           docker-compose -f docker-compose.production.yml up -d --force-recreate
