@@ -133,10 +133,10 @@ export default function EnhancedLogin() {
         initial="hidden"
         animate="visible"
         variants={containerVariants}>
-        <motion.div variants={itemVariants} className="mb-8 text-center w-full">
+        <motion.div variants={itemVariants} className="mb-4 text-center w-full">
           {/* Logo - Centered */}
           <motion.div
-            className="mb-8 flex justify-center"
+            className="mb-4 flex justify-center items-center"
             initial={{ scale: 0, opacity: 0, y: -20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             transition={{
@@ -149,14 +149,14 @@ export default function EnhancedLogin() {
               <img
                 src={`/rsamriddhi_logo.svg?v=7`}
                 alt="Rural Samridhi Logo"
-                className="h-32 w-auto object-contain"
+                className="h-32 w-auto object-contain mx-auto"
                 onError={(e) => {
                   console.error('Logo failed to load:', e);
                   setLogoError(true);
                 }}
               />
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 mx-auto">
                 <div className="w-12 h-12 rounded-full bg-[#FF6B35] flex items-center justify-center">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                     <path d="M12 6 L8 16 L16 16 Z" fill="#1a1a1a"/>
