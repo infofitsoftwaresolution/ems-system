@@ -13,21 +13,24 @@ let columnsCacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Helper function to get actual table columns with their nullability
-async function getTableColumns() {
+async function getTableColumns(forceRefresh = false) {
   const now = Date.now();
-  // Return cached columns if still valid
-  if (tableColumnsCache && (now - columnsCacheTime) < CACHE_TTL) {
+  // Return cached columns if still valid and not forcing refresh
+  if (!forceRefresh && tableColumnsCache && (now - columnsCacheTime) < CACHE_TTL) {
     return tableColumnsCache;
   }
 
   try {
+    // Try information_schema first
     const [results] = await sequelize.query(
       `SELECT column_name, is_nullable 
        FROM information_schema.columns 
-       WHERE table_name = 'events' 
+       WHERE table_schema = 'public' AND table_name = 'events' 
        ORDER BY ordinal_position`,
       { type: QueryTypes.SELECT }
     );
+    
+    console.log('Column detection results from information_schema:', results);
     
     // Handle both array and object formats
     let columns = [];
@@ -39,15 +42,35 @@ async function getTableColumns() {
       requiredColumns = results
         .filter((r) => r.is_nullable === 'NO')
         .map((r) => r.column_name);
-    } else {
-      // Fallback: Try raw query to detect columns
-      const [rawResults] = await sequelize.query(
-        `SELECT * FROM events LIMIT 1`,
-        { type: QueryTypes.SELECT }
-      );
-      if (rawResults && rawResults.length > 0) {
-        columns = Object.keys(rawResults[0]);
+      
+      console.log('Detected columns:', columns);
+      console.log('Required (NOT NULL) columns:', requiredColumns);
+    }
+    
+    // If we didn't get results, try fallback: raw query to detect columns
+    if (columns.length === 0) {
+      console.log('No columns from information_schema, trying raw query fallback...');
+      try {
+        const [rawResults] = await sequelize.query(
+          `SELECT * FROM events LIMIT 1`,
+          { type: QueryTypes.SELECT }
+        );
+        if (rawResults && rawResults.length > 0) {
+          columns = Object.keys(rawResults[0]);
+          console.log('Detected columns from raw query:', columns);
+          // For raw query, we can't determine nullability, so assume common required columns
+          requiredColumns = ['id', 'title'];
+        }
+      } catch (rawError) {
+        console.error('Raw query fallback also failed:', rawError);
       }
+    }
+    
+    // If still no columns, return defaults but log warning
+    if (columns.length === 0) {
+      console.warn('WARNING: Could not detect any columns, using defaults');
+      columns = ['id', 'title', 'description', 'date', 'startTime', 'endTime', 'createdAt', 'updatedAt'];
+      requiredColumns = ['id', 'title', 'date']; // Assume date is required based on error
     }
     
     // Store both columns and required columns in cache
@@ -60,10 +83,10 @@ async function getTableColumns() {
   } catch (error) {
     console.error("Error getting table columns:", error);
     console.error("Error details:", error.message, error.stack);
-    // Return default columns if query fails
+    // Return default columns with date as required (based on the error we're seeing)
     return {
-      columns: ['id', 'title', 'description', 'createdAt', 'updatedAt'],
-      required: ['id', 'title']
+      columns: ['id', 'title', 'description', 'date', 'startTime', 'endTime', 'createdAt', 'updatedAt'],
+      required: ['id', 'title', 'date']
     };
   }
 }
@@ -287,7 +310,8 @@ router.post("/", authenticateToken, async (req, res) => {
     }
 
     // Get actual table columns to determine which fields to use
-    const columnsResult = await getTableColumns();
+    // Force refresh to ensure we have latest schema
+    const columnsResult = await getTableColumns(true);
     // Handle both old format (array) and new format (object with columns/required)
     const columns = Array.isArray(columnsResult) ? columnsResult : (columnsResult.columns || []);
     const requiredColumns = Array.isArray(columnsResult) ? [] : (columnsResult.required || []);
@@ -304,8 +328,12 @@ router.post("/", authenticateToken, async (req, res) => {
     const hasAttendees = columns.includes('attendees');
     const hasCreatedByEmail = columns.includes('createdByEmail');
     
-    // Check if date is required but we detected it
+    // Check if date is required - if it's in required columns OR if we're using raw query path
     const dateIsRequired = requiredColumns.includes('date');
+    
+    // If we're using raw query (no start/end), always assume date might be required
+    // This is a safety measure based on the errors we've seen
+    const shouldIncludeDate = hasDate || dateIsRequired || (!hasStart && !hasEnd);
 
     // Handle date/time fields
     const startDate = new Date(start);
@@ -321,15 +349,24 @@ router.post("/", authenticateToken, async (req, res) => {
       const placeholders = ['$1'];
       let paramIndex = 2;
       
-      // Always include date if the column exists (it might be required)
-      // If date is required, we MUST include it
-      if (hasDate || dateIsRequired) {
+      // Always include date if the column exists OR if we're in raw query mode
+      // The error shows date is required, so we should always try to include it
+      if (shouldIncludeDate) {
         insertColumns.push('date');
         values.push(startDate.toISOString().split('T')[0]);
         placeholders.push(`$${paramIndex++}`);
         console.log('Including date column in INSERT (required or exists)');
       } else {
-        console.warn('Warning: date column not detected but might be required');
+        console.warn('Warning: date column not detected but might be required - attempting to include anyway');
+        // Try to include it anyway as a safety measure
+        try {
+          insertColumns.push('date');
+          values.push(startDate.toISOString().split('T')[0]);
+          placeholders.push(`$${paramIndex++}`);
+          console.log('Including date column anyway as safety measure');
+        } catch (e) {
+          console.error('Could not add date column:', e);
+        }
       }
       // Always include startTime if the column exists
       if (hasStartTime) {
