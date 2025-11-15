@@ -228,6 +228,18 @@ router.post("/", authenticateToken, async (req, res) => {
         }
       }
     }
+    
+    // If still no userEmail, try to get from req.user.email directly
+    if (!userEmail && req.user?.email) {
+      userEmail = req.user.email;
+    }
+    
+    // If still no userEmail, return error
+    if (!userEmail) {
+      return res.status(400).json({
+        message: "Unable to determine user email. Please ensure you are logged in.",
+      });
+    }
 
     if (!title) {
       return res.status(400).json({
@@ -283,7 +295,7 @@ router.post("/", authenticateToken, async (req, res) => {
     if (hasAttendees) {
       eventDataToCreate.attendees = attendees && attendees.length > 0 ? JSON.stringify(attendees) : null;
     }
-    if (hasCreatedByEmail) {
+    if (hasCreatedByEmail && userEmail) {
       eventDataToCreate.createdByEmail = userEmail;
     }
     

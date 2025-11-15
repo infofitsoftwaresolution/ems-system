@@ -9,12 +9,24 @@ const router = Router();
 
 // Helper function to get user email from token
 const getUserEmailFromToken = async (req) => {
-  const userId = req.user.sub;
-  const user = await User.findByPk(userId);
-  if (!user) {
-    throw new Error('User not found');
+  try {
+    // Try multiple ways to get user ID
+    const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    if (!userId) {
+      console.error('No user ID found in token:', req.user);
+      return null;
+    }
+    
+    const user = await User.findByPk(userId);
+    if (!user) {
+      console.error('User not found for ID:', userId);
+      return null;
+    }
+    return user.email;
+  } catch (error) {
+    console.error('Error getting user email from token:', error);
+    return null;
   }
-  return user.email;
 };
 
 // Get all messages for the current user (both sent and received)
@@ -86,6 +98,10 @@ router.get('/conversation/:recipientEmail', authenticateToken, async (req, res) 
 router.get('/conversations', authenticateToken, async (req, res) => {
   try {
     const userEmail = await getUserEmailFromToken(req);
+    
+    if (!userEmail) {
+      return res.status(400).json({ message: 'Unable to determine user email' });
+    }
 
     // Get all messages for this user
     const allMessages = await Message.findAll({
@@ -96,7 +112,8 @@ router.get('/conversations', authenticateToken, async (req, res) => {
         ],
         channelId: null // Only direct messages
       },
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'senderEmail', 'senderName', 'recipientEmail', 'recipientName', 'content', 'createdAt', 'read', 'channelId']
     });
 
     // Group by conversation partner
