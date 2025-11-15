@@ -75,7 +75,9 @@ router.get("/", authenticateToken, async (req, res) => {
 router.get("/:id", authenticateToken, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id.replace("e", ""));
-    const event = await Event.findByPk(eventId);
+    const event = await Event.findByPk(eventId, {
+      attributes: ['id', 'title', 'description', 'type', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'date', 'startTime', 'endTime', 'priority', 'duration', 'recurring', 'reminder', 'createdAt', 'updatedAt']
+    });
 
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
@@ -200,7 +202,9 @@ router.put("/:id", authenticateToken, async (req, res) => {
     const { title, description, type, start, end, allDay, attendees } =
       req.body;
 
-    const event = await Event.findByPk(eventId);
+    const event = await Event.findByPk(eventId, {
+      attributes: ['id', 'title', 'description', 'type', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'date', 'startTime', 'endTime', 'priority', 'duration', 'recurring', 'reminder', 'createdAt', 'updatedAt']
+    });
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
@@ -260,7 +264,9 @@ router.put("/:id", authenticateToken, async (req, res) => {
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id.replace("e", ""));
-    const event = await Event.findByPk(eventId);
+    const event = await Event.findByPk(eventId, {
+      attributes: ['id', 'title', 'description', 'type', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'date', 'startTime', 'endTime', 'priority', 'duration', 'recurring', 'reminder', 'createdAt', 'updatedAt']
+    });
 
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
