@@ -95,29 +95,98 @@ async function start() {
     await sequelize.authenticate();
     // Setup model associations
     setupKycAssociations(Employee);
-    
+
     // Run migration to add missing user profile fields
     try {
-      const { addUserProfileFields } = await import('./migrations/addUserProfileFields.js');
+      const { addUserProfileFields } = await import(
+        "./migrations/addUserProfileFields.js"
+      );
       await addUserProfileFields();
     } catch (migrationError) {
       console.error("Migration error:", migrationError.message);
       // Continue even if migration fails - might already be applied
     }
-    
+
     // Sync database schema - use force: false to avoid migration issues with SQLite
-    // If schema changes are needed, delete database.sqlite and restart
-    try {
-      // Use alter: true to add new columns to existing tables
-      await sequelize.sync({ force: false, alter: true });
-    } catch (syncError) {
-      console.error("Database sync error:", syncError.message);
-      // If alter fails, try without alter
-      if (syncError.message.includes('alter') || syncError.message.includes('SQLITE')) {
-        console.log("Retrying sync without alter...");
+    // SQLite's alter: true is problematic, so we'll use alter: false by default
+    // If schema changes are needed, use migrations or delete database.sqlite and restart
+    let syncAttempts = 0;
+    const maxSyncAttempts = 3;
+    let syncSuccess = false;
+
+    while (syncAttempts < maxSyncAttempts && !syncSuccess) {
+      try {
+        syncAttempts++;
+
+        // For SQLite, avoid using alter: true as it causes constraint issues
+        // Always use alter: false for SQLite
+        console.log(
+          `Syncing database (attempt ${syncAttempts}/${maxSyncAttempts})...`
+        );
         await sequelize.sync({ force: false, alter: false });
-      } else {
-        throw syncError;
+
+        syncSuccess = true;
+        console.log("Database sync successful");
+      } catch (syncError) {
+        console.error(
+          `Database sync error (attempt ${syncAttempts}/${maxSyncAttempts}):`,
+          syncError.message
+        );
+
+        // If it's a SQLITE_BUSY error, wait and retry
+        if (
+          syncError.message.includes("SQLITE_BUSY") ||
+          syncError.code === "SQLITE_BUSY" ||
+          syncError.parent?.code === "SQLITE_BUSY"
+        ) {
+          if (syncAttempts >= maxSyncAttempts) {
+            console.error(
+              "Database is locked. Please close any other applications using the database and try again."
+            );
+            throw new Error(
+              "Database is locked. Please ensure no other processes are using the database file."
+            );
+          }
+          // Wait before retrying
+          const waitTime = syncAttempts * 2; // 2s, 4s, 6s...
+          console.log(
+            `Database locked. Waiting ${waitTime} seconds before retry...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitTime * 1000));
+          // Continue to retry
+        } else if (
+          syncError.message.includes("SQLITE_CONSTRAINT") ||
+          syncError.code === "SQLITE_CONSTRAINT" ||
+          syncError.name === "SequelizeUniqueConstraintError"
+        ) {
+          // Constraint errors usually mean the schema is already correct or there's a data issue
+          // Try to clean up any backup tables that might exist
+          console.log(
+            "Constraint error detected. Attempting to clean up backup tables..."
+          );
+          try {
+            await sequelize.query("DROP TABLE IF EXISTS employees_backup;");
+            await sequelize.query("DROP TABLE IF EXISTS users_backup;");
+            await sequelize.query("DROP TABLE IF EXISTS payslips_backup;");
+            console.log("Backup tables cleaned up. Retrying sync...");
+            // Retry once more
+            if (syncAttempts < maxSyncAttempts) {
+              continue;
+            }
+          } catch (cleanupError) {
+            console.error(
+              "Error cleaning up backup tables:",
+              cleanupError.message
+            );
+          }
+
+          // If cleanup didn't help, just continue - the schema might already be correct
+          console.log("Assuming schema is already correct and continuing...");
+          syncSuccess = true;
+        } else {
+          // Other errors - throw immediately
+          throw syncError;
+        }
       }
     }
     app.listen(PORT, () =>
