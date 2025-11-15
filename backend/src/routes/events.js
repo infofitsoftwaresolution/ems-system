@@ -13,9 +13,10 @@ router.get("/", authenticateToken, async (req, res) => {
 
     let whereClause = {};
 
-    if (type && type !== "all") {
-      whereClause.type = type;
-    }
+    // Note: 'type' column may not exist in database, so we skip filtering by type
+    // if (type && type !== "all") {
+    //   whereClause.type = type;
+    // }
 
     if (start && end) {
       whereClause.start = {
@@ -25,7 +26,7 @@ router.get("/", authenticateToken, async (req, res) => {
 
     const events = await Event.findAll({
       where: whereClause,
-      attributes: ['id', 'title', 'description', 'type', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt'],
+      attributes: ['id', 'title', 'description', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt'],
       order: [["start", "ASC"]],
     });
 
@@ -49,7 +50,7 @@ router.get("/", authenticateToken, async (req, res) => {
         id: `e${eventData.id}`,
         title: eventData.title,
         description: eventData.description || "",
-        type: eventData.type || "meeting",
+        type: eventData.type || "meeting", // Default to "meeting" if type column doesn't exist
         start: eventData.start
           ? new Date(eventData.start).toISOString()
           : new Date().toISOString(),
@@ -78,7 +79,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id.replace("e", ""));
     const event = await Event.findByPk(eventId, {
-      attributes: ['id', 'title', 'description', 'type', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt']
+      attributes: ['id', 'title', 'description', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt']
     });
 
     if (!event) {
@@ -152,17 +153,19 @@ router.post("/", authenticateToken, async (req, res) => {
       });
     }
 
-    const event = await Event.create({
+    // Create event without 'type' column if it doesn't exist in database
+    const eventDataToCreate = {
       title: title.trim(),
       description: description?.trim() || null,
-      type: type || "meeting",
       start: new Date(start),
       end: new Date(end),
       allDay: allDay || false,
       attendees:
         attendees && attendees.length > 0 ? JSON.stringify(attendees) : null,
       createdByEmail: userEmail,
-    });
+    };
+    
+    const event = await Event.create(eventDataToCreate);
 
     const eventData = event.toJSON();
     let parsedAttendees = [];
@@ -205,19 +208,19 @@ router.put("/:id", authenticateToken, async (req, res) => {
       req.body;
 
     const event = await Event.findByPk(eventId, {
-      attributes: ['id', 'title', 'description', 'type', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt']
+      attributes: ['id', 'title', 'description', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt']
     });
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    await event.update({
+    // Update event without 'type' column if it doesn't exist in database
+    const updateData = {
       title: title !== undefined ? title.trim() : event.title,
       description:
         description !== undefined
           ? description?.trim() || null
           : event.description,
-      type: type !== undefined ? type : event.type,
       start: start !== undefined ? new Date(start) : event.start,
       end: end !== undefined ? new Date(end) : event.end,
       allDay: allDay !== undefined ? allDay : event.allDay,
@@ -227,7 +230,9 @@ router.put("/:id", authenticateToken, async (req, res) => {
             ? JSON.stringify(attendees)
             : null
           : event.attendees,
-    });
+    };
+    
+    await event.update(updateData);
 
     const eventData = event.toJSON();
     let parsedAttendees = [];
@@ -267,7 +272,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id.replace("e", ""));
     const event = await Event.findByPk(eventId, {
-      attributes: ['id', 'title', 'description', 'type', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt']
+      attributes: ['id', 'title', 'description', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'createdAt', 'updatedAt']
     });
 
     if (!event) {
