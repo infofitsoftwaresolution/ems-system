@@ -147,10 +147,13 @@ export default function EnhancedLogin() {
             }}>
             {!logoError ? (
               <img
-                src="/rsamriddhi_logo.svg?v=3"
+                src="/rsamriddhi_logo.svg?v=4"
                 alt="Rural Samridhi Logo"
-                className="h-28 w-auto object-contain"
-                onError={() => setLogoError(true)}
+                className="h-32 w-auto object-contain"
+                onError={(e) => {
+                  console.error('Logo failed to load:', e);
+                  setLogoError(true);
+                }}
               />
             ) : (
               <div className="flex items-center gap-3">
