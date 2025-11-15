@@ -133,10 +133,10 @@ export default function EnhancedLogin() {
         initial="hidden"
         animate="visible"
         variants={containerVariants}>
-        <motion.div variants={itemVariants} className="mb-6 text-center w-full">
-          {/* Enhanced Logo with shadow and glow */}
+        <motion.div variants={itemVariants} className="mb-8 text-center w-full">
+          {/* Logo - Centered */}
           <motion.div
-            className="mb-6 flex justify-start ml-[55px]"
+            className="mb-8 flex justify-center"
             initial={{ scale: 0, opacity: 0, y: -20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             transition={{
@@ -145,34 +145,26 @@ export default function EnhancedLogin() {
               type: "spring",
               stiffness: 200,
             }}>
-            <div className="relative">
-              {!logoError ? (
-                <>
-                  <div className="absolute inset-0 bg-green-400/30 rounded-full blur-xl animate-pulse" />
-                  <img
-                    src="/rsamriddhi_logo.svg"
-                    alt="Rural Samridhi Logo"
-                    className="relative h-24 w-auto object-contain drop-shadow-lg"
-                    onError={() => setLogoError(true)}
-                  />
-                </>
-              ) : (
-                <div className="relative h-24 flex items-center justify-center px-4">
-                  <div className="absolute inset-0 bg-green-400/30 rounded-full blur-xl animate-pulse" />
-                  <div className="relative flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-[#FF6B35] flex items-center justify-center">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M12 6 L8 16 L16 16 Z" fill="#1a1a1a"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h1 className="text-2xl font-bold text-[#10B981] leading-tight">RURAL</h1>
-                      <h1 className="text-2xl font-bold text-[#FF6B35] leading-tight">SAMRIDDHI</h1>
-                    </div>
-                  </div>
+            {!logoError ? (
+              <img
+                src="/rsamriddhi_logo.svg"
+                alt="Rural Samridhi Logo"
+                className="h-20 w-auto object-contain"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#FF6B35] flex items-center justify-center">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 6 L8 16 L16 16 Z" fill="#1a1a1a"/>
+                  </svg>
                 </div>
-              )}
-            </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-[#10B981] leading-tight">RURAL</h1>
+                  <h1 className="text-2xl font-bold text-[#FF6B35] leading-tight">SAMRIDDHI</h1>
+                </div>
+              </div>
+            )}
           </motion.div>
         </motion.div>
 
