@@ -146,17 +146,20 @@ export default function EnhancedLogin() {
               stiffness: 200,
             }}>
             <div className="relative">
-              <div className="absolute inset-0 bg-green-400/30 rounded-full blur-xl animate-pulse" />
               {!logoError ? (
-                <img
-                  src="/rsamriddhi_logo.png"
-                  alt="Rural Samridhi Logo"
-                  className="relative h-24 w-auto object-contain drop-shadow-lg"
-                  onError={() => setLogoError(true)}
-                />
+                <>
+                  <div className="absolute inset-0 bg-green-400/30 rounded-full blur-xl animate-pulse" />
+                  <img
+                    src="/rsamriddhi_logo.png"
+                    alt="Rural Samridhi Logo"
+                    className="relative h-24 w-auto object-contain drop-shadow-lg"
+                    onError={() => setLogoError(true)}
+                  />
+                </>
               ) : (
-                <div className="relative h-24 flex items-center justify-center">
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent drop-shadow-lg">
+                <div className="relative h-24 flex items-center justify-center px-4">
+                  <div className="absolute inset-0 bg-green-400/30 rounded-full blur-xl animate-pulse" />
+                  <h1 className="relative text-4xl font-bold bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent drop-shadow-lg">
                     Rural Samridhi
                   </h1>
                 </div>
