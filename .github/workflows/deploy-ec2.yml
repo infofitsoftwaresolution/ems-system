@@ -291,7 +291,8 @@ jobs:
           docker container prune -f || true
           
           # Remove old images to force pull of new ones
-          echo "🗑️ Removing old frontend image to force fresh pull..."
+          echo "🗑️ Removing old images to force fresh pull..."
+          docker rmi ghcr.io/infofitsoftwaresolution/ems-system-backend:latest 2>/dev/null || true
           docker rmi ghcr.io/infofitsoftwaresolution/ems-system-frontend:latest 2>/dev/null || true
           
           # Pull images again after cleanup
