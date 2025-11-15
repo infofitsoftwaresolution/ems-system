@@ -25,6 +25,7 @@ router.get("/", authenticateToken, async (req, res) => {
 
     const events = await Event.findAll({
       where: whereClause,
+      attributes: ['id', 'title', 'description', 'type', 'start', 'end', 'allDay', 'attendees', 'createdByEmail', 'date', 'startTime', 'endTime', 'priority', 'duration', 'recurring', 'reminder', 'createdAt', 'updatedAt'],
       order: [["start", "ASC"]],
     });
 
