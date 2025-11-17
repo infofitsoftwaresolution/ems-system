@@ -40,52 +40,85 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
     }
     // 'all' filter doesn't add any where clause - returns all records
     
+    // Add limit to prevent loading too many records at once
+    const limit = parseInt(req.query.limit) || 1000;
+    
     const attendanceList = await Attendance.findAll({
       where: whereClause,
-      order: [['date', 'DESC'], ['checkIn', 'DESC']]
+      order: [['date', 'DESC'], ['checkIn', 'DESC']],
+      limit: limit
     });
+
+    // Handle empty attendance list
+    if (!attendanceList || attendanceList.length === 0) {
+      return res.json([]);
+    }
 
     // Join employee info by email to include employeeId
-    const emails = [...new Set(attendanceList.map(r => r.email))];
-    const employees = await Employee.findAll({
-      where: { email: emails },
-      attributes: ['email', 'employeeId', 'name']
-    });
-    const emailToEmployee = new Map(
-      employees.map(e => [e.email, { employeeId: e.employeeId, name: e.name }])
-    );
+    const emails = [...new Set(attendanceList.map(r => r.email).filter(Boolean))];
+    let emailToEmployee = new Map();
+    
+    if (emails.length > 0) {
+      try {
+        const employees = await Employee.findAll({
+          where: { email: emails },
+          attributes: ['email', 'employeeId', 'name']
+        });
+        emailToEmployee = new Map(
+          employees.map(e => [e.email, { employeeId: e.employeeId, name: e.name }])
+        );
+      } catch (empError) {
+        console.error('Error fetching employee data:', empError);
+        // Continue without employee data - attendance records will still be returned
+      }
+    }
 
     const enriched = attendanceList.map(row => {
-      const json = row.toJSON();
-      const emp = emailToEmployee.get(json.email);
-      if (emp) {
-        json.employeeId = emp.employeeId || null;
-        // Optionally backfill name if missing
-        if (!json.name && emp.name) json.name = emp.name;
-      }
-      
-      // Calculate isLate if not set (for older records)
-      if (json.checkIn && (json.isLate === null || json.isLate === undefined)) {
-        const checkInTime = new Date(json.checkIn);
-        const expectedCheckInTime = new Date(checkInTime);
-        expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
-        json.isLate = checkInTime > expectedCheckInTime;
+      try {
+        const json = row.toJSON();
+        const emp = emailToEmployee.get(json.email);
+        if (emp) {
+          json.employeeId = emp.employeeId || null;
+          // Optionally backfill name if missing
+          if (!json.name && emp.name) json.name = emp.name;
+        }
         
-        // Update the record in database for future queries
-        row.isLate = json.isLate;
-        row.save().catch(err => console.error('Error updating isLate:', err));
+        // Calculate isLate if not set (for older records)
+        if (json.checkIn && (json.isLate === null || json.isLate === undefined)) {
+          try {
+            const checkInTime = new Date(json.checkIn);
+            const expectedCheckInTime = new Date(checkInTime);
+            expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
+            json.isLate = checkInTime > expectedCheckInTime;
+            
+            // Update the record in database for future queries (async, don't await)
+            row.isLate = json.isLate;
+            row.save().catch(err => console.error('Error updating isLate:', err));
+          } catch (dateError) {
+            console.error('Error calculating isLate:', dateError);
+            json.isLate = false;
+          }
+        }
+        
+        // Ensure isLate is a boolean (default to false if null/undefined)
+        json.isLate = json.isLate === true;
+        
+        return json;
+      } catch (rowError) {
+        console.error('Error processing attendance row:', rowError);
+        // Return basic row data if processing fails
+        return row.toJSON();
       }
-      
-      // Ensure isLate is a boolean (default to false if null/undefined)
-      json.isLate = json.isLate === true;
-      
-      return json;
     });
 
     res.json(enriched);
   } catch (error) {
     console.error('Error fetching attendance list:', error);
-    res.status(500).json({ message: 'Error fetching attendance data' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      message: 'Error fetching attendance data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
