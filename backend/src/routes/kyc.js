@@ -88,12 +88,34 @@ router.post('/', upload.fields([
       });
     }
     
+    // If KYC exists, check status - only allow resubmission if rejected
     if (existingKyc) {
-      return res.status(400).json({ 
-        message: 'KYC already submitted for this employee',
-        status: existingKyc.status,
-        submittedAt: existingKyc.submittedAt
-      });
+      const currentStatus = existingKyc.status?.toLowerCase() || existingKyc.status;
+      console.log('Existing KYC found - Status:', currentStatus, 'Type:', typeof currentStatus);
+      console.log('Existing KYC full object:', JSON.stringify(existingKyc.toJSON(), null, 2));
+      
+      if (currentStatus === 'rejected') {
+        // Allow resubmission for rejected KYC - will create a new submission
+        console.log('✅ KYC was rejected, allowing resubmission for:', body.fullName);
+        // Continue to create new submission
+      } else if (currentStatus === 'pending') {
+        console.log('❌ KYC is pending, blocking resubmission');
+        return res.status(400).json({ 
+          message: 'KYC is already pending review. Please wait for admin approval.',
+          status: existingKyc.status,
+          submittedAt: existingKyc.submittedAt
+        });
+      } else if (currentStatus === 'approved') {
+        console.log('❌ KYC is approved, blocking resubmission');
+        return res.status(400).json({ 
+          message: 'KYC has already been approved. No resubmission needed.',
+          status: existingKyc.status,
+          submittedAt: existingKyc.submittedAt
+        });
+      } else {
+        // Unknown status - allow resubmission to be safe
+        console.log('⚠️ Unknown KYC status:', currentStatus, '- allowing resubmission');
+      }
     }
     
     // Create documents array with all uploaded files
@@ -201,6 +223,28 @@ router.post('/', upload.fields([
       }
     }
     
+    // Create comprehensive documents object with all KYC data
+    const kycData = {
+      documents: documents, // Array of uploaded document files
+      personalInfo: {
+        panNumber: body.panNumber || '',
+        aadharNumber: body.aadharNumber || '',
+        phoneNumber: body.phoneNumber || '',
+      },
+      emergencyContact: {
+        name: body.emergencyContactName || '',
+        phone: body.emergencyContactPhone || '',
+        relation: body.emergencyContactRelation || '',
+        address: body.emergencyContactAddress || '',
+      },
+      bankAccount: {
+        bankName: body.bankName || '',
+        bankBranch: body.bankBranch || '',
+        accountNumber: body.accountNumber || '',
+        ifscCode: body.ifscCode || '',
+      }
+    };
+
     const payload = {
       employeeId: finalEmployeeId,
       fullName: body.fullName,
@@ -208,7 +252,7 @@ router.post('/', upload.fields([
       address: body.address,
       documentType: body.documentType,
       documentNumber: body.documentNumber,
-      documents: JSON.stringify(documents), // Store as JSON string
+      documents: JSON.stringify(kycData), // Store comprehensive KYC data as JSON string
       status: 'pending',
       submittedAt: new Date()
     };
@@ -223,12 +267,44 @@ router.post('/', upload.fields([
   }
 });
 
-// List all KYC requests (admin/manager)
-router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+// List all KYC requests (admin/manager) or check own status (employee)
+router.get('/', authenticateToken, async (req, res) => {
   try {
     // If email query parameter is provided, check KYC status for that email
     if (req.query.email) {
       const email = req.query.email.toLowerCase();
+      
+      // Get user email from User table (token contains user ID in 'sub')
+      const isAdminOrManager = req.user?.role === 'admin' || req.user?.role === 'manager';
+      
+      // If not admin/manager, verify they're checking their own email
+      if (!isAdminOrManager) {
+        if (!req.user?.sub) {
+          console.log('❌ No user ID in token');
+          return res.status(403).json({ message: 'Insufficient permissions. Authentication required.' });
+        }
+        
+        console.log('🔍 Checking permission - User ID from token:', req.user.sub, 'Role:', req.user.role);
+        const user = await User.findByPk(req.user.sub);
+        
+        if (!user) {
+          console.log('❌ User not found for ID:', req.user.sub);
+          return res.status(403).json({ message: 'Insufficient permissions. User not found.' });
+        }
+        
+        const userEmail = user.email?.toLowerCase();
+        console.log('📧 Checking permission - User email from DB:', userEmail, 'Requested email:', email);
+        
+        // Check if the requested email matches the logged-in user's email
+        if (!userEmail || userEmail !== email) {
+          console.log('❌ Permission denied - email mismatch. User:', userEmail, 'Requested:', email);
+          return res.status(403).json({ message: 'Insufficient permissions. You can only check your own KYC status.' });
+        }
+        
+        console.log('✅ Permission granted - user checking own KYC status');
+      } else {
+        console.log('✅ Admin/Manager access - allowing KYC status check');
+      }
       
       // First, try to find employee by email
       const employee = await Employee.findOne({ where: { email } });
@@ -312,7 +388,12 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
       return res.json(kycData);
     }
     
-    // Otherwise, return all KYC requests (for admin/manager)
+    // Otherwise, return all KYC requests (for admin/manager only)
+    // Check if user has admin/manager role
+    if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
+      return res.status(403).json({ message: 'Insufficient permissions. Admin or manager role required to list all KYC requests.' });
+    }
+    
     const list = await Kyc.findAll({ 
       order: [['id', 'DESC']],
       attributes: [

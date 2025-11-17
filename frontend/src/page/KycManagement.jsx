@@ -227,12 +227,26 @@ export default function KycManagement() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-1">
-                      {submission.documents?.map((doc, index) => (
-                        <FileImage key={index} className="h-4 w-4 text-blue-500" />
-                      ))}
-                      <span className="text-sm text-gray-500">
-                        {submission.documents?.length || 0} files
-                      </span>
+                      {(() => {
+                        let docCount = 0;
+                        if (submission.documents) {
+                          if (submission.documents.documents && Array.isArray(submission.documents.documents)) {
+                            docCount = submission.documents.documents.length;
+                          } else if (Array.isArray(submission.documents)) {
+                            docCount = submission.documents.length;
+                          }
+                        }
+                        return (
+                          <>
+                            {Array.from({ length: Math.min(docCount, 3) }).map((_, i) => (
+                              <FileImage key={i} className="h-4 w-4 text-blue-500" />
+                            ))}
+                            <span className="text-sm text-gray-500">
+                              {docCount} file{docCount !== 1 ? 's' : ''}
+                            </span>
+                          </>
+                        );
+                      })()}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -263,74 +277,249 @@ export default function KycManagement() {
                               Review documents and update status for {submission.fullName}
                             </DialogDescription>
                           </DialogHeader>
-                          <div className="space-y-4">
-                            {/* Employee Info */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <Label className="font-semibold">Full Name</Label>
-                                <p>{submission.fullName}</p>
-                              </div>
-                              <div>
-                                <Label className="font-semibold">Employee ID</Label>
-                                <p>{submission.employeeId}</p>
-                              </div>
-                              <div>
-                                <Label className="font-semibold">PAN Number</Label>
-                                <p>{submission.panNumber}</p>
-                              </div>
-                              <div>
-                                <Label className="font-semibold">Aadhar Number</Label>
-                                <p>{submission.aadharNumber}</p>
+                          <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+                            {/* Employee Basic Info */}
+                            <div className="space-y-4 border-b pb-4">
+                              <h3 className="text-lg font-semibold">Basic Information</h3>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label className="font-semibold">Full Name</Label>
+                                  <p className="text-sm text-gray-700">{submission.fullName || 'N/A'}</p>
+                                </div>
+                                <div>
+                                  <Label className="font-semibold">Employee ID</Label>
+                                  <p className="text-sm text-gray-700">{submission.employeeId || 'N/A'}</p>
+                                </div>
+                                <div>
+                                  <Label className="font-semibold">Date of Birth</Label>
+                                  <p className="text-sm text-gray-700">
+                                    {submission.dob ? new Date(submission.dob).toLocaleDateString() : 'N/A'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label className="font-semibold">Address</Label>
+                                  <p className="text-sm text-gray-700">{submission.address || 'N/A'}</p>
+                                </div>
                               </div>
                             </div>
 
-                            {/* Documents */}
-                            <div>
-                              <Label className="font-semibold">Uploaded Documents</Label>
-                              <div className="grid grid-cols-2 gap-4 mt-2">
-                                {submission.documents?.map((doc, index) => (
-                                  <div key={index} className="border rounded-lg p-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="font-medium">{doc.type}</span>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                          const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
-                                          window.open(`${apiUrl}${doc.path}`, '_blank');
-                                        }}
-                                      >
-                                        <Download className="h-4 w-4 mr-1" />
-                                        Download
-                                      </Button>
+                            {/* Personal Information */}
+                            <div className="space-y-4 border-b pb-4">
+                              <h3 className="text-lg font-semibold">Personal Information</h3>
+                              {(() => {
+                                // Handle both new format (object with personalInfo) and old format
+                                let personalInfo = {};
+                                
+                                // Check if documents is the new format with personalInfo
+                                if (submission.documents && typeof submission.documents === 'object' && !Array.isArray(submission.documents)) {
+                                  personalInfo = submission.documents.personalInfo || {};
+                                }
+                                
+                                const panNumber = personalInfo.panNumber || '';
+                                const aadharNumber = personalInfo.aadharNumber || submission.documentNumber || '';
+                                const phoneNumber = personalInfo.phoneNumber || '';
+                                
+                                return (
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <Label className="font-semibold">PAN Number</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {panNumber || 'N/A'}
+                                      </p>
                                     </div>
-                                    <p className="text-sm text-gray-500">{doc.originalName}</p>
+                                    <div>
+                                      <Label className="font-semibold">Aadhar Number</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {aadharNumber || 'N/A'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label className="font-semibold">Phone Number</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {phoneNumber || 'N/A'}
+                                      </p>
+                                    </div>
                                   </div>
-                                ))}
+                                );
+                              })()}
+                            </div>
+
+                            {/* Emergency Contact Details */}
+                            <div className="space-y-4 border-b pb-4">
+                              <h3 className="text-lg font-semibold">Emergency Contact Details</h3>
+                              {(() => {
+                                let emergencyContact = {};
+                                
+                                // Check if documents is the new format with emergencyContact
+                                if (submission.documents && typeof submission.documents === 'object' && !Array.isArray(submission.documents)) {
+                                  emergencyContact = submission.documents.emergencyContact || {};
+                                }
+                                
+                                return (
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <Label className="font-semibold">Contact Name</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {emergencyContact.name || 'N/A'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label className="font-semibold">Contact Phone</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {emergencyContact.phone || 'N/A'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label className="font-semibold">Relation</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {emergencyContact.relation || 'N/A'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label className="font-semibold">Contact Address</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {emergencyContact.address || 'N/A'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
+                            {/* Bank Account Details */}
+                            <div className="space-y-4 border-b pb-4">
+                              <h3 className="text-lg font-semibold">Bank Account Details</h3>
+                              {(() => {
+                                let bankAccount = {};
+                                
+                                // Check if documents is the new format with bankAccount
+                                if (submission.documents && typeof submission.documents === 'object' && !Array.isArray(submission.documents)) {
+                                  bankAccount = submission.documents.bankAccount || {};
+                                }
+                                
+                                return (
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <Label className="font-semibold">Bank Name</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {bankAccount.bankName || 'N/A'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label className="font-semibold">Bank Branch</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {bankAccount.bankBranch || 'N/A'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label className="font-semibold">Account Number</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {bankAccount.accountNumber || 'N/A'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label className="font-semibold">IFSC Code</Label>
+                                      <p className="text-sm text-gray-700">
+                                        {bankAccount.ifscCode || 'N/A'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
+                            {/* Documents */}
+                            <div className="space-y-4 border-b pb-4">
+                              <h3 className="text-lg font-semibold">Uploaded Documents</h3>
+                              <div className="grid grid-cols-2 gap-4">
+                                {submission.documents?.documents && Array.isArray(submission.documents.documents) ? (
+                                  submission.documents.documents.map((doc, index) => (
+                                    <div key={index} className="border rounded-lg p-4">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-medium">{doc.type}</span>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
+                                            window.open(`${apiUrl}${doc.path}`, '_blank');
+                                          }}
+                                        >
+                                          <Download className="h-4 w-4 mr-1" />
+                                          Download
+                                        </Button>
+                                      </div>
+                                      <p className="text-sm text-gray-500">{doc.originalName}</p>
+                                    </div>
+                                  ))
+                                ) : Array.isArray(submission.documents) ? (
+                                  // Fallback for old format where documents is directly an array
+                                  submission.documents.map((doc, index) => (
+                                    <div key={index} className="border rounded-lg p-4">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-medium">{doc.type}</span>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
+                                            window.open(`${apiUrl}${doc.path}`, '_blank');
+                                          }}
+                                        >
+                                          <Download className="h-4 w-4 mr-1" />
+                                          Download
+                                        </Button>
+                                      </div>
+                                      <p className="text-sm text-gray-500">{doc.originalName}</p>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="text-sm text-gray-500">No documents uploaded</p>
+                                )}
                               </div>
                             </div>
 
                             {/* Status Update */}
-                            <div className="flex items-center space-x-4">
-                              <Label className="font-semibold">Update Status:</Label>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleStatusUpdate(submission.id, 'approved')}
-                                disabled={submission.status === 'approved'}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleStatusUpdate(submission.id, 'rejected')}
-                                disabled={submission.status === 'rejected'}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Reject
-                              </Button>
+                            <div className="flex items-center justify-between pt-4 border-t">
+                              <div>
+                                <Label className="font-semibold">Current Status:</Label>
+                                <div className="mt-2">
+                                  {getStatusBadge(submission.status)}
+                                </div>
+                                {submission.reviewedAt && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Reviewed on: {new Date(submission.reviewedAt).toLocaleDateString()}
+                                  </p>
+                                )}
+                                {submission.remarks && (
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    Remarks: {submission.remarks}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-4">
+                                <Label className="font-semibold">Update Status:</Label>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleStatusUpdate(submission.id, 'approved')}
+                                  disabled={submission.status === 'approved'}
+                                  className="bg-green-50 hover:bg-green-100"
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleStatusUpdate(submission.id, 'rejected')}
+                                  disabled={submission.status === 'rejected'}
+                                  className="bg-red-50 hover:bg-red-100"
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Reject
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </DialogContent>

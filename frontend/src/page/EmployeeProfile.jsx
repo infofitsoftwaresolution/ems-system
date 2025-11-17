@@ -45,13 +45,20 @@ export default function EmployeeProfile() {
     aadharNumber: "",
     address: "",
     phoneNumber: "",
-    emergencyContact: "",
-    emergencyPhone: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    emergencyContactRelation: "",
+    emergencyContactAddress: "",
     dob: "",
     documentType: "aadhaar",
+    bankName: "",
+    bankBranch: "",
+    accountNumber: "",
+    ifscCode: "",
   });
   const [panCardFile, setPanCardFile] = useState(null);
   const [aadharCardFile, setAadharCardFile] = useState(null);
+  const [employeePhotoFile, setEmployeePhotoFile] = useState(null);
   const [submittingKyc, setSubmittingKyc] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
 
@@ -112,10 +119,68 @@ export default function EmployeeProfile() {
     return "";
   };
 
-  const validateEmergencyContact = (contact) => {
-    if (!contact) return ""; // Optional field
-    if (contact.trim().length < 2) {
+  const validateEmergencyContactName = (name) => {
+    if (!name) return "Emergency contact name is required";
+    if (name.trim().length < 2) {
       return "Emergency contact name must be at least 2 characters";
+    }
+    return "";
+  };
+
+  const validateEmergencyContactPhone = (phone) => {
+    if (!phone) return "Emergency contact phone is required";
+    const phoneRegex = /^[0-9]{10}$/;
+    const cleanedPhone = phone.replace(/\s|-/g, "");
+    if (!phoneRegex.test(cleanedPhone)) {
+      return "Emergency contact phone must be exactly 10 digits";
+    }
+    return "";
+  };
+
+  const validateEmergencyContactRelation = (relation) => {
+    if (!relation) return "Emergency contact relation is required";
+    if (relation.trim().length < 2) {
+      return "Relation must be at least 2 characters";
+    }
+    return "";
+  };
+
+  const validateEmergencyContactAddress = (address) => {
+    // Optional field, no validation needed
+    return "";
+  };
+
+  const validateBankName = (bankName) => {
+    if (!bankName) return "Bank name is required";
+    if (bankName.trim().length < 2) {
+      return "Bank name must be at least 2 characters";
+    }
+    return "";
+  };
+
+  const validateBankBranch = (branch) => {
+    if (!branch) return "Bank branch is required";
+    if (branch.trim().length < 2) {
+      return "Bank branch must be at least 2 characters";
+    }
+    return "";
+  };
+
+  const validateAccountNumber = (accountNumber) => {
+    if (!accountNumber) return "Account number is required";
+    const accountRegex = /^[0-9]{9,18}$/;
+    const cleanedAccount = accountNumber.replace(/\s|-/g, "");
+    if (!accountRegex.test(cleanedAccount)) {
+      return "Account number must be between 9 and 18 digits";
+    }
+    return "";
+  };
+
+  const validateIFSC = (ifsc) => {
+    if (!ifsc) return "IFSC code is required";
+    const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+    if (!ifscRegex.test(ifsc.toUpperCase())) {
+      return "IFSC code must be in format: ABCD0123456 (4 letters, 0, 6 alphanumeric)";
     }
     return "";
   };
@@ -164,11 +229,29 @@ export default function EmployeeProfile() {
       case "phoneNumber":
         error = validatePhone(value);
         break;
-      case "emergencyContact":
-        error = validateEmergencyContact(value);
+      case "emergencyContactName":
+        error = validateEmergencyContactName(value);
         break;
-      case "emergencyPhone":
-        error = validatePhone(value);
+      case "emergencyContactPhone":
+        error = validateEmergencyContactPhone(value);
+        break;
+      case "emergencyContactRelation":
+        error = validateEmergencyContactRelation(value);
+        break;
+      case "emergencyContactAddress":
+        error = validateEmergencyContactAddress(value);
+        break;
+      case "bankName":
+        error = validateBankName(value);
+        break;
+      case "bankBranch":
+        error = validateBankBranch(value);
+        break;
+      case "accountNumber":
+        error = validateAccountNumber(value);
+        break;
+      case "ifscCode":
+        error = validateIFSC(value);
         break;
       default:
         break;
@@ -185,6 +268,8 @@ export default function EmployeeProfile() {
         setPanCardFile(null);
       } else if (fieldName === "aadharCard") {
         setAadharCardFile(null);
+      } else if (fieldName === "employeePhoto") {
+        setEmployeePhotoFile(null);
       }
       setValidationErrors({ ...validationErrors, [fieldName]: "" });
       return;
@@ -197,6 +282,8 @@ export default function EmployeeProfile() {
       setPanCardFile(file);
     } else if (!error && fieldName === "aadharCard") {
       setAadharCardFile(file);
+    } else if (!error && fieldName === "employeePhoto") {
+      setEmployeePhotoFile(file);
     }
   };
 
@@ -209,12 +296,25 @@ export default function EmployeeProfile() {
     errors.dob = validateDOB(kycFormData.dob);
     errors.address = validateAddress(kycFormData.address);
     errors.phoneNumber = validatePhone(kycFormData.phoneNumber);
-    errors.emergencyContact = validateEmergencyContact(
-      kycFormData.emergencyContact
+    errors.emergencyContactName = validateEmergencyContactName(
+      kycFormData.emergencyContactName
     );
-    errors.emergencyPhone = validatePhone(kycFormData.emergencyPhone);
+    errors.emergencyContactPhone = validateEmergencyContactPhone(
+      kycFormData.emergencyContactPhone
+    );
+    errors.emergencyContactRelation = validateEmergencyContactRelation(
+      kycFormData.emergencyContactRelation
+    );
+    errors.emergencyContactAddress = validateEmergencyContactAddress(
+      kycFormData.emergencyContactAddress
+    );
+    errors.bankName = validateBankName(kycFormData.bankName);
+    errors.bankBranch = validateBankBranch(kycFormData.bankBranch);
+    errors.accountNumber = validateAccountNumber(kycFormData.accountNumber);
+    errors.ifscCode = validateIFSC(kycFormData.ifscCode);
     errors.panCard = validateFile(panCardFile, "PAN Card");
     errors.aadharCard = validateFile(aadharCardFile, "Aadhar Card");
+    errors.employeePhoto = validateFile(employeePhotoFile, "Employee Photo");
 
     setValidationErrors(errors);
 
@@ -305,10 +405,17 @@ export default function EmployeeProfile() {
       formData.append("aadharNumber", kycFormData.aadharNumber);
       formData.append("address", kycFormData.address);
       formData.append("phoneNumber", kycFormData.phoneNumber);
-      formData.append("emergencyContact", kycFormData.emergencyContact);
-      formData.append("emergencyPhone", kycFormData.emergencyPhone);
+      formData.append("emergencyContactName", kycFormData.emergencyContactName);
+      formData.append("emergencyContactPhone", kycFormData.emergencyContactPhone);
+      formData.append("emergencyContactRelation", kycFormData.emergencyContactRelation);
+      formData.append("emergencyContactAddress", kycFormData.emergencyContactAddress || "");
+      formData.append("bankName", kycFormData.bankName);
+      formData.append("bankBranch", kycFormData.bankBranch);
+      formData.append("accountNumber", kycFormData.accountNumber);
+      formData.append("ifscCode", kycFormData.ifscCode);
       formData.append("panCard", panCardFile);
       formData.append("aadharCard", aadharCardFile);
+      formData.append("selfie", employeePhotoFile);
 
       // Add required fields for backend
       formData.append("dob", kycFormData.dob);
@@ -348,9 +455,15 @@ export default function EmployeeProfile() {
       console.log("Response ok:", response.ok);
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ message: "Failed to submit KYC" }));
         console.error("KYC submission error response:", errorData);
-        throw new Error(errorData.message || "Failed to submit KYC");
+        console.error("Response status:", response.status);
+        
+        // Create error with full details
+        const error = new Error(errorData.message || "Failed to submit KYC");
+        error.status = response.status;
+        error.errorData = errorData;
+        throw error;
       }
 
       toast.success("KYC information submitted successfully!");
@@ -362,13 +475,20 @@ export default function EmployeeProfile() {
         aadharNumber: "",
         address: "",
         phoneNumber: "",
-        emergencyContact: "",
-        emergencyPhone: "",
+        emergencyContactName: "",
+        emergencyContactPhone: "",
+        emergencyContactRelation: "",
+        emergencyContactAddress: "",
         dob: "",
         documentType: "aadhaar",
+        bankName: "",
+        bankBranch: "",
+        accountNumber: "",
+        ifscCode: "",
       });
       setPanCardFile(null);
       setAadharCardFile(null);
+      setEmployeePhotoFile(null);
       setValidationErrors({});
 
       // Reload KYC status
@@ -377,7 +497,22 @@ export default function EmployeeProfile() {
       setKycData(kycInfo.data);
     } catch (error) {
       console.error("KYC submission error:", error);
-      toast.error("Failed to submit KYC information. Please try again.");
+      
+      // Show specific error message based on error response
+      if (error.message && error.message.includes('already pending review')) {
+        toast.error("Your KYC is already pending review. Please wait for admin approval.");
+      } else if (error.message && error.message.includes('already been approved')) {
+        toast.error("Your KYC has already been approved. No resubmission needed.");
+      } else if (error.message && error.message.includes('already submitted')) {
+        // Check if the error data contains status information
+        if (error.errorData && error.errorData.status === 'rejected') {
+          toast.error("Please try resubmitting. If the issue persists, contact support.");
+        } else {
+          toast.error("KYC already submitted. If your KYC was rejected, you can resubmit it.");
+        }
+      } else {
+        toast.error(error.message || "Failed to submit KYC information. Please try again.");
+      }
     } finally {
       setSubmittingKyc(false);
     }
@@ -428,7 +563,7 @@ export default function EmployeeProfile() {
       case "approved":
         return "Your KYC has been approved! You now have access to all employee features.";
       case "rejected":
-        return "Your KYC was rejected. Please contact HR for more information.";
+        return "Your KYC was rejected. Please review and resubmit your KYC information.";
       case "pending":
         return "Your KYC is under review. You'll be notified once it's processed.";
       case "not_submitted":
@@ -780,87 +915,316 @@ export default function EmployeeProfile() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phoneNumber">Phone Number</Label>
-                  <Input
-                    id="phoneNumber"
-                    placeholder="Enter phone number (10 digits)"
-                    value={kycFormData.phoneNumber}
-                    onChange={(e) =>
-                      handleFieldChange(
-                        "phoneNumber",
-                        e.target.value.replace(/\D/g, "")
-                      )
-                    }
-                    onBlur={(e) =>
-                      handleFieldBlur("phoneNumber", e.target.value)
-                    }
-                    className={
-                      validationErrors.phoneNumber ? "border-red-500" : ""
-                    }
-                    maxLength={10}
-                  />
-                  {validationErrors.phoneNumber && (
-                    <p className="text-sm text-red-500">
-                      {validationErrors.phoneNumber}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="emergencyContact">Emergency Contact</Label>
-                  <Input
-                    id="emergencyContact"
-                    placeholder="Emergency contact name"
-                    value={kycFormData.emergencyContact}
-                    onChange={(e) =>
-                      handleFieldChange("emergencyContact", e.target.value)
-                    }
-                    onBlur={(e) =>
-                      handleFieldBlur("emergencyContact", e.target.value)
-                    }
-                    className={
-                      validationErrors.emergencyContact ? "border-red-500" : ""
-                    }
-                  />
-                  {validationErrors.emergencyContact && (
-                    <p className="text-sm text-red-500">
-                      {validationErrors.emergencyContact}
-                    </p>
-                  )}
-                </div>
-              </div>
-
               <div className="space-y-2">
-                <Label htmlFor="emergencyPhone">Emergency Contact Phone</Label>
+                <Label htmlFor="phoneNumber">Phone Number</Label>
                 <Input
-                  id="emergencyPhone"
-                  placeholder="Emergency contact phone number (10 digits)"
-                  value={kycFormData.emergencyPhone}
+                  id="phoneNumber"
+                  placeholder="Enter phone number (10 digits)"
+                  value={kycFormData.phoneNumber}
                   onChange={(e) =>
                     handleFieldChange(
-                      "emergencyPhone",
+                      "phoneNumber",
                       e.target.value.replace(/\D/g, "")
                     )
                   }
                   onBlur={(e) =>
-                    handleFieldBlur("emergencyPhone", e.target.value)
+                    handleFieldBlur("phoneNumber", e.target.value)
                   }
                   className={
-                    validationErrors.emergencyPhone ? "border-red-500" : ""
+                    validationErrors.phoneNumber ? "border-red-500" : ""
                   }
                   maxLength={10}
                 />
-                {validationErrors.emergencyPhone && (
+                {validationErrors.phoneNumber && (
                   <p className="text-sm text-red-500">
-                    {validationErrors.emergencyPhone}
+                    {validationErrors.phoneNumber}
                   </p>
                 )}
+              </div>
+
+              {/* Emergency Contact Section */}
+              <div className="space-y-4 border-t pt-4">
+                <h3 className="text-lg font-semibold">Emergency Contact Details</h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="emergencyContactName">Emergency Contact Name *</Label>
+                    <Input
+                      id="emergencyContactName"
+                      placeholder="Enter emergency contact name"
+                      value={kycFormData.emergencyContactName}
+                      onChange={(e) =>
+                        handleFieldChange("emergencyContactName", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        handleFieldBlur("emergencyContactName", e.target.value)
+                      }
+                      className={
+                        validationErrors.emergencyContactName ? "border-red-500" : ""
+                      }
+                      required
+                    />
+                    {validationErrors.emergencyContactName && (
+                      <p className="text-sm text-red-500">
+                        {validationErrors.emergencyContactName}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="emergencyContactPhone">Emergency Contact Phone *</Label>
+                    <Input
+                      id="emergencyContactPhone"
+                      placeholder="Enter phone number (10 digits)"
+                      value={kycFormData.emergencyContactPhone}
+                      onChange={(e) =>
+                        handleFieldChange(
+                          "emergencyContactPhone",
+                          e.target.value.replace(/\D/g, "")
+                        )
+                      }
+                      onBlur={(e) =>
+                        handleFieldBlur("emergencyContactPhone", e.target.value)
+                      }
+                      className={
+                        validationErrors.emergencyContactPhone ? "border-red-500" : ""
+                      }
+                      maxLength={10}
+                      required
+                    />
+                    {validationErrors.emergencyContactPhone && (
+                      <p className="text-sm text-red-500">
+                        {validationErrors.emergencyContactPhone}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="emergencyContactRelation">Relation *</Label>
+                    <Input
+                      id="emergencyContactRelation"
+                      placeholder="e.g., Father, Mother, Spouse, Sibling"
+                      value={kycFormData.emergencyContactRelation}
+                      onChange={(e) =>
+                        handleFieldChange("emergencyContactRelation", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        handleFieldBlur("emergencyContactRelation", e.target.value)
+                      }
+                      className={
+                        validationErrors.emergencyContactRelation ? "border-red-500" : ""
+                      }
+                      required
+                    />
+                    {validationErrors.emergencyContactRelation && (
+                      <p className="text-sm text-red-500">
+                        {validationErrors.emergencyContactRelation}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="emergencyContactAddress">Emergency Contact Address</Label>
+                    <Input
+                      id="emergencyContactAddress"
+                      placeholder="Enter emergency contact address (optional)"
+                      value={kycFormData.emergencyContactAddress}
+                      onChange={(e) =>
+                        handleFieldChange("emergencyContactAddress", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        handleFieldBlur("emergencyContactAddress", e.target.value)
+                      }
+                      className={
+                        validationErrors.emergencyContactAddress ? "border-red-500" : ""
+                      }
+                    />
+                    {validationErrors.emergencyContactAddress && (
+                      <p className="text-sm text-red-500">
+                        {validationErrors.emergencyContactAddress}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bank Account Details Section */}
+              <div className="space-y-4 border-t pt-4">
+                <h3 className="text-lg font-semibold">Bank Account Details</h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bankName">Bank Name *</Label>
+                    <Input
+                      id="bankName"
+                      placeholder="Enter bank name"
+                      value={kycFormData.bankName}
+                      onChange={(e) =>
+                        handleFieldChange("bankName", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        handleFieldBlur("bankName", e.target.value)
+                      }
+                      className={
+                        validationErrors.bankName ? "border-red-500" : ""
+                      }
+                      required
+                    />
+                    {validationErrors.bankName && (
+                      <p className="text-sm text-red-500">
+                        {validationErrors.bankName}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bankBranch">Bank Branch *</Label>
+                    <Input
+                      id="bankBranch"
+                      placeholder="Enter bank branch"
+                      value={kycFormData.bankBranch}
+                      onChange={(e) =>
+                        handleFieldChange("bankBranch", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        handleFieldBlur("bankBranch", e.target.value)
+                      }
+                      className={
+                        validationErrors.bankBranch ? "border-red-500" : ""
+                      }
+                      required
+                    />
+                    {validationErrors.bankBranch && (
+                      <p className="text-sm text-red-500">
+                        {validationErrors.bankBranch}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="accountNumber">Account Number *</Label>
+                    <Input
+                      id="accountNumber"
+                      placeholder="Enter account number (9-18 digits)"
+                      value={kycFormData.accountNumber}
+                      onChange={(e) =>
+                        handleFieldChange(
+                          "accountNumber",
+                          e.target.value.replace(/\D/g, "")
+                        )
+                      }
+                      onBlur={(e) =>
+                        handleFieldBlur("accountNumber", e.target.value)
+                      }
+                      className={
+                        validationErrors.accountNumber ? "border-red-500" : ""
+                      }
+                      maxLength={18}
+                      required
+                    />
+                    {validationErrors.accountNumber && (
+                      <p className="text-sm text-red-500">
+                        {validationErrors.accountNumber}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ifscCode">IFSC Code *</Label>
+                    <Input
+                      id="ifscCode"
+                      placeholder="Enter IFSC code (e.g., ABCD0123456)"
+                      value={kycFormData.ifscCode}
+                      onChange={(e) =>
+                        handleFieldChange(
+                          "ifscCode",
+                          e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                        )
+                      }
+                      onBlur={(e) =>
+                        handleFieldBlur("ifscCode", e.target.value)
+                      }
+                      className={
+                        validationErrors.ifscCode ? "border-red-500" : ""
+                      }
+                      maxLength={11}
+                      required
+                    />
+                    {validationErrors.ifscCode && (
+                      <p className="text-sm text-red-500">
+                        {validationErrors.ifscCode}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* File Upload Section */}
               <div className="space-y-4 border-t pt-4">
                 <h3 className="text-lg font-semibold">Document Upload</h3>
+
+                {/* Employee Photo */}
+                <div className="space-y-2">
+                  <Label htmlFor="employeePhoto">Employee Photo *</Label>
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 ${
+                      validationErrors.employeePhoto
+                        ? "border-red-500"
+                        : "border-gray-300"
+                    }`}>
+                    {employeePhotoFile ? (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <FileImage className="h-4 w-4" />
+                          <span className="text-sm">{employeePhotoFile.name}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEmployeePhotoFile(null);
+                            setValidationErrors({
+                              ...validationErrors,
+                              employeePhoto: "",
+                            });
+                          }}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-500">
+                          Click to upload employee photo
+                        </p>
+                        <Input
+                          id="employeePhoto"
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
+                          onChange={(e) =>
+                            handleFileUpload(e.target.files[0], "employeePhoto")
+                          }
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            document.getElementById("employeePhoto").click()
+                          }>
+                          Choose File
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  {validationErrors.employeePhoto && (
+                    <p className="text-sm text-red-500">
+                      {validationErrors.employeePhoto}
+                    </p>
+                  )}
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
