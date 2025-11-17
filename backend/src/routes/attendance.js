@@ -61,14 +61,19 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
     if (emails.length > 0) {
       try {
         const employees = await Employee.findAll({
-          where: { email: emails },
+          where: { 
+            email: {
+              [Op.in]: emails
+            }
+          },
           attributes: ['email', 'employeeId', 'name']
         });
         emailToEmployee = new Map(
-          employees.map(e => [e.email, { employeeId: e.employeeId, name: e.name }])
+          employees.map(e => [e.email?.toLowerCase(), { employeeId: e.employeeId, name: e.name }])
         );
       } catch (empError) {
         console.error('Error fetching employee data:', empError);
+        console.error('Employee error details:', empError.message, empError.stack);
         // Continue without employee data - attendance records will still be returned
       }
     }
@@ -76,7 +81,9 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
     const enriched = attendanceList.map(row => {
       try {
         const json = row.toJSON();
-        const emp = emailToEmployee.get(json.email);
+        // Normalize email for lookup
+        const emailKey = json.email?.toLowerCase();
+        const emp = emailToEmployee.get(emailKey);
         if (emp) {
           json.employeeId = emp.employeeId || null;
           // Optionally backfill name if missing
@@ -114,7 +121,12 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
     res.json(enriched);
   } catch (error) {
     console.error('Error fetching attendance list:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
+    if (error.original) {
+      console.error('Original error:', error.original);
+    }
     res.status(500).json({ 
       message: 'Error fetching attendance data',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
