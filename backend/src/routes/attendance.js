@@ -8,7 +8,17 @@ const router = Router();
 
 // Get all attendance data (for admin and manager/HR only)
 router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+  // Wrap everything in a try-catch to ensure we always return a valid response
   try {
+    console.log('📊 Fetching attendance data with filter:', req.query.filter);
+    console.log('📊 Request user:', req.user);
+    
+    // Check if models are available
+    if (!Attendance || typeof Attendance.findAll !== 'function') {
+      console.error('❌ Attendance model not available');
+      return res.json([]);
+    }
+    
     const { filter } = req.query;
     let whereClause = {};
     
@@ -43,8 +53,8 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
     // Add limit to prevent loading too many records at once
     const limit = parseInt(req.query.limit) || 1000;
     
-    // Build query options
-    const queryOptions = {
+    // Build query options - simplify to avoid issues
+    let queryOptions = {
       order: [['date', 'DESC'], ['checkIn', 'DESC']],
       limit: limit
     };
@@ -54,62 +64,158 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
       queryOptions.where = whereClause;
     }
     
-    const attendanceList = await Attendance.findAll(queryOptions);
+    console.log('📋 Query options:', JSON.stringify(queryOptions, null, 2));
+    
+    let attendanceList = [];
+    try {
+      console.log('🔍 Executing Attendance.findAll...');
+      console.log('🔍 Where clause:', whereClause);
+      console.log('🔍 Filter:', filter);
+      
+      // Build the query options - specify attributes to avoid missing column errors
+      // Only select columns that exist in the database
+      const findAllOptions = {
+        attributes: [
+          'id', 'email', 'name', 'date', 'checkIn', 'checkOut', 
+          'status', 'notes', 
+          'checkInLatitude', 'checkInLongitude', 'checkInAddress',
+          'checkOutLatitude', 'checkOutLongitude', 'checkOutAddress',
+          'createdAt', 'updatedAt'
+          // Note: isLate and checkoutType are excluded if they don't exist in DB
+          // They will be calculated/added in the enrichment step
+        ],
+        order: [['date', 'DESC'], ['checkIn', 'DESC']],
+        limit: limit,
+        raw: false // Return Sequelize instances, not plain objects
+      };
+      
+      // Only add where clause if it's not empty
+      if (Object.keys(whereClause).length > 0) {
+        findAllOptions.where = whereClause;
+      }
+      
+      console.log('🔍 FindAll options:', JSON.stringify(findAllOptions, null, 2));
+      
+      // Execute the query
+      attendanceList = await Attendance.findAll(findAllOptions);
+      
+      console.log(`✅ Found ${attendanceList ? attendanceList.length : 0} attendance records`);
+      console.log('✅ Attendance list type:', Array.isArray(attendanceList) ? 'Array' : typeof attendanceList);
+    } catch (attendanceError) {
+      console.error('❌ Error fetching attendance records:', attendanceError);
+      console.error('Attendance error name:', attendanceError.name);
+      console.error('Attendance error message:', attendanceError.message);
+      console.error('Attendance error stack:', attendanceError.stack);
+      if (attendanceError.original) {
+        console.error('Original error message:', attendanceError.original.message);
+        console.error('Original error code:', attendanceError.original.code);
+        console.error('Original error detail:', attendanceError.original.detail);
+      }
+      if (attendanceError.errors) {
+        console.error('Validation errors:', attendanceError.errors);
+      }
+      // Return empty array instead of throwing - allow the request to complete
+      attendanceList = [];
+    }
 
     // Handle empty attendance list
     if (!attendanceList || attendanceList.length === 0) {
+      console.log('📭 No attendance records found, returning empty array');
       return res.json([]);
     }
 
     // Join employee info by email to include employeeId
-    const emails = [...new Set(attendanceList.map(r => r.email).filter(Boolean))];
+    const emails = [...new Set(attendanceList.map(r => {
+      try {
+        return r.email;
+      } catch (e) {
+        return null;
+      }
+    }).filter(Boolean))];
+    
+    console.log(`👥 Found ${emails.length} unique emails in attendance records`);
+    
     let emailToEmployee = new Map();
     
     if (emails.length > 0) {
       try {
-        const employees = await Employee.findAll({
-          where: { 
-            email: {
-              [Op.in]: emails
-            }
-          },
-          attributes: ['email', 'employeeId', 'name']
-        });
-        emailToEmployee = new Map(
-          employees
-            .filter(e => e && e.email) // Filter out any null/undefined employees
-            .map(e => [e.email.toLowerCase(), { employeeId: e.employeeId || null, name: e.name || null }])
-        );
+        // Check if Employee model is available
+        if (!Employee || typeof Employee.findAll !== 'function') {
+          console.warn('⚠️ Employee model not available, skipping employee data enrichment');
+        } else {
+          console.log('🔍 Fetching employee data...');
+          const employees = await Employee.findAll({
+            where: { 
+              email: {
+                [Op.in]: emails
+              }
+            },
+            attributes: ['email', 'employeeId', 'name']
+          });
+          
+          console.log(`✅ Found ${employees?.length || 0} employees`);
+          
+          if (employees && Array.isArray(employees)) {
+            emailToEmployee = new Map(
+              employees
+                .filter(e => e && e.email) // Filter out any null/undefined employees
+                .map(e => [String(e.email).toLowerCase(), { 
+                  employeeId: e.employeeId || null, 
+                  name: e.name || null 
+                }])
+            );
+          }
+        }
       } catch (empError) {
-        console.error('Error fetching employee data:', empError);
-        console.error('Employee error details:', empError.message, empError.stack);
+        console.error('❌ Error fetching employee data:', empError);
+        console.error('Employee error details:', empError.message);
+        if (empError.stack) {
+          console.error('Employee error stack:', empError.stack);
+        }
         // Continue without employee data - attendance records will still be returned
+        emailToEmployee = new Map();
       }
     }
 
-    const enriched = attendanceList.map(row => {
+    console.log('🔄 Enriching attendance data...');
+    const enriched = attendanceList.map((row, index) => {
       try {
-        const json = row.toJSON();
+        let json;
+        try {
+          json = row.toJSON ? row.toJSON() : row;
+        } catch (jsonError) {
+          console.error(`Error converting row ${index} to JSON:`, jsonError);
+          json = row; // Use row as-is if toJSON fails
+        }
+        
         // Normalize email for lookup
-        const emailKey = json.email?.toLowerCase();
-        const emp = emailToEmployee.get(emailKey);
-        if (emp) {
-          json.employeeId = emp.employeeId || null;
-          // Optionally backfill name if missing
-          if (!json.name && emp.name) json.name = emp.name;
+        const emailKey = json.email ? String(json.email).toLowerCase() : null;
+        if (emailKey) {
+          const emp = emailToEmployee.get(emailKey);
+          if (emp) {
+            json.employeeId = emp.employeeId || null;
+            // Optionally backfill name if missing
+            if (!json.name && emp.name) json.name = emp.name;
+          }
         }
         
         // Calculate isLate if not set (for older records)
         if (json.checkIn && (json.isLate === null || json.isLate === undefined)) {
           try {
             const checkInTime = new Date(json.checkIn);
-            const expectedCheckInTime = new Date(checkInTime);
-            expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
-            json.isLate = checkInTime > expectedCheckInTime;
-            
-            // Update the record in database for future queries (async, don't await)
-            row.isLate = json.isLate;
-            row.save().catch(err => console.error('Error updating isLate:', err));
+            if (!isNaN(checkInTime.getTime())) {
+              const expectedCheckInTime = new Date(checkInTime);
+              expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
+              json.isLate = checkInTime > expectedCheckInTime;
+              
+              // Update the record in database for future queries (async, don't await)
+              if (row && typeof row.save === 'function') {
+                row.isLate = json.isLate;
+                row.save().catch(err => console.error('Error updating isLate:', err));
+              }
+            } else {
+              json.isLate = false;
+            }
           } catch (dateError) {
             console.error('Error calculating isLate:', dateError);
             json.isLate = false;
@@ -121,24 +227,97 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
         
         return json;
       } catch (rowError) {
-        console.error('Error processing attendance row:', rowError);
+        console.error(`Error processing attendance row ${index}:`, rowError);
         // Return basic row data if processing fails
-        return row.toJSON();
+        try {
+          return row.toJSON ? row.toJSON() : row;
+        } catch {
+          return { error: 'Failed to process row' };
+        }
       }
     });
 
+    console.log(`✅ Returning ${enriched.length} enriched attendance records`);
     res.json(enriched);
   } catch (error) {
-    console.error('Error fetching attendance list:', error);
+    console.error('========================================');
+    console.error('ERROR FETCHING ATTENDANCE LIST');
+    console.error('========================================');
     console.error('Error name:', error.name);
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
     if (error.original) {
       console.error('Original error:', error.original);
+      console.error('Original error message:', error.original.message);
+      console.error('Original error code:', error.original.code);
     }
-    res.status(500).json({ 
-      message: 'Error fetching attendance data',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    if (error.errors) {
+      console.error('Validation errors:', error.errors);
+    }
+    console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    console.error('========================================');
+    
+    // Always return a valid JSON response, even on error
+    // Return empty array instead of error to prevent frontend crashes
+    try {
+      console.error('⚠️ Returning empty array due to error (instead of 500)');
+      // Return empty array instead of error status to allow frontend to handle gracefully
+      if (!res.headersSent) {
+        return res.json([]);
+      }
+    } catch (responseError) {
+      // If even sending the response fails, log it
+      console.error('❌ Failed to send response:', responseError);
+      if (!res.headersSent) {
+        try {
+          res.status(500).json({ message: 'Error fetching attendance data' });
+        } catch {
+          res.end();
+        }
+      }
+    }
+  }
+});
+
+// Test endpoint to check database connection and data count
+router.get('/test', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+  try {
+    console.log('🧪 Testing attendance database connection...');
+    
+    // Test 1: Check if model is available
+    const modelAvailable = Attendance && typeof Attendance.findAll === 'function';
+    console.log('✅ Model available:', modelAvailable);
+    
+    // Test 2: Try a simple count query
+    let totalCount = 0;
+    try {
+      totalCount = await Attendance.count();
+      console.log('✅ Total attendance records:', totalCount);
+    } catch (countError) {
+      console.error('❌ Count query failed:', countError.message);
+    }
+    
+    // Test 3: Try to fetch one record
+    let sampleRecord = null;
+    try {
+      sampleRecord = await Attendance.findOne({ limit: 1 });
+      console.log('✅ Sample record found:', !!sampleRecord);
+    } catch (findError) {
+      console.error('❌ FindOne query failed:', findError.message);
+    }
+    
+    res.json({
+      modelAvailable,
+      totalCount,
+      hasSampleRecord: !!sampleRecord,
+      sampleRecord: sampleRecord ? sampleRecord.toJSON() : null,
+      message: 'Database connection test completed'
+    });
+  } catch (error) {
+    console.error('❌ Test endpoint error:', error);
+    res.status(500).json({
+      error: error.message,
+      stack: error.stack
     });
   }
 });

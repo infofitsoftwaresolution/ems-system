@@ -137,6 +137,17 @@ async function start() {
       // Continue even if migration fails - might already be applied
     }
 
+    // Run migration to add missing attendance fields (isLate, checkoutType)
+    try {
+      const { addAttendanceFields } = await import(
+        "./migrations/addAttendanceFields.js"
+      );
+      await addAttendanceFields();
+    } catch (migrationError) {
+      console.error("Attendance fields migration error:", migrationError.message);
+      // Continue even if migration fails - might already be applied
+    }
+
     // Sync database schema - use force: false to avoid migration issues with SQLite
     // SQLite's alter: true is problematic, so we'll use alter: false by default
     // If schema changes are needed, use migrations or delete database.sqlite and restart

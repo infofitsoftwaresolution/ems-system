@@ -57,45 +57,70 @@ export default function Dashboard() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Fetch real data from API
-        const [employeesData, attendanceData, kycData] = await Promise.all([
-          apiService.getEmployees(),
-          apiService.getAllAttendance("all"),
-          apiService.getKycSubmissions(),
-        ]);
+        // Fetch real data from API - handle errors individually
+        const [employeesData, attendanceData, kycData] =
+          await Promise.allSettled([
+            apiService.getEmployees().catch((err) => {
+              console.error("Error fetching employees:", err);
+              return [];
+            }),
+            apiService.getAllAttendance("all").catch((err) => {
+              console.error("Error fetching attendance:", err);
+              return [];
+            }),
+            apiService.getKycSubmissions().catch((err) => {
+              console.error("Error fetching KYC data:", err);
+              return [];
+            }),
+          ]);
 
-        setEmployees(employeesData);
-        setAttendance(attendanceData);
-        setKycData(kycData);
+        // Extract values from Promise.allSettled results
+        const employeesResult =
+          employeesData.status === "fulfilled" ? employeesData.value : [];
+        const attendanceResult =
+          attendanceData.status === "fulfilled" ? attendanceData.value : [];
+        const kycResult = kycData.status === "fulfilled" ? kycData.value : [];
+
+        setEmployees(employeesResult);
+        setAttendance(attendanceResult);
+        setKycData(kycResult);
 
         // Calculate real stats
-        const totalEmployees = employeesData.length;
-        const activeEmployees = employeesData.filter(
-          (emp) => emp.status === "active"
-        ).length;
-        const departmentsCount = new Set(
-          employeesData.map((emp) => emp.department)
-        ).size;
-        const newHires = employeesData.filter((emp) => {
-          const hireDate = new Date(emp.hireDate);
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          return hireDate > thirtyDaysAgo;
-        }).length;
+        const totalEmployees = Array.isArray(employeesResult)
+          ? employeesResult.length
+          : 0;
+        const activeEmployees = Array.isArray(employeesResult)
+          ? employeesResult.filter((emp) => emp.status === "active").length
+          : 0;
+        const departmentsCount = Array.isArray(employeesResult)
+          ? new Set(employeesResult.map((emp) => emp.department)).size
+          : 0;
+        const newHires = Array.isArray(employeesResult)
+          ? employeesResult.filter((emp) => {
+              if (!emp.hireDate) return false;
+              const hireDate = new Date(emp.hireDate);
+              const thirtyDaysAgo = new Date();
+              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+              return hireDate > thirtyDaysAgo;
+            }).length
+          : 0;
 
-        const approvedKyc = kycData.filter(
-          (kyc) => kyc.status === "approved"
-        ).length;
+        const approvedKyc = Array.isArray(kycResult)
+          ? kycResult.filter((kyc) => kyc.status === "approved").length
+          : 0;
         const kycCompletionRate =
           totalEmployees > 0
             ? Math.round((approvedKyc / totalEmployees) * 100)
             : 0;
 
-        const todayAttendance = attendanceData.filter((att) => {
-          const attDate = new Date(att.date);
-          const today = new Date();
-          return attDate.toDateString() === today.toDateString();
-        }).length;
+        const todayAttendance = Array.isArray(attendanceResult)
+          ? attendanceResult.filter((att) => {
+              if (!att.date) return false;
+              const attDate = new Date(att.date);
+              const today = new Date();
+              return attDate.toDateString() === today.toDateString();
+            }).length
+          : 0;
 
         const attendanceRate =
           totalEmployees > 0
@@ -113,16 +138,20 @@ export default function Dashboard() {
         });
 
         // Generate activity data from recent attendance
-        const recentActivity = attendanceData
-          .sort((a, b) => new Date(b.date) - new Date(a.date))
-          .slice(0, 10)
-          .map((att) => ({
-            id: att.id,
-            user: att.name || att.email.split("@")[0],
-            action: att.checkOut ? "Checked out" : "Checked in",
-            timestamp: att.checkOut || att.checkIn,
-            type: "attendance",
-          }));
+        const recentActivity = Array.isArray(attendanceResult)
+          ? attendanceResult
+              .filter((att) => att.date) // Filter out invalid records
+              .sort((a, b) => new Date(b.date) - new Date(a.date))
+              .slice(0, 10)
+              .map((att) => ({
+                id: att.id,
+                user:
+                  att.name || (att.email ? att.email.split("@")[0] : "Unknown"),
+                action: att.checkOut ? "Checked out" : "Checked in",
+                timestamp: att.checkOut || att.checkIn,
+                type: "attendance",
+              }))
+          : [];
 
         setActivity(recentActivity);
       } catch (error) {

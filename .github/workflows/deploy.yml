@@ -149,13 +149,11 @@ jobs:
           
           # Create environment file if it doesn't exist
           if [ ! -f .env ]; then
-            cat > .env << EOF
-NODE_ENV=production
-DB_PATH=/app/database.sqlite
-JWT_SECRET=${{ secrets.JWT_SECRET || 'your-super-secret-jwt-key' }}
-PORT=3001
-BACKEND_URL=http://backend:3001
-EOF
+            echo "NODE_ENV=production" > .env
+            echo "DB_PATH=/app/database.sqlite" >> .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'your-super-secret-jwt-key' }}" >> .env
+            echo "PORT=3001" >> .env
+            echo "BACKEND_URL=http://backend:3001" >> .env
           fi
           
           # Start containers

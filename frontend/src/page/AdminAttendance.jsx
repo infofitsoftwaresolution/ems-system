@@ -60,24 +60,35 @@ export default function AdminAttendance() {
         setError(null);
         
         console.log('Loading attendance data with filter:', dateFilter);
-        // Get all attendance data
-        const data = await apiService.getAllAttendance(dateFilter);
-        console.log('Attendance data received:', data);
-        console.log('Number of records:', data?.length || 0);
+        // Get all attendance data with error handling
+        let data = [];
+        try {
+          data = await apiService.getAllAttendance(dateFilter);
+          console.log('Attendance data received:', data);
+          console.log('Number of records:', data?.length || 0);
+        } catch (apiError) {
+          console.error('Error fetching attendance from API:', apiError);
+          console.error('Error details:', {
+            message: apiError.message,
+            stack: apiError.stack,
+            response: apiError.response
+          });
+          // Set error but don't crash - show empty state
+          setError(apiError.message || 'Failed to load attendance data');
+          toast.error(apiError.message || 'Failed to load attendance data');
+          data = []; // Default to empty array
+        }
         
+        // Ensure data is an array
         if (Array.isArray(data)) {
           setAttendanceData(data);
         } else {
           console.warn('Received non-array data:', data);
           setAttendanceData([]);
+          setError('Invalid data format received from server');
         }
       } catch (err) {
-        console.error('Error loading attendance data:', err);
-        console.error('Error details:', {
-          message: err.message,
-          stack: err.stack,
-          response: err.response
-        });
+        console.error('Unexpected error loading attendance data:', err);
         setError(err.message || 'Failed to load attendance data');
         toast.error(err.message || 'Failed to load attendance data');
         setAttendanceData([]);
@@ -286,21 +297,32 @@ export default function AdminAttendance() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="text-center py-8">
-        <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-        <p className="text-red-600 mb-4">{error}</p>
-        <Button onClick={() => window.location.reload()}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Retry
-        </Button>
-      </div>
-    );
-  }
+  // Don't block the entire page on error - show error banner instead
+  // The page will still render with empty data
 
   return (
     <div className="space-y-6">
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="h-5 w-5 text-red-600" />
+            <p className="text-red-800">{error}</p>
+          </div>
+          <Button 
+            onClick={() => {
+              setError(null);
+              window.location.reload();
+            }}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
