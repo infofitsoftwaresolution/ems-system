@@ -95,7 +95,34 @@ const PORT = process.env.PORT || 3001;
 
 async function start() {
   try {
-    await sequelize.authenticate();
+    // Retry database connection with exponential backoff
+    let dbConnected = false;
+    let dbAttempts = 0;
+    const maxDbAttempts = 5;
+    
+    while (!dbConnected && dbAttempts < maxDbAttempts) {
+      try {
+        dbAttempts++;
+        console.log(`Attempting database connection (attempt ${dbAttempts}/${maxDbAttempts})...`);
+        await sequelize.authenticate();
+        dbConnected = true;
+        console.log('✅ Database connection established successfully');
+      } catch (dbError) {
+        console.error(`❌ Database connection attempt ${dbAttempts} failed:`, dbError.message);
+        if (dbAttempts < maxDbAttempts) {
+          const waitTime = Math.min(dbAttempts * 2, 10); // 2s, 4s, 6s, 8s, 10s
+          console.log(`Waiting ${waitTime} seconds before retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+        } else {
+          console.error('❌ Failed to connect to database after', maxDbAttempts, 'attempts');
+          console.error('Please check:');
+          console.error('1. Database credentials in environment variables');
+          console.error('2. Database server is running and accessible');
+          console.error('3. Network connectivity to database');
+          throw new Error(`Database connection failed: ${dbError.message}`);
+        }
+      }
+    }
     // Setup model associations
     setupKycAssociations(Employee);
 
