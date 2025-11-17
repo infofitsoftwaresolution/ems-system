@@ -198,45 +198,50 @@ async function start() {
       // Schedule auto-checkout at 11:59 PM every day
       // Cron format: minute hour day month dayOfWeek
       // 59 23 * * * = 11:59 PM every day
-      cron.schedule('59 23 * * *', async () => {
-        try {
-          console.log('🕐 Running scheduled auto-checkout at 11:59 PM...');
-          const today = new Date();
-          const todayStr = today.toISOString().slice(0, 10);
-          
-          // Find all attendance records that are checked in but not checked out
-          const uncheckedOutRecords = await Attendance.findAll({
-            where: {
-              date: todayStr,
-              checkIn: { [Op.ne]: null },
-              checkOut: null
+      try {
+        cron.schedule('59 23 * * *', async () => {
+          try {
+            console.log('🕐 Running scheduled auto-checkout at 11:59 PM...');
+            const today = new Date();
+            const todayStr = today.toISOString().slice(0, 10);
+            
+            // Find all attendance records that are checked in but not checked out
+            const uncheckedOutRecords = await Attendance.findAll({
+              where: {
+                date: todayStr,
+                checkIn: { [Op.ne]: null },
+                checkOut: null
+              }
+            });
+            
+            console.log(`Found ${uncheckedOutRecords.length} records to auto-checkout at midnight`);
+            
+            // Set checkout time to 11:59 PM of the current day
+            const checkoutTime = new Date(today);
+            checkoutTime.setHours(23, 59, 0, 0);
+            
+            // Auto-checkout all records
+            for (const record of uncheckedOutRecords) {
+              record.checkOut = checkoutTime;
+              record.checkoutType = 'auto-midnight';
+              record.checkOutAddress = 'Auto-checkout (midnight reset)';
+              await record.save();
+              console.log(`✅ Auto-checked out: ${record.email} at ${checkoutTime.toISOString()}`);
             }
-          });
-          
-          console.log(`Found ${uncheckedOutRecords.length} records to auto-checkout at midnight`);
-          
-          // Set checkout time to 11:59 PM of the current day
-          const checkoutTime = new Date(today);
-          checkoutTime.setHours(23, 59, 0, 0);
-          
-          // Auto-checkout all records
-          for (const record of uncheckedOutRecords) {
-            record.checkOut = checkoutTime;
-            record.checkoutType = 'auto-midnight';
-            record.checkOutAddress = 'Auto-checkout (midnight reset)';
-            await record.save();
-            console.log(`✅ Auto-checked out: ${record.email} at ${checkoutTime.toISOString()}`);
+            
+            console.log(`✅ Auto-checkout completed for ${uncheckedOutRecords.length} employees`);
+          } catch (error) {
+            console.error('❌ Error in scheduled auto-checkout:', error);
           }
-          
-          console.log(`✅ Auto-checkout completed for ${uncheckedOutRecords.length} employees`);
-        } catch (error) {
-          console.error('❌ Error in scheduled auto-checkout:', error);
-        }
-      }, {
-        timezone: "Asia/Kolkata" // Adjust timezone as needed
-      });
-      
-      console.log('⏰ Auto-checkout cron job scheduled for 11:59 PM daily');
+        }, {
+          timezone: "Asia/Kolkata" // Adjust timezone as needed
+        });
+        
+        console.log('⏰ Auto-checkout cron job scheduled for 11:59 PM daily');
+      } catch (cronError) {
+        console.error('⚠️  Warning: Failed to initialize cron job:', cronError);
+        console.log('⚠️  Server will continue without auto-checkout cron job');
+      }
     });
   } catch (err) {
     console.error("Failed to start server:", err);
