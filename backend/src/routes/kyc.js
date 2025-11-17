@@ -7,6 +7,7 @@ import { Kyc } from '../models/Kyc.js';
 import { Employee } from '../models/Employee.js';
 import { User } from '../models/User.js';
 import { sendKycApprovedEmail } from '../services/emailService.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 // Generate permanent employee ID
 const generatePermanentEmployeeId = () => {
@@ -223,7 +224,7 @@ router.post('/', upload.fields([
 });
 
 // List all KYC requests (admin/manager)
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
   try {
     // If email query parameter is provided, check KYC status for that email
     if (req.query.email) {
@@ -351,8 +352,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get by id
-router.get('/:id', async (req, res) => {
+// Get by id (admin/manager)
+router.get('/:id', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const item = await Kyc.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Not found' });
@@ -371,8 +372,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Review (approve/reject) - requires authentication
-router.post('/:id/review', async (req, res) => {
+// Review (approve/reject) - requires admin/manager role
+router.post('/:id/review', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
   try {
     console.log('=== KYC REVIEW REQUEST ===');
     console.log('ID:', req.params.id);
@@ -502,8 +503,8 @@ router.get('/file/:filename', (req, res) => {
   res.sendFile(filePath);
 });
 
-// Delete KYC record (admin only)
-router.delete('/:id', async (req, res) => {
+// Delete KYC record (admin/manager)
+router.delete('/:id', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const { id } = req.params;
     

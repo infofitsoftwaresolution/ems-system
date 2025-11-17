@@ -1,7 +1,7 @@
 {
   "name": "rural-samridhi-ems-backend",
   "version": "1.0.0",
-  "description": "Backend API server for Rural Samridhi Employee Management System",
+  "description": "Backend API server for Rural Samriddhi Employee Management System",
   "main": "src/server.js",
   "type": "module",
   "scripts": {

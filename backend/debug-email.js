@@ -79,8 +79,8 @@ async function testConfig(config) {
       from: process.env.SMTP_USER,
       to: process.env.SMTP_USER, // Send to yourself
       subject: 'Test Email from EMS',
-      text: 'This is a test email from Rural Samridhi EMS system.',
-      html: '<p>This is a test email from Rural Samridhi EMS system.</p>'
+      text: 'This is a test email from Rural Samriddhi EMS system.',
+      html: '<p>This is a test email from Rural Samriddhi EMS system.</p>'
     };
     
     const result = await transporter.sendMail(testMail);

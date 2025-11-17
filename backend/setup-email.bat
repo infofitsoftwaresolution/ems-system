@@ -10,7 +10,7 @@ if exist ".env" (
 ) else (
     echo Creating .env file...
     (
-        echo # Rural Samridhi EMS - Environment Configuration
+        echo # Rural Samriddhi EMS - Environment Configuration
         echo.
         echo PORT=3001
         echo NODE_ENV=production

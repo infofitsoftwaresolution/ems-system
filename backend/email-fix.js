@@ -79,7 +79,7 @@ const testEmail = {
   from: process.env.SMTP_USER,
   to: 'test@example.com',
   subject: 'Test Email from EMS',
-  text: 'This is a test email from Rural Samridhi EMS system.'
+  text: 'This is a test email from Rural Samriddhi EMS system.'
 };
 
 emailLogger.sendMail(testEmail).then(() => {

@@ -1,4 +1,4 @@
-// Email Setup Script for Rural Samridhi EMS
+// Email Setup Script for Rural Samriddhi EMS
 // This script helps configure email settings
 
 import dotenv from 'dotenv';

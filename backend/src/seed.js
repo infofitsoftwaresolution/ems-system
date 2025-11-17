@@ -34,7 +34,7 @@ async function seed() {
     if (existingAdmin) {
       // Update existing admin user with correct password
       await existingAdmin.update({
-        name: "Rural Samridhi Admin",
+        name: "Rural Samriddhi Admin",
         role: "admin",
         passwordHash: adminHash,
         mustChangePassword: false,
@@ -46,7 +46,7 @@ async function seed() {
     } else {
       // Create new admin user
       const adminUser = await User.create({
-        name: "Rural Samridhi Admin",
+        name: "Rural Samriddhi Admin",
         email: adminEmail,
         role: "admin",
         passwordHash: adminHash,
