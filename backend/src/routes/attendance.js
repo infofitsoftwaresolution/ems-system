@@ -43,11 +43,18 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
     // Add limit to prevent loading too many records at once
     const limit = parseInt(req.query.limit) || 1000;
     
-    const attendanceList = await Attendance.findAll({
-      where: whereClause,
+    // Build query options
+    const queryOptions = {
       order: [['date', 'DESC'], ['checkIn', 'DESC']],
       limit: limit
-    });
+    };
+    
+    // Only add where clause if it's not empty
+    if (Object.keys(whereClause).length > 0) {
+      queryOptions.where = whereClause;
+    }
+    
+    const attendanceList = await Attendance.findAll(queryOptions);
 
     // Handle empty attendance list
     if (!attendanceList || attendanceList.length === 0) {
@@ -69,7 +76,9 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
           attributes: ['email', 'employeeId', 'name']
         });
         emailToEmployee = new Map(
-          employees.map(e => [e.email?.toLowerCase(), { employeeId: e.employeeId, name: e.name }])
+          employees
+            .filter(e => e && e.email) // Filter out any null/undefined employees
+            .map(e => [e.email.toLowerCase(), { employeeId: e.employeeId || null, name: e.name || null }])
         );
       } catch (empError) {
         console.error('Error fetching employee data:', empError);
