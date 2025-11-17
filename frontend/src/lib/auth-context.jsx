@@ -18,6 +18,39 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
 
+  // Auto-logout at midnight (12:00 AM) - global
+  useEffect(() => {
+    const setupAutoLogout = () => {
+      const checkMidnight = () => {
+        const now = new Date();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const seconds = now.getSeconds();
+        
+        // Check if it's exactly midnight (00:00:00)
+        if (hours === 0 && minutes === 0 && seconds === 0) {
+          console.log('🕛 Midnight detected - auto-logging out all users');
+          // Clear auth data
+          localStorage.removeItem("currentUserId");
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("currentUserEmail");
+          localStorage.removeItem("userContext");
+          setUser(null);
+          // Redirect to login
+          window.location.href = '/login';
+        }
+      };
+      
+      // Check every second
+      const interval = setInterval(checkMidnight, 1000);
+      
+      return () => clearInterval(interval);
+    };
+    
+    const cleanup = setupAutoLogout();
+    return cleanup;
+  }, []);
+
   // Check for existing session on mount
   useEffect(() => {
     const checkAuth = async () => {

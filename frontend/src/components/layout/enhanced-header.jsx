@@ -74,8 +74,8 @@ export function EnhancedHeader({ toggleSidebar }) {
         </Button>
       </motion.div>
 
-      <Link 
-        to="/" 
+      <Link
+        to="/"
         className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity"
         aria-label="Rural Samriddhi EMS Home">
         <motion.img
@@ -87,21 +87,23 @@ export function EnhancedHeader({ toggleSidebar }) {
             damping: 20,
             delay: 0.1,
           }}
-          src="/rsamriddhi_logo.png"
-          alt=""
-          className="h-8 w-auto"
+          src="/rsamriddhi_logo.svg"
+          alt="Rural Samriddhi EMS Logo"
+          className="h-10 md:h-12 w-auto object-contain"
+          style={{ maxWidth: "280px" }}
           onError={(e) => {
+            console.error("Logo failed to load:", e.target.src);
             // Fallback if logo doesn't load
-            e.target.style.display = 'none';
+            e.target.style.display = "none";
           }}
         />
-        <motion.span
+        {/* <motion.span
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
           className="hidden md:inline font-medium text-foreground">
           Rural Samriddhi EMS
-        </motion.span>
+        </motion.span> */}
       </Link>
 
       <div className="ml-auto flex items-center gap-4">

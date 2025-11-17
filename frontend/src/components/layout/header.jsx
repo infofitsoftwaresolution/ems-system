@@ -46,7 +46,7 @@ export function Header({ toggleSidebar }) {
         className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity"
         aria-label="Rural Samriddhi EMS Home">
         <img
-          src="/rsamriddhi_logo.png"
+          src="/rsamriddhi_logo.svg"
           alt=""
           className="h-8 w-auto"
           onError={(e) => {

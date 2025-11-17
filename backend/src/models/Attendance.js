@@ -13,6 +13,8 @@ Attendance.init(
     checkOut: { type: DataTypes.DATE },
     status: { type: DataTypes.ENUM('present', 'absent', 'half-day'), defaultValue: 'present' },
     notes: { type: DataTypes.TEXT },
+    isLate: { type: DataTypes.BOOLEAN, defaultValue: false },
+    checkoutType: { type: DataTypes.STRING, allowNull: true }, // 'manual', 'auto-midnight'
     // Location tracking fields
     checkInLatitude: { type: DataTypes.DECIMAL(10, 8), allowNull: true },
     checkInLongitude: { type: DataTypes.DECIMAL(11, 8), allowNull: true },

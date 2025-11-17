@@ -41,6 +41,9 @@ import { toast } from "sonner";
 
 export default function AdminAttendance() {
   const { user } = useAuth();
+  
+  // Check if user has permission to export (admin or manager/HR)
+  const canExport = user?.role === 'admin' || user?.role === 'manager';
   const [attendanceData, setAttendanceData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -141,21 +144,125 @@ export default function AdminAttendance() {
     return address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   };
 
-  // Export attendance data
-  const exportAttendanceData = () => {
-    const csvContent = [
-      ['Date', 'Employee Name/ID', 'Email', 'Check In', 'Check Out', 'Status', 'Check In Location', 'Check Out Location'],
-      ...filteredAttendance.map(record => [
+  // Export single employee attendance data
+  const exportSingleEmployeeAttendance = (record) => {
+    // Calculate isLate if not present (for older records)
+    let isLate = record.isLate;
+    if (record.checkIn && (isLate === null || isLate === undefined)) {
+      const checkInTime = new Date(record.checkIn);
+      const expectedCheckInTime = new Date(checkInTime);
+      expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
+      isLate = checkInTime > expectedCheckInTime;
+    }
+    
+    // Helper function to escape CSV values
+    const escapeCsvValue = (value) => {
+      const stringValue = String(value || 'N/A');
+      // Escape quotes by doubling them and wrap in quotes
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    };
+
+    const csvRows = [
+      [
+        'Date', 
+        'Employee Name/ID', 
+        'Email', 
+        'Check In Time', 
+        'Check In Date & Time',
+        'Check In Address',
+        'Late', 
+        'Check Out Time', 
+        'Check Out Date & Time',
+        'Check Out Address',
+        'Checkout Type', 
+        'Status'
+      ],
+      [
         formatDate(record.date),
         record.name || record.employeeId || record.email.split('@')[0] || 'N/A',
         record.email || 'N/A',
         formatTime(record.checkIn),
+        record.checkIn ? new Date(record.checkIn).toLocaleString() : 'N/A',
+        record.checkInAddress || 'N/A',
+        isLate ? 'Yes' : 'No',
         formatTime(record.checkOut),
-        record.status || 'N/A',
-        getLocationDisplay(record.checkInLatitude, record.checkInLongitude, record.checkInAddress),
-        getLocationDisplay(record.checkOutLatitude, record.checkOutLongitude, record.checkOutAddress)
-      ])
-    ].map(row => row.join(',')).join('\n');
+        record.checkOut ? new Date(record.checkOut).toLocaleString() : 'N/A',
+        record.checkOutAddress || 'N/A',
+        record.checkoutType === 'auto-midnight' ? 'Auto (Midnight)' : (record.checkoutType || 'Manual'),
+        record.status || 'N/A'
+      ]
+    ];
+
+    const csvContent = csvRows
+      .map(row => row.map(cell => escapeCsvValue(cell)).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const employeeName = record.name || record.employeeId || record.email.split('@')[0] || 'employee';
+    const dateStr = formatDate(record.date).replace(/\//g, '-');
+    a.download = `attendance-${employeeName}-${dateStr}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    toast.success(`Attendance record for ${employeeName} exported successfully!`);
+  };
+
+  // Export attendance data (all employees)
+  const exportAttendanceData = () => {
+    // Helper function to escape CSV values
+    const escapeCsvValue = (value) => {
+      const stringValue = String(value || 'N/A');
+      // Escape quotes by doubling them and wrap in quotes
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    };
+
+    const csvRows = [
+      [
+        'Date', 
+        'Employee Name/ID', 
+        'Email', 
+        'Check In Time', 
+        'Check In Date & Time',
+        'Check In Address',
+        'Late', 
+        'Check Out Time', 
+        'Check Out Date & Time',
+        'Check Out Address',
+        'Checkout Type', 
+        'Status'
+      ],
+      ...filteredAttendance.map(record => {
+        // Calculate isLate if not present (for older records)
+        let isLate = record.isLate;
+        if (record.checkIn && (isLate === null || isLate === undefined)) {
+          const checkInTime = new Date(record.checkIn);
+          const expectedCheckInTime = new Date(checkInTime);
+          expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
+          isLate = checkInTime > expectedCheckInTime;
+        }
+        return [
+          formatDate(record.date),
+          record.name || record.employeeId || record.email.split('@')[0] || 'N/A',
+          record.email || 'N/A',
+          formatTime(record.checkIn),
+          record.checkIn ? new Date(record.checkIn).toLocaleString() : 'N/A',
+          record.checkInAddress || 'N/A',
+          isLate ? 'Yes' : 'No',
+          formatTime(record.checkOut),
+          record.checkOut ? new Date(record.checkOut).toLocaleString() : 'N/A',
+          record.checkOutAddress || 'N/A',
+          record.checkoutType === 'auto-midnight' ? 'Auto (Midnight)' : (record.checkoutType || 'Manual'),
+          record.status || 'N/A'
+        ];
+      })
+    ];
+
+    const csvContent = csvRows
+      .map(row => row.map(cell => escapeCsvValue(cell)).join(','))
+      .join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -215,10 +322,17 @@ export default function AdminAttendance() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button onClick={exportAttendanceData} variant="outline" disabled={filteredAttendance.length === 0}>
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
+          {canExport && (
+            <Button 
+              onClick={exportAttendanceData} 
+              variant="outline" 
+              disabled={filteredAttendance.length === 0}
+              title="Download all attendance records as CSV"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export All CSV
+            </Button>
+          )}
         </div>
       </div>
 
@@ -314,6 +428,7 @@ export default function AdminAttendance() {
                 <TableHead>Check In</TableHead>
                 <TableHead>Check Out</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Late</TableHead>
                 <TableHead>Check In Location</TableHead>
                 <TableHead>Check Out Location</TableHead>
                 <TableHead>Actions</TableHead>
@@ -331,7 +446,25 @@ export default function AdminAttendance() {
                   </TableCell>
                   <TableCell>
                     <div>
-                      <p className="font-medium">{formatTime(record.checkIn)}</p>
+                      <div className="flex items-center space-x-2">
+                        <p className="font-medium">{formatTime(record.checkIn)}</p>
+                        {(() => {
+                          // Calculate isLate if not present (for older records)
+                          let isLate = record.isLate;
+                          if (record.checkIn && (isLate === null || isLate === undefined)) {
+                            const checkInTime = new Date(record.checkIn);
+                            const expectedCheckInTime = new Date(checkInTime);
+                            expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
+                            isLate = checkInTime > expectedCheckInTime;
+                          }
+                          return isLate ? (
+                            <Badge variant="destructive" className="text-xs">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Late
+                            </Badge>
+                          ) : null;
+                        })()}
+                      </div>
                       {record.checkInLatitude && record.checkInLongitude && (
                         <p className="text-xs text-gray-500">
                           <Navigation className="h-3 w-3 inline mr-1" />
@@ -342,16 +475,49 @@ export default function AdminAttendance() {
                   </TableCell>
                   <TableCell>
                     <div>
-                      <p className="font-medium">{formatTime(record.checkOut)}</p>
+                      <div className="flex items-center space-x-2">
+                        <p className="font-medium">{formatTime(record.checkOut)}</p>
+                        {record.checkoutType === 'auto-midnight' && (
+                          <Badge variant="secondary" className="text-xs">
+                            Auto
+                          </Badge>
+                        )}
+                      </div>
                       {record.checkOutLatitude && record.checkOutLongitude && (
                         <p className="text-xs text-gray-500">
                           <Navigation className="h-3 w-3 inline mr-1" />
                           {getLocationDisplay(record.checkOutLatitude, record.checkOutLongitude, record.checkOutAddress)}
                         </p>
                       )}
+                      {record.checkoutType === 'auto-midnight' && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Auto-checkout (midnight reset)
+                        </p>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>{getStatusBadge(record.status)}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      // Calculate isLate if not present (for older records)
+                      let isLate = record.isLate;
+                      if (record.checkIn && (isLate === null || isLate === undefined)) {
+                        const checkInTime = new Date(record.checkIn);
+                        const expectedCheckInTime = new Date(checkInTime);
+                        expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
+                        isLate = checkInTime > expectedCheckInTime;
+                      }
+                      
+                      return isLate ? (
+                        <Badge variant="destructive" className="text-xs">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          Late
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-gray-400">On Time</span>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell>
                     {record.checkInLatitude && record.checkInLongitude ? (
                       <div className="flex items-center space-x-1">
@@ -421,8 +587,41 @@ export default function AdminAttendance() {
                             <Label className="font-semibold">Check In Details</Label>
                             <div className="grid grid-cols-2 gap-4 mt-2">
                               <div>
-                                <p className="text-sm text-gray-600">Time</p>
+                                <div className="flex items-center space-x-2">
+                                  <p className="text-sm text-gray-600">Time</p>
+                                  {(() => {
+                                    // Calculate isLate if not present (for older records)
+                                    let isLate = record.isLate;
+                                    if (record.checkIn && (isLate === null || isLate === undefined)) {
+                                      const checkInTime = new Date(record.checkIn);
+                                      const expectedCheckInTime = new Date(checkInTime);
+                                      expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
+                                      isLate = checkInTime > expectedCheckInTime;
+                                    }
+                                    return isLate ? (
+                                      <Badge variant="destructive" className="text-xs">
+                                        <AlertCircle className="h-3 w-3 mr-1" />
+                                        Late
+                                      </Badge>
+                                    ) : null;
+                                  })()}
+                                </div>
                                 <p className="font-medium">{formatTime(record.checkIn)}</p>
+                                {(() => {
+                                  // Calculate isLate if not present (for older records)
+                                  let isLate = record.isLate;
+                                  if (record.checkIn && (isLate === null || isLate === undefined)) {
+                                    const checkInTime = new Date(record.checkIn);
+                                    const expectedCheckInTime = new Date(checkInTime);
+                                    expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
+                                    isLate = checkInTime > expectedCheckInTime;
+                                  }
+                                  return isLate ? (
+                                    <p className="text-xs text-red-600 mt-1">
+                                      Expected: 10:00 AM
+                                    </p>
+                                  ) : null;
+                                })()}
                               </div>
                               <div>
                                 <p className="text-sm text-gray-600">Location</p>
@@ -443,8 +642,20 @@ export default function AdminAttendance() {
                             <Label className="font-semibold">Check Out Details</Label>
                             <div className="grid grid-cols-2 gap-4 mt-2">
                               <div>
-                                <p className="text-sm text-gray-600">Time</p>
+                                <div className="flex items-center space-x-2">
+                                  <p className="text-sm text-gray-600">Time</p>
+                                  {record.checkoutType === 'auto-midnight' && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Auto
+                                    </Badge>
+                                  )}
+                                </div>
                                 <p className="font-medium">{formatTime(record.checkOut)}</p>
+                                {record.checkoutType === 'auto-midnight' && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Auto-checkout (midnight reset)
+                                  </p>
+                                )}
                               </div>
                               <div>
                                 <p className="text-sm text-gray-600">Location</p>
@@ -465,6 +676,20 @@ export default function AdminAttendance() {
                             <div>
                               <Label className="font-semibold">Notes</Label>
                               <p className="mt-1 p-2 bg-gray-50 rounded">{record.notes}</p>
+                            </div>
+                          )}
+                          
+                          {/* Download Button for Single Employee */}
+                          {canExport && (
+                            <div className="flex justify-end pt-4 border-t">
+                              <Button
+                                onClick={() => exportSingleEmployeeAttendance(record)}
+                                variant="outline"
+                                className="flex items-center space-x-2"
+                              >
+                                <Download className="h-4 w-4" />
+                                <span>Download This Record (CSV)</span>
+                              </Button>
                             </div>
                           )}
                         </div>

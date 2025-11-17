@@ -12,7 +12,8 @@ import {
   AlertCircle,
   Navigation,
   RefreshCw,
-  Map
+  Map,
+  AlertTriangle
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useGeolocation } from "@/hooks/use-geolocation";
@@ -379,20 +380,45 @@ export default function EmployeeAttendance() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center space-x-3">
                   <Clock className="h-4 w-4 text-blue-500" />
-                  <div>
-                    <p className="text-sm font-medium">Check In</p>
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <p className="text-sm font-medium">Check In</p>
+                      {attendance.isLate && (
+                        <Badge variant="destructive" className="text-xs">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          Late
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600">
                       {attendance.checkIn ? new Date(attendance.checkIn).toLocaleTimeString() : 'Not checked in'}
                     </p>
+                    {attendance.isLate && attendance.checkIn && (
+                      <p className="text-xs text-red-600 mt-1">
+                        Expected: 10:00 AM
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
                   <Clock className="h-4 w-4 text-red-500" />
-                  <div>
-                    <p className="text-sm font-medium">Check Out</p>
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <p className="text-sm font-medium">Check Out</p>
+                      {attendance.checkoutType === 'auto-midnight' && (
+                        <Badge variant="secondary" className="text-xs">
+                          Auto
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600">
                       {attendance.checkOut ? new Date(attendance.checkOut).toLocaleTimeString() : 'Not checked out'}
                     </p>
+                    {attendance.checkoutType === 'auto-midnight' && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Auto-checkout (midnight reset)
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

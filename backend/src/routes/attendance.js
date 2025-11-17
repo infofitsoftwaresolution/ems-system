@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { Attendance } from '../models/Attendance.js';
 import { Employee } from '../models/Employee.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { Op } from 'sequelize';
 
 const router = Router();
 
-// Get all attendance data (for admin)
-router.get('/', authenticateToken, async (req, res) => {
+// Get all attendance data (for admin and manager/HR only)
+router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const { filter } = req.query;
     let whereClause = {};
@@ -63,6 +63,22 @@ router.get('/', authenticateToken, async (req, res) => {
         // Optionally backfill name if missing
         if (!json.name && emp.name) json.name = emp.name;
       }
+      
+      // Calculate isLate if not set (for older records)
+      if (json.checkIn && (json.isLate === null || json.isLate === undefined)) {
+        const checkInTime = new Date(json.checkIn);
+        const expectedCheckInTime = new Date(checkInTime);
+        expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
+        json.isLate = checkInTime > expectedCheckInTime;
+        
+        // Update the record in database for future queries
+        row.isLate = json.isLate;
+        row.save().catch(err => console.error('Error updating isLate:', err));
+      }
+      
+      // Ensure isLate is a boolean (default to false if null/undefined)
+      json.isLate = json.isLate === true;
+      
       return json;
     });
 
@@ -93,13 +109,20 @@ router.post('/checkin', authenticateToken, async (req, res) => {
   let row = await Attendance.findOne({ where: { email, date: today } });
   if (row?.checkIn) return res.status(400).json({ message: 'Already checked in' });
   
+  // Check if check-in is late (after 10:00 AM)
+  const checkInTime = new Date();
+  const expectedCheckInTime = new Date(checkInTime);
+  expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
+  const isLate = checkInTime > expectedCheckInTime;
+  
   if (!row) {
     row = await Attendance.create({ 
       email: email.toLowerCase(), 
       name, 
       date: today, 
-      checkIn: new Date(), 
+      checkIn: checkInTime, 
       status: 'present',
+      isLate: isLate,
       checkInLatitude: latitude || null,
       checkInLongitude: longitude || null,
       checkInAddress: address || null
@@ -107,10 +130,12 @@ router.post('/checkin', authenticateToken, async (req, res) => {
     console.log('Created new attendance record with location:', {
       checkInLatitude: row.checkInLatitude,
       checkInLongitude: row.checkInLongitude,
-      checkInAddress: row.checkInAddress
+      checkInAddress: row.checkInAddress,
+      isLate: row.isLate
     });
   } else {
-    row.checkIn = new Date();
+    row.checkIn = checkInTime;
+    row.isLate = isLate;
     row.checkInLatitude = latitude || null;
     row.checkInLongitude = longitude || null;
     row.checkInAddress = address || null;
@@ -118,7 +143,8 @@ router.post('/checkin', authenticateToken, async (req, res) => {
     console.log('Updated attendance record with location:', {
       checkInLatitude: row.checkInLatitude,
       checkInLongitude: row.checkInLongitude,
-      checkInAddress: row.checkInAddress
+      checkInAddress: row.checkInAddress,
+      isLate: row.isLate
     });
   }
   res.json(row);
@@ -126,10 +152,10 @@ router.post('/checkin', authenticateToken, async (req, res) => {
 
 // Check-out
 router.post('/checkout', authenticateToken, async (req, res) => {
-  const { email, latitude, longitude, address } = req.body;
+  const { email, latitude, longitude, address, checkoutType } = req.body;
   if (!email) return res.status(400).json({ message: 'email required' });
   
-  console.log('Check-out request:', { email, latitude, longitude, address });
+  console.log('Check-out request:', { email, latitude, longitude, address, checkoutType });
   
   const today = new Date().toISOString().slice(0, 10);
   const row = await Attendance.findOne({ where: { email: email.toLowerCase(), date: today } });
@@ -137,6 +163,7 @@ router.post('/checkout', authenticateToken, async (req, res) => {
   if (row.checkOut) return res.status(400).json({ message: 'Already checked out' });
   
   row.checkOut = new Date();
+  row.checkoutType = checkoutType || 'manual';
   row.checkOutLatitude = latitude || null;
   row.checkOutLongitude = longitude || null;
   row.checkOutAddress = address || null;
@@ -145,10 +172,51 @@ router.post('/checkout', authenticateToken, async (req, res) => {
   console.log('Updated attendance record with check-out location:', {
     checkOutLatitude: row.checkOutLatitude,
     checkOutLongitude: row.checkOutLongitude,
-    checkOutAddress: row.checkOutAddress
+    checkOutAddress: row.checkOutAddress,
+    checkoutType: row.checkoutType
   });
   
   res.json(row);
+});
+
+// Auto-checkout at midnight (11:59 PM) - called by cron job
+router.post('/auto-checkout-midnight', async (req, res) => {
+  try {
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    
+    // Find all attendance records that are checked in but not checked out
+    const uncheckedOutRecords = await Attendance.findAll({
+      where: {
+        date: todayStr,
+        checkIn: { [Op.ne]: null },
+        checkOut: null
+      }
+    });
+    
+    console.log(`Found ${uncheckedOutRecords.length} records to auto-checkout at midnight`);
+    
+    // Set checkout time to 11:59 PM of the current day
+    const checkoutTime = new Date(today);
+    checkoutTime.setHours(23, 59, 0, 0);
+    
+    // Auto-checkout all records
+    for (const record of uncheckedOutRecords) {
+      record.checkOut = checkoutTime;
+      record.checkoutType = 'auto-midnight';
+      record.checkOutAddress = 'Auto-checkout (midnight reset)';
+      await record.save();
+      console.log(`Auto-checked out: ${record.email} at ${checkoutTime.toISOString()}`);
+    }
+    
+    res.json({ 
+      message: `Auto-checked out ${uncheckedOutRecords.length} employees`,
+      count: uncheckedOutRecords.length 
+    });
+  } catch (error) {
+    console.error('Error in auto-checkout:', error);
+    res.status(500).json({ message: 'Error performing auto-checkout' });
+  }
 });
 
 export default router;
