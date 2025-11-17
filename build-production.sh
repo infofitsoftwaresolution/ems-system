@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Rural Samridhi EMS - Production Build Script
+# Rural Samriddhi EMS - Production Build Script
 # This script prepares the application for production deployment
 
 set -e
 
-echo "🏗️  Building Rural Samridhi EMS for Production"
+echo "🏗️  Building Rural Samriddhi EMS for Production"
 echo "=============================================="
 
 # Colors for output
@@ -53,7 +53,7 @@ print_status "Setting up production environment..."
 if [ ! -f "production.env" ]; then
     print_warning "production.env not found, creating from template..."
     cat > production.env << EOF
-# Rural Samridhi EMS - Production Environment Variables
+# Rural Samriddhi EMS - Production Environment Variables
 NODE_ENV=production
 PORT=3001
 FRONTEND_URL=https://app.rsamriddhi.com
@@ -138,7 +138,7 @@ EOF
 print_status "Creating production startup script..."
 cat > start-production.sh << 'EOF'
 #!/bin/bash
-echo "🚀 Starting Rural Samridhi EMS in Production Mode"
+echo "🚀 Starting Rural Samriddhi EMS in Production Mode"
 echo "================================================"
 
 # Load environment variables
@@ -159,7 +159,7 @@ chmod +x start-production.sh
 print_status "Creating production stop script..."
 cat > stop-production.sh << 'EOF'
 #!/bin/bash
-echo "🛑 Stopping Rural Samridhi EMS Production Services"
+echo "🛑 Stopping Rural Samriddhi EMS Production Services"
 echo "================================================="
 
 docker-compose -f docker-compose.production.yml -f docker-compose.override.yml down
@@ -172,7 +172,7 @@ chmod +x stop-production.sh
 print_status "Creating health check script..."
 cat > health-check.sh << 'EOF'
 #!/bin/bash
-echo "🏥 Health Check for Rural Samridhi EMS"
+echo "🏥 Health Check for Rural Samriddhi EMS"
 echo "======================================"
 
 # Check if services are running
@@ -238,7 +238,7 @@ chmod +x backup-production.sh
 
 print_status "Creating production README..."
 cat > PRODUCTION_README.md << 'EOF'
-# Rural Samridhi EMS - Production Deployment
+# Rural Samriddhi EMS - Production Deployment
 
 ## Quick Start
 

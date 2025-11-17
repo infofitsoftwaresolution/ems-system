@@ -77,7 +77,7 @@ export function EnhancedHeader({ toggleSidebar }) {
       <Link 
         to="/" 
         className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity"
-        aria-label="Rural Samridhi EMS Home">
+        aria-label="Rural Samriddhi EMS Home">
         <motion.img
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -100,7 +100,7 @@ export function EnhancedHeader({ toggleSidebar }) {
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
           className="hidden md:inline font-medium text-foreground">
-          Rural Samridhi EMS
+          Rural Samriddhi EMS
         </motion.span>
       </Link>
 

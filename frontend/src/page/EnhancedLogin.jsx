@@ -148,7 +148,7 @@ export default function EnhancedLogin() {
             {!logoError ? (
               <img
                 src={`/rsamriddhi_logo.svg?v=7`}
-                alt="Rural Samridhi Logo"
+                alt="Rural Samriddhi Logo"
                 className="h-32 w-auto object-contain mx-auto"
                 onError={(e) => {
                   console.error('Logo failed to load:', e);
@@ -312,7 +312,7 @@ export default function EnhancedLogin() {
           variants={itemVariants}
           className="mt-8 text-center text-sm text-gray-600 dark:text-gray-400">
           <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
-            &copy; {new Date().getFullYear()} Rural Samridhi
+            &copy; {new Date().getFullYear()} Rural Samriddhi
           </p>
           <p className="text-xs">
             Employee Management System. All rights reserved.

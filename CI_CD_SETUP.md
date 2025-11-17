@@ -1,6 +1,6 @@
 # CI/CD Pipeline Setup Guide for EC2 with RDS
 
-This guide explains how to set up the CI/CD pipeline for deploying the Rural Samridhi EMS to EC2 with RDS PostgreSQL database.
+This guide explains how to set up the CI/CD pipeline for deploying the Rural Samriddhi EMS to EC2 with RDS PostgreSQL database.
 
 ## 📋 Prerequisites
 

@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Rural Samridhi EMS - EC2 Amazon Linux 2 Deployment Script
+# Rural Samriddhi EMS - EC2 Amazon Linux 2 Deployment Script
 # Domain: app.rsamriddhi.com
 # IP: 13.233.73.43
 
 set -e
 
-echo "🚀 Starting Rural Samridhi EMS Deployment on EC2"
+echo "🚀 Starting Rural Samriddhi EMS Deployment on EC2"
 echo "================================================"
 
 # Colors for output
@@ -128,7 +128,7 @@ cd ..
 print_status "Creating systemd service..."
 cat > /etc/systemd/system/ems.service << EOF
 [Unit]
-Description=Rural Samridhi EMS
+Description=Rural Samriddhi EMS
 After=network.target
 
 [Service]

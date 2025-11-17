@@ -1,4 +1,4 @@
-# Rural Samridhi EMS - Frontend Production Dockerfile
+# Rural Samriddhi EMS - Frontend Production Dockerfile
 FROM node:18-alpine as builder
 
 # Set working directory

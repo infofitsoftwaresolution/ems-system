@@ -1,8 +1,8 @@
 @echo off
-REM GitHub Setup Script for Rural Samridhi EMS
+REM GitHub Setup Script for Rural Samriddhi EMS
 REM This script helps team members set up the project from GitHub
 
-echo 🚀 Setting up Rural Samridhi EMS from GitHub...
+echo 🚀 Setting up Rural Samriddhi EMS from GitHub...
 echo ================================================
 
 REM Check if git is installed

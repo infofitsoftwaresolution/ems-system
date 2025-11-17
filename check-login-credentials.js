@@ -19,7 +19,7 @@ async function checkAndFixCredentials() {
       console.log("\n❌ Admin user not found. Creating...");
       const adminHash = await bcrypt.hash(adminPassword, 10);
       admin = await User.create({
-        name: "Rural Samridhi Admin",
+        name: "Rural Samriddhi Admin",
         email: adminEmail,
         role: "admin",
         passwordHash: adminHash,

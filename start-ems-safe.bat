@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo Rural Samridhi EMS - Safe Startup
+echo Rural Samriddhi EMS - Safe Startup
 echo ========================================
 echo This script will:
 echo - Start both servers in separate windows
@@ -32,7 +32,7 @@ REM Create environment file if it doesn't exist
 if not exist "backend\.env" (
     echo Creating environment file...
     (
-        echo # Rural Samridhi EMS - Local Development Environment
+        echo # Rural Samriddhi EMS - Local Development Environment
         echo.
         echo PORT=3001
         echo NODE_ENV=development

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Rural Samridhi EMS - Production Deployment Script
+# Rural Samriddhi EMS - Production Deployment Script
 # This script deploys the EMS application to EC2 with proper configuration
 
 set -e  # Exit on any error
 
-echo "🚀 Starting Rural Samridhi EMS Production Deployment..."
+echo "🚀 Starting Rural Samriddhi EMS Production Deployment..."
 
 # Colors for output
 RED='\033[0;31m'
@@ -68,7 +68,7 @@ chmod 755 logs
 if [ ! -f "backend/.env" ]; then
     print_status "Creating environment file..."
     cat > backend/.env << EOF
-# Rural Samridhi EMS - Production Environment Configuration
+# Rural Samriddhi EMS - Production Environment Configuration
 
 # ===========================================
 # SERVER CONFIGURATION

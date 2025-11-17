@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# GitHub Setup Script for Rural Samridhi EMS
+# GitHub Setup Script for Rural Samriddhi EMS
 # This script helps team members set up the project from GitHub
 
-echo "🚀 Setting up Rural Samridhi EMS from GitHub..."
+echo "🚀 Setting up Rural Samriddhi EMS from GitHub..."
 echo "================================================"
 
 # Check if git is installed

@@ -92,6 +92,16 @@ export default function Employees() {
     joinDate: "",
     isActive: true,
   });
+  
+  // Validation errors state
+  const [validationErrors, setValidationErrors] = useState({
+    name: "",
+    email: "",
+    department: "",
+    role: "",
+    position: "",
+    joinDate: "",
+  });
 
   // Delete Employee State
   const [deleteEmployeeId, setDeleteEmployeeId] = useState(null);
@@ -385,10 +395,106 @@ export default function Employees() {
     return dept ? dept.name : "N/A";
   };
 
+  // Validation functions
+  const validateName = (name) => {
+    if (!name || name.trim() === "") {
+      return "Full name is required";
+    }
+    if (name.trim().length < 2) {
+      return "Name must be at least 2 characters long";
+    }
+    if (name.trim().length > 100) {
+      return "Name must be less than 100 characters";
+    }
+    if (!/^[a-zA-Z\s'-]+$/.test(name.trim())) {
+      return "Name can only contain letters, spaces, hyphens, and apostrophes";
+    }
+    return "";
+  };
+
+  const validateEmail = (email) => {
+    if (!email || email.trim() === "") {
+      return "Email is required";
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return "Please enter a valid email address";
+    }
+    if (email.trim().length > 255) {
+      return "Email must be less than 255 characters";
+    }
+    return "";
+  };
+
+  const validateDepartment = (department) => {
+    if (!department || department === "") {
+      return "Department is required";
+    }
+    return "";
+  };
+
+  const validateRole = (role) => {
+    if (!role || role === "") {
+      return "Role is required";
+    }
+    return "";
+  };
+
+  const validatePosition = (position) => {
+    if (position && position.trim().length > 100) {
+      return "Position must be less than 100 characters";
+    }
+    return "";
+  };
+
+  const validateJoinDate = (date) => {
+    if (date) {
+      const selectedDate = new Date(date);
+      const today = new Date();
+      
+      // Check if date is too far in the past (e.g., more than 50 years)
+      const fiftyYearsAgo = new Date();
+      fiftyYearsAgo.setFullYear(today.getFullYear() - 50);
+      
+      if (selectedDate < fiftyYearsAgo) {
+        return "Start date cannot be more than 50 years ago";
+      }
+      
+      // Allow future dates for new employees (e.g., scheduled start dates)
+    }
+    return "";
+  };
+
+  // Validate all fields
+  const validateForm = () => {
+    const errors = {
+      name: validateName(newEmployee.name),
+      email: validateEmail(newEmployee.email),
+      department: validateDepartment(newEmployee.department),
+      role: validateRole(newEmployee.role),
+      position: validatePosition(newEmployee.position),
+      joinDate: validateJoinDate(newEmployee.joinDate),
+    };
+
+    setValidationErrors(errors);
+    return !Object.values(errors).some((error) => error !== "");
+  };
+
+  // Handle field validation on change
+  const handleFieldChange = (field, value) => {
+    setNewEmployee({ ...newEmployee, [field]: value });
+    
+    // Clear error for this field when user starts typing
+    if (validationErrors[field]) {
+      setValidationErrors({ ...validationErrors, [field]: "" });
+    }
+  };
+
   // Handle adding new employee
   const handleAddEmployee = async () => {
-    if (!newEmployee.name || !newEmployee.email) {
-      toast.error("Please fill in required fields (Name and Email)");
+    // Validate all fields before submission
+    if (!validateForm()) {
+      toast.error("Please fix the validation errors before submitting");
       return;
     }
 
@@ -411,7 +517,7 @@ export default function Employees() {
       // Add the new employee to the list
       setEmployees([...employees, createdEmployee]);
 
-      // Reset form
+      // Reset form and validation errors
       setNewEmployee({
         name: "",
         email: "",
@@ -420,6 +526,14 @@ export default function Employees() {
         role: "",
         joinDate: "",
         isActive: true,
+      });
+      setValidationErrors({
+        name: "",
+        email: "",
+        department: "",
+        role: "",
+        position: "",
+        joinDate: "",
       });
 
       toast.success("Employee added successfully!");
@@ -537,14 +651,19 @@ export default function Employees() {
                         id="name"
                         placeholder="John Doe"
                         value={newEmployee.name}
-                        onChange={(e) =>
-                          setNewEmployee({
-                            ...newEmployee,
-                            name: e.target.value,
-                          })
-                        }
+                        onChange={(e) => handleFieldChange("name", e.target.value)}
+                        onBlur={() => {
+                          setValidationErrors({
+                            ...validationErrors,
+                            name: validateName(newEmployee.name),
+                          });
+                        }}
                         required
+                        className={validationErrors.name ? "border-red-500" : ""}
                       />
+                      {validationErrors.name && (
+                        <p className="text-sm text-red-500">{validationErrors.name}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email *</Label>
@@ -553,23 +672,32 @@ export default function Employees() {
                         type="email"
                         placeholder="john.doe@company.com"
                         value={newEmployee.email}
-                        onChange={(e) =>
-                          setNewEmployee({
-                            ...newEmployee,
-                            email: e.target.value,
-                          })
-                        }
+                        onChange={(e) => handleFieldChange("email", e.target.value)}
+                        onBlur={() => {
+                          setValidationErrors({
+                            ...validationErrors,
+                            email: validateEmail(newEmployee.email),
+                          });
+                        }}
                         required
+                        className={validationErrors.email ? "border-red-500" : ""}
                       />
+                      {validationErrors.email && (
+                        <p className="text-sm text-red-500">{validationErrors.email}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="department">Department</Label>
+                      <Label htmlFor="department">Department *</Label>
                       <Select
                         value={newEmployee.department}
-                        onValueChange={(value) =>
-                          setNewEmployee({ ...newEmployee, department: value })
-                        }>
-                        <SelectTrigger>
+                        onValueChange={(value) => {
+                          handleFieldChange("department", value);
+                          setValidationErrors({
+                            ...validationErrors,
+                            department: validateDepartment(value),
+                          });
+                        }}>
+                        <SelectTrigger className={validationErrors.department ? "border-red-500" : ""}>
                           <SelectValue placeholder="Select department" />
                         </SelectTrigger>
                         <SelectContent>
@@ -580,6 +708,9 @@ export default function Employees() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {validationErrors.department && (
+                        <p className="text-sm text-red-500">{validationErrors.department}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="position">Position</Label>
@@ -587,22 +718,31 @@ export default function Employees() {
                         id="position"
                         placeholder="Software Engineer"
                         value={newEmployee.position}
-                        onChange={(e) =>
-                          setNewEmployee({
-                            ...newEmployee,
-                            position: e.target.value,
-                          })
-                        }
+                        onChange={(e) => handleFieldChange("position", e.target.value)}
+                        onBlur={() => {
+                          setValidationErrors({
+                            ...validationErrors,
+                            position: validatePosition(newEmployee.position),
+                          });
+                        }}
+                        className={validationErrors.position ? "border-red-500" : ""}
                       />
+                      {validationErrors.position && (
+                        <p className="text-sm text-red-500">{validationErrors.position}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="role">Role</Label>
+                      <Label htmlFor="role">Role *</Label>
                       <Select
                         value={newEmployee.role}
-                        onValueChange={(value) =>
-                          setNewEmployee({ ...newEmployee, role: value })
-                        }>
-                        <SelectTrigger>
+                        onValueChange={(value) => {
+                          handleFieldChange("role", value);
+                          setValidationErrors({
+                            ...validationErrors,
+                            role: validateRole(value),
+                          });
+                        }}>
+                        <SelectTrigger className={validationErrors.role ? "border-red-500" : ""}>
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                         <SelectContent>
@@ -613,6 +753,9 @@ export default function Employees() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {validationErrors.role && (
+                        <p className="text-sm text-red-500">{validationErrors.role}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="join-date">Start Date</Label>
@@ -620,13 +763,18 @@ export default function Employees() {
                         id="join-date"
                         type="date"
                         value={newEmployee.joinDate}
-                        onChange={(e) =>
-                          setNewEmployee({
-                            ...newEmployee,
-                            joinDate: e.target.value,
-                          })
-                        }
+                        onChange={(e) => handleFieldChange("joinDate", e.target.value)}
+                        onBlur={() => {
+                          setValidationErrors({
+                            ...validationErrors,
+                            joinDate: validateJoinDate(newEmployee.joinDate),
+                          });
+                        }}
+                        className={validationErrors.joinDate ? "border-red-500" : ""}
                       />
+                      {validationErrors.joinDate && (
+                        <p className="text-sm text-red-500">{validationErrors.joinDate}</p>
+                      )}
                     </div>
                     <div className="col-span-2 flex items-center space-x-2">
                       <Switch
@@ -654,6 +802,14 @@ export default function Employees() {
                           role: "",
                           joinDate: "",
                           isActive: true,
+                        });
+                        setValidationErrors({
+                          name: "",
+                          email: "",
+                          department: "",
+                          role: "",
+                          position: "",
+                          joinDate: "",
                         });
                         setShowAddEmployeeDialog(false);
                       }}>

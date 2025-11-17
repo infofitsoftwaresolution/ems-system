@@ -41,20 +41,22 @@ export function Header({ toggleSidebar }) {
         <span className="sr-only">Toggle menu</span>
       </Button>
 
-      <Link 
-        to="/" 
+      <Link
+        to="/"
         className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity"
-        aria-label="Rural Samridhi EMS Home">
+        aria-label="Rural Samriddhi EMS Home">
         <img
           src="/rsamriddhi_logo.png"
           alt=""
           className="h-8 w-auto"
           onError={(e) => {
             // Fallback if logo doesn't load
-            e.target.style.display = 'none';
+            e.target.style.display = "none";
           }}
         />
-        <span className="hidden md:inline text-foreground">Rural Samridhi EMS</span>
+        <span className="hidden md:inline text-foreground">
+          Rural Samriddhi EMS
+        </span>
       </Link>
 
       <div className="ml-auto flex items-center gap-4">

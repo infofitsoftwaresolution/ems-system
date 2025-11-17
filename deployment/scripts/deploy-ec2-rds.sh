@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Rural Samridhi EMS - EC2 Deployment Script with RDS
+# Rural Samriddhi EMS - EC2 Deployment Script with RDS
 # This script deploys the application to EC2 with RDS PostgreSQL database
 
 set -e

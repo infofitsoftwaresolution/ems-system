@@ -1,4 +1,4 @@
-# Rural Samridhi EMS - Production Deployment Script (PowerShell)
+# Rural Samriddhi EMS - Production Deployment Script (PowerShell)
 # This script deploys the EMS application to EC2 with proper configuration
 
 param(
@@ -9,7 +9,7 @@ param(
 # Set error action preference
 $ErrorActionPreference = "Stop"
 
-Write-Host "🚀 Starting Rural Samridhi EMS Production Deployment..." -ForegroundColor Blue
+Write-Host "🚀 Starting Rural Samriddhi EMS Production Deployment..." -ForegroundColor Blue
 
 # Function to print colored output
 function Write-Status {
@@ -87,7 +87,7 @@ $envFile = "backend\.env"
 if (-not (Test-Path $envFile)) {
     Write-Status "Creating environment file..."
     $envContent = @"
-# Rural Samridhi EMS - Production Environment Configuration
+# Rural Samriddhi EMS - Production Environment Configuration
 
 # ===========================================
 # SERVER CONFIGURATION

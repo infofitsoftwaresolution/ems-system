@@ -1,4 +1,4 @@
-# Rural Samridhi EMS - Production Deployment Guide
+# Rural Samriddhi EMS - Production Deployment Guide
 
 ## 🚀 Deployment on EC2 Amazon Linux 2
 

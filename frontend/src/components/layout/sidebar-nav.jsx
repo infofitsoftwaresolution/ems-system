@@ -109,14 +109,20 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
       );
     }
 
-    // Add admin-only items (before common items for better visibility)
-    if (user?.role === "admin") {
+    // Add admin/manager items (before common items for better visibility)
+    if (user?.role === "admin" || user?.role === "manager") {
       baseItems.push(
         {
           title: "KYC Management",
           href: "/kyc-management",
           icon: ShieldCheck,
-        },
+        }
+      );
+    }
+
+    // Add admin-only items
+    if (user?.role === "admin") {
+      baseItems.push(
         {
           title: "Administration",
           href: "/admin",

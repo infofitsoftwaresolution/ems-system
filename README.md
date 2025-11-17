@@ -1,4 +1,4 @@
-# Rural Samridhi EMS - Employee Management System
+# Rural Samriddhi EMS - Employee Management System
 
 A comprehensive Employee Management System built with React, Node.js, and SQLite, designed for rural development organizations.
 

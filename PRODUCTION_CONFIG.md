@@ -1,4 +1,4 @@
-# Rural Samridhi EMS - Production Configuration
+# Rural Samriddhi EMS - Production Configuration
 
 ## 🌐 Production URLs and Endpoints
 
@@ -253,6 +253,6 @@ sudo systemctl restart ems
 - [ ] Frontend loading correctly
 - [ ] Health checks passing
 
-**Your Rural Samridhi EMS is now production-ready!** 🎉
+**Your Rural Samriddhi EMS is now production-ready!** 🎉
 
 

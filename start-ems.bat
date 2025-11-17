@@ -1,5 +1,5 @@
 @echo off
-echo Starting Rural Samridhi EMS...
+echo Starting Rural Samriddhi EMS...
 echo.
 
 REM Check if Node.js is installed
@@ -25,7 +25,7 @@ REM Create environment file if it doesn't exist
 if not exist "backend\.env" (
     echo Creating environment file...
     (
-        echo # Rural Samridhi EMS - Local Development Environment
+        echo # Rural Samriddhi EMS - Local Development Environment
         echo.
         echo PORT=3001
         echo NODE_ENV=development
@@ -86,7 +86,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo ========================================
-echo Rural Samridhi EMS is starting...
+echo Rural Samriddhi EMS is starting...
 echo ========================================
 echo Backend: http://localhost:3001 (in separate window)
 echo Frontend: http://localhost:5173 (starting now)

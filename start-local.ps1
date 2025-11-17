@@ -1,7 +1,7 @@
-# Rural Samridhi EMS - Local Development Startup Script
+# Rural Samriddhi EMS - Local Development Startup Script
 # This script starts the application without Docker for local development
 
-Write-Host "🚀 Starting Rural Samridhi EMS (Local Development)..." -ForegroundColor Blue
+Write-Host "🚀 Starting Rural Samriddhi EMS (Local Development)..." -ForegroundColor Blue
 
 # Check if Node.js is installed
 try {
@@ -26,7 +26,7 @@ $envFile = "backend\.env"
 if (-not (Test-Path $envFile)) {
     Write-Host "Creating environment file..." -ForegroundColor Yellow
     $envContent = @"
-# Rural Samridhi EMS - Local Development Environment
+# Rural Samriddhi EMS - Local Development Environment
 
 PORT=3001
 NODE_ENV=development
