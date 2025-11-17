@@ -1,4 +1,4 @@
-# Email Configuration Script for Rural Samridhi EMS
+# Email Configuration Script for Rural Samriddhi EMS
 # This script helps you configure email settings
 
 Write-Host "🔧 Email Configuration Setup" -ForegroundColor Blue
@@ -13,7 +13,7 @@ if (Test-Path ".env") {
     
     # Create .env file with email configuration
     $envContent = @"
-# Rural Samridhi EMS - Environment Configuration
+# Rural Samriddhi EMS - Environment Configuration
 
 # ===========================================
 # SERVER CONFIGURATION
