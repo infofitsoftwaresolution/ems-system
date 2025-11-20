@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -33,6 +33,7 @@ import {
   Download,
   ArrowUpRight,
   GraduationCap,
+  RefreshCw,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
@@ -40,6 +41,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
 import { parseISO, format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
 // Type imports removed - types are now JSDoc comments in types/index.js
 import { Link } from "react-router-dom";
 
@@ -50,9 +52,61 @@ export default function Dashboard() {
   const [employees, setEmployees] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [kycData, setKycData] = useState([]);
-  const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [timeRange, setTimeRange] = useState("week");
   const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch events dynamically with React Query for auto-refresh
+  const {
+    data: eventsData = [],
+    isLoading: eventsLoading,
+    refetch: refetchEvents,
+    isRefetching: isRefetchingEvents,
+  } = useQuery({
+    queryKey: ["dashboard-events"],
+    queryFn: async () => {
+      try {
+        const events = await apiService.getEvents();
+        return events || [];
+      } catch (error) {
+        console.error("Error fetching events:", error);
+        return [];
+      }
+    },
+    refetchInterval: 30000, // Refetch every 30 seconds to get new events
+    refetchOnWindowFocus: true, // Refetch when user returns to the tab
+    refetchOnMount: true, // Always refetch when component mounts
+    staleTime: 10000, // Consider data stale after 10 seconds
+  });
+
+  // Process and filter upcoming events
+  const upcomingEvents = (() => {
+    if (!Array.isArray(eventsData) || eventsData.length === 0) {
+      return [];
+    }
+
+    const now = new Date();
+    return eventsData
+      .filter((event) => {
+        if (!event || !event.start) return false;
+        try {
+          const eventStart = parseISO(event.start);
+          return eventStart >= now;
+        } catch (error) {
+          console.error("Error parsing event date:", error, event);
+          return false;
+        }
+      })
+      .sort((a, b) => {
+        try {
+          const aTime = parseISO(a.start).getTime();
+          const bTime = parseISO(b.start).getTime();
+          return aTime - bTime; // Sort ascending (earliest first)
+        } catch (error) {
+          return 0;
+        }
+      })
+      .slice(0, 5); // Show only next 5 events
+  })();
 
   // Fetch dashboard data
   useEffect(() => {
@@ -60,7 +114,8 @@ export default function Dashboard() {
       setIsLoading(true);
       try {
         // Fetch real data from API - handle errors individually
-        const [employeesData, attendanceData, kycData, eventsData] =
+        // Note: Events are now fetched via React Query (see useQuery above)
+        const [employeesData, attendanceData, kycData] =
           await Promise.allSettled([
             apiService.getEmployees().catch((err) => {
               console.error("Error fetching employees:", err);
@@ -74,10 +129,6 @@ export default function Dashboard() {
               console.error("Error fetching KYC data:", err);
               return [];
             }),
-            apiService.getEvents().catch((err) => {
-              console.error("Error fetching events:", err);
-              return [];
-            }),
           ]);
 
         // Extract values from Promise.allSettled results
@@ -86,40 +137,11 @@ export default function Dashboard() {
         const attendanceResult =
           attendanceData.status === "fulfilled" ? attendanceData.value : [];
         const kycResult = kycData.status === "fulfilled" ? kycData.value : [];
-        const eventsResult =
-          eventsData.status === "fulfilled" ? eventsData.value : [];
 
         setEmployees(employeesResult);
         setAttendance(attendanceResult);
         setKycData(kycResult);
-
-        // Filter and sort upcoming events (events starting from now onwards)
-        const now = new Date();
-        const upcoming = Array.isArray(eventsResult)
-          ? eventsResult
-              .filter((event) => {
-                if (!event || !event.start) return false;
-                try {
-                  const eventStart = parseISO(event.start);
-                  return eventStart >= now;
-                } catch (error) {
-                  console.error("Error parsing event date:", error, event);
-                  return false;
-                }
-              })
-              .sort((a, b) => {
-                try {
-                  const aTime = parseISO(a.start).getTime();
-                  const bTime = parseISO(b.start).getTime();
-                  return aTime - bTime; // Sort ascending (earliest first)
-                } catch (error) {
-                  return 0;
-                }
-              })
-              .slice(0, 5) // Show only next 5 events
-          : [];
-
-        setUpcomingEvents(upcoming);
+        // Events are now handled by React Query - see useQuery hook above
 
         // Calculate real stats
         const totalEmployees = Array.isArray(employeesResult)
@@ -200,7 +222,6 @@ export default function Dashboard() {
 
     fetchData();
   }, []);
-
 
   // Handle Download Report
   const handleDownloadReport = () => {
@@ -548,7 +569,7 @@ export default function Dashboard() {
           {/* Bottom row */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {/* Recent Employees */}
-            <Card className="col-span-1">
+            <Card className="col-span-1 flex flex-col">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Recent Employees</CardTitle>
@@ -558,7 +579,7 @@ export default function Dashboard() {
                   <Link to="/employees">View all</Link>
                 </Button>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1 overflow-y-auto max-h-[400px]">
                 <div className="space-y-4">
                   {employees.slice(0, 5).map((employee) => (
                     <div key={employee.id} className="flex items-center gap-4">
@@ -613,70 +634,117 @@ export default function Dashboard() {
             </Card>
 
             {/* Upcoming Events */}
-            <Card className="col-span-1">
+            <Card className="col-span-1 flex flex-col">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Upcoming Events</CardTitle>
                   <CardDescription>Next scheduled activities</CardDescription>
                 </div>
-                <Button asChild size="sm" variant="ghost">
-                  <Link to="/calendar">View calendar</Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => refetchEvents()}
+                    disabled={isRefetchingEvents}
+                    title="Refresh events">
+                    <RefreshCw
+                      className={`h-4 w-4 ${
+                        isRefetchingEvents ? "animate-spin" : ""
+                      }`}
+                    />
+                  </Button>
+                  <Button asChild size="sm" variant="ghost">
+                    <Link to="/calendar">View calendar</Link>
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent>
-                {upcomingEvents.length === 0 ? (
+              <CardContent className="flex-1 overflow-y-auto max-h-[400px]">
+                {eventsLoading ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <RefreshCw className="h-8 w-8 text-muted-foreground mb-2 animate-spin" />
+                    <p className="text-sm text-muted-foreground">
+                      Loading events...
+                    </p>
+                  </div>
+                ) : upcomingEvents.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
                     <Calendar className="h-12 w-12 text-muted-foreground mb-2" />
                     <p className="text-sm text-muted-foreground">
                       No upcoming events
                     </p>
-                    <Button asChild size="sm" variant="outline" className="mt-4">
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="outline"
+                      className="mt-4">
                       <Link to="/calendar">Create Event</Link>
                     </Button>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {upcomingEvents.map((event) => (
-                      <div key={event.id} className="flex items-start gap-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          {event.type === "meeting" ? (
-                            <Users className="h-5 w-5" />
-                          ) : event.type === "training" ? (
-                            <GraduationCap className="h-5 w-5" />
-                          ) : event.type === "holiday" ? (
-                            <Calendar className="h-5 w-5" />
-                          ) : (
-                            <Calendar className="h-5 w-5" />
-                          )}
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <p className="font-medium leading-none">
-                            {event.title}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(parseISO(event.start), "MMM dd, yyyy")} at{" "}
-                            {format(parseISO(event.start), "h:mm a")}
-                          </p>
-                          {event.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-1">
-                              {event.description}
+                    {upcomingEvents.map((event) => {
+                      // Parse date once and handle errors
+                      let eventDate = null;
+                      let dateStr = "Date TBD";
+                      let timeStr = "";
+
+                      if (event.start) {
+                        try {
+                          eventDate = parseISO(event.start);
+                          if (!isNaN(eventDate.getTime())) {
+                            dateStr = format(eventDate, "MMM dd, yyyy");
+                            timeStr = format(eventDate, "h:mm a");
+                          }
+                        } catch (error) {
+                          console.error(
+                            "Error formatting event date:",
+                            error,
+                            event
+                          );
+                        }
+                      }
+
+                      return (
+                        <div key={event.id} className="flex items-start gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            {event.type === "meeting" ? (
+                              <Users className="h-5 w-5" />
+                            ) : event.type === "training" ? (
+                              <GraduationCap className="h-5 w-5" />
+                            ) : event.type === "holiday" ? (
+                              <Calendar className="h-5 w-5" />
+                            ) : (
+                              <Calendar className="h-5 w-5" />
+                            )}
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <p className="font-medium leading-none">
+                              {event.title || "Untitled Event"}
                             </p>
-                          )}
+                            <p className="text-sm text-muted-foreground">
+                              {dateStr} {timeStr && `at ${timeStr}`}
+                            </p>
+                            {event.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-1">
+                                {event.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
             </Card>
 
             {/* Key Performance Indicators */}
-            <Card className="col-span-1">
+            <Card className="col-span-1 flex flex-col">
               <CardHeader>
                 <CardTitle>Performance Metrics</CardTitle>
                 <CardDescription>Company-wide indicators</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1 overflow-y-auto max-h-[400px]">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">

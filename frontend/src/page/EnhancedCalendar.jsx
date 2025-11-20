@@ -51,6 +51,7 @@ import { format, addMonths, subMonths, parseISO, addDays } from "date-fns";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { useQueryClient } from "@tanstack/react-query";
 // TypeScript types removed - using JSDoc for type hints
 import { Badge } from "@/components/ui/badge";
 // eslint-disable-next-line no-unused-vars
@@ -61,6 +62,7 @@ import { Loader2 } from "lucide-react";
 
 export default function EnhancedCalendar() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [date, setDate] = useState(new Date());
   const [month, setMonth] = useState(new Date());
   const [viewType, setViewType] = useState("month");
@@ -198,6 +200,9 @@ export default function EnhancedCalendar() {
       setIsAddEventDialogOpen(false);
       toast.success("Event created successfully");
 
+      // Invalidate Dashboard events query to trigger refresh
+      queryClient.invalidateQueries({ queryKey: ["dashboard-events"] });
+
       // Reset form
       setNewEvent({
         title: "",
@@ -224,6 +229,9 @@ export default function EnhancedCalendar() {
       setAllEvents(allEvents.filter((event) => event.id !== id));
       setIsViewEventDialogOpen(false);
       toast.success("Event deleted successfully");
+
+      // Invalidate Dashboard events query to trigger refresh
+      queryClient.invalidateQueries({ queryKey: ["dashboard-events"] });
     } catch (error) {
       console.error("Error deleting event:", error);
       toast.error(error.message || "Failed to delete event");
