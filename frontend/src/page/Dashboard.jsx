@@ -39,6 +39,7 @@ import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/use-auth";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
+import { parseISO, format } from "date-fns";
 // Type imports removed - types are now JSDoc comments in types/index.js
 import { Link } from "react-router-dom";
 
@@ -49,6 +50,7 @@ export default function Dashboard() {
   const [employees, setEmployees] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [kycData, setKycData] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [timeRange, setTimeRange] = useState("week");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -58,7 +60,7 @@ export default function Dashboard() {
       setIsLoading(true);
       try {
         // Fetch real data from API - handle errors individually
-        const [employeesData, attendanceData, kycData] =
+        const [employeesData, attendanceData, kycData, eventsData] =
           await Promise.allSettled([
             apiService.getEmployees().catch((err) => {
               console.error("Error fetching employees:", err);
@@ -72,6 +74,10 @@ export default function Dashboard() {
               console.error("Error fetching KYC data:", err);
               return [];
             }),
+            apiService.getEvents().catch((err) => {
+              console.error("Error fetching events:", err);
+              return [];
+            }),
           ]);
 
         // Extract values from Promise.allSettled results
@@ -80,10 +86,40 @@ export default function Dashboard() {
         const attendanceResult =
           attendanceData.status === "fulfilled" ? attendanceData.value : [];
         const kycResult = kycData.status === "fulfilled" ? kycData.value : [];
+        const eventsResult =
+          eventsData.status === "fulfilled" ? eventsData.value : [];
 
         setEmployees(employeesResult);
         setAttendance(attendanceResult);
         setKycData(kycResult);
+
+        // Filter and sort upcoming events (events starting from now onwards)
+        const now = new Date();
+        const upcoming = Array.isArray(eventsResult)
+          ? eventsResult
+              .filter((event) => {
+                if (!event || !event.start) return false;
+                try {
+                  const eventStart = parseISO(event.start);
+                  return eventStart >= now;
+                } catch (error) {
+                  console.error("Error parsing event date:", error, event);
+                  return false;
+                }
+              })
+              .sort((a, b) => {
+                try {
+                  const aTime = parseISO(a.start).getTime();
+                  const bTime = parseISO(b.start).getTime();
+                  return aTime - bTime; // Sort ascending (earliest first)
+                } catch (error) {
+                  return 0;
+                }
+              })
+              .slice(0, 5) // Show only next 5 events
+          : [];
+
+        setUpcomingEvents(upcoming);
 
         // Calculate real stats
         const totalEmployees = Array.isArray(employeesResult)
@@ -165,8 +201,6 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  // Calculate upcoming reviews count (placeholder for now)
-  const upcomingEvents = [];
 
   // Handle Download Report
   const handleDownloadReport = () => {
@@ -590,35 +624,49 @@ export default function Dashboard() {
                 </Button>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {upcomingEvents.map((event) => (
-                    <div key={event.id} className="flex items-start gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        {event.type === "meeting" ? (
-                          <Users className="h-5 w-5" />
-                        ) : event.type === "training" ? (
-                          <GraduationCap className="h-5 w-5" />
-                        ) : event.type === "holiday" ? (
-                          <Calendar className="h-5 w-5" />
-                        ) : (
-                          <Calendar className="h-5 w-5" />
-                        )}
+                {upcomingEvents.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <Calendar className="h-12 w-12 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No upcoming events
+                    </p>
+                    <Button asChild size="sm" variant="outline" className="mt-4">
+                      <Link to="/calendar">Create Event</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {upcomingEvents.map((event) => (
+                      <div key={event.id} className="flex items-start gap-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          {event.type === "meeting" ? (
+                            <Users className="h-5 w-5" />
+                          ) : event.type === "training" ? (
+                            <GraduationCap className="h-5 w-5" />
+                          ) : event.type === "holiday" ? (
+                            <Calendar className="h-5 w-5" />
+                          ) : (
+                            <Calendar className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="font-medium leading-none">
+                            {event.title}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {format(parseISO(event.start), "MMM dd, yyyy")} at{" "}
+                            {format(parseISO(event.start), "h:mm a")}
+                          </p>
+                          {event.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-1">
+                              {event.description}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="font-medium leading-none">
-                          {event.title}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(event.start).toLocaleDateString()} at{" "}
-                          {new Date(event.start).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
