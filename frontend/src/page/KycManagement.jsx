@@ -441,8 +441,14 @@ export default function KycManagement() {
                                           variant="outline"
                                           size="sm"
                                           onClick={() => {
+                                            // For upload paths, use base URL without /api
+                                            // Uploads are served directly at /uploads/, not under /api/
                                             const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
-                                            window.open(`${apiUrl}${doc.path}`, '_blank');
+                                            let baseUrl = apiUrl.replace(/\/api\/?$/, '');
+                                            if (!baseUrl) {
+                                              baseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+                                            }
+                                            window.open(`${baseUrl}${doc.path}`, '_blank');
                                           }}
                                         >
                                           <Download className="h-4 w-4 mr-1" />
@@ -462,8 +468,14 @@ export default function KycManagement() {
                                           variant="outline"
                                           size="sm"
                                           onClick={() => {
+                                            // For upload paths, use base URL without /api
+                                            // Uploads are served directly at /uploads/, not under /api/
                                             const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
-                                            window.open(`${apiUrl}${doc.path}`, '_blank');
+                                            let baseUrl = apiUrl.replace(/\/api\/?$/, '');
+                                            if (!baseUrl) {
+                                              baseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+                                            }
+                                            window.open(`${baseUrl}${doc.path}`, '_blank');
                                           }}
                                         >
                                           <Download className="h-4 w-4 mr-1" />
