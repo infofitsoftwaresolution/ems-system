@@ -4,7 +4,7 @@ import { Payslip } from '../models/Payslip.js';
 import { Attendance } from '../models/Attendance.js';
 import { Leave } from '../models/Leave.js';
 import { Op } from 'sequelize';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -286,7 +286,38 @@ router.get('/employee/:employeeId', authenticateToken, async (req, res) => {
 
     const payslips = await Payslip.findAll({
       where: whereClause,
-      attributes: ['id', 'employeeId', 'employeeName', 'employeeEmail', 'month', 'year', 'basicSalary', 'earnedSalary', 'leaveDeduction', 'allowances', 'deductions', 'netSalary', 'workingDays', 'totalDays', 'leaveDays', 'status', 'generatedAt', 'paidAt', 'createdAt', 'updatedAt'],
+      attributes: [
+        'id', 
+        'employeeId', 
+        'employeeName', 
+        'employeeEmail', 
+        'month', 
+        'year', 
+        'basicSalary', 
+        'hra',
+        'da',
+        'transportAllowance',
+        'medicalAllowance',
+        'specialAllowance',
+        'earnedSalary',
+        'grossSalary',
+        'pf',
+        'esi',
+        'tds',
+        'professionalTax',
+        'leaveDeduction',
+        'otherDeductions',
+        'totalDeductions',
+        'netSalary', 
+        'workingDays', 
+        'totalDays', 
+        'leaveDays', 
+        'status', 
+        'generatedAt', 
+        'paidAt', 
+        'createdAt', 
+        'updatedAt'
+      ],
       order: [['year', 'DESC'], ['month', 'DESC']]
     });
 
@@ -300,25 +331,56 @@ router.get('/employee/:employeeId', authenticateToken, async (req, res) => {
   }
 });
 
-// Get all payslips (admin view)
-router.get('/all', async (req, res) => {
+// Get all payslips (admin/manager/hr view)
+router.get('/all', authenticateToken, requireRole(['admin', 'manager', 'hr']), async (req, res) => {
   try {
     const { month, year, employeeId } = req.query;
 
     let whereClause = {};
     
     if (month && year) {
-      whereClause.month = month;
-      whereClause.year = year;
+      whereClause.month = parseInt(month, 10);
+      whereClause.year = parseInt(year, 10);
     }
     
     if (employeeId) {
-      whereClause.employeeId = employeeId;
+      whereClause.employeeId = parseInt(employeeId, 10);
     }
 
     const payslips = await Payslip.findAll({
       where: whereClause,
-      attributes: ['id', 'employeeId', 'employeeName', 'employeeEmail', 'month', 'year', 'basicSalary', 'earnedSalary', 'leaveDeduction', 'allowances', 'deductions', 'netSalary', 'workingDays', 'totalDays', 'leaveDays', 'status', 'generatedAt', 'paidAt', 'createdAt', 'updatedAt'],
+      attributes: [
+        'id', 
+        'employeeId', 
+        'employeeName', 
+        'employeeEmail', 
+        'month', 
+        'year', 
+        'basicSalary', 
+        'hra',
+        'da',
+        'transportAllowance',
+        'medicalAllowance',
+        'specialAllowance',
+        'earnedSalary',
+        'grossSalary',
+        'pf',
+        'esi',
+        'tds',
+        'professionalTax',
+        'leaveDeduction',
+        'otherDeductions',
+        'totalDeductions',
+        'netSalary', 
+        'workingDays', 
+        'totalDays', 
+        'leaveDays', 
+        'status', 
+        'generatedAt', 
+        'paidAt', 
+        'createdAt', 
+        'updatedAt'
+      ],
       order: [['year', 'DESC'], ['month', 'DESC']]
     });
 
@@ -333,10 +395,41 @@ router.get('/all', async (req, res) => {
 });
 
 // Get payslip by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const payslip = await Payslip.findByPk(req.params.id, {
-      attributes: ['id', 'employeeId', 'employeeName', 'employeeEmail', 'month', 'year', 'basicSalary', 'earnedSalary', 'leaveDeduction', 'allowances', 'deductions', 'netSalary', 'workingDays', 'totalDays', 'leaveDays', 'status', 'generatedAt', 'paidAt', 'createdAt', 'updatedAt']
+      attributes: [
+        'id', 
+        'employeeId', 
+        'employeeName', 
+        'employeeEmail', 
+        'month', 
+        'year', 
+        'basicSalary', 
+        'hra',
+        'da',
+        'transportAllowance',
+        'medicalAllowance',
+        'specialAllowance',
+        'earnedSalary',
+        'grossSalary',
+        'pf',
+        'esi',
+        'tds',
+        'professionalTax',
+        'leaveDeduction',
+        'otherDeductions',
+        'totalDeductions',
+        'netSalary', 
+        'workingDays', 
+        'totalDays', 
+        'leaveDays', 
+        'status', 
+        'generatedAt', 
+        'paidAt', 
+        'createdAt', 
+        'updatedAt'
+      ]
     });
     
     if (!payslip) {

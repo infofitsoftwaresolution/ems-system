@@ -163,6 +163,31 @@ export default function Employees() {
     }
   };
 
+  // Get department name (handles both string names and IDs)
+  // Must be defined before filteredEmployees uses it
+  const getDepartmentName = (department) => {
+    if (!department) return "N/A";
+    // If it's an ID (starts with 'd' and a number like 'd1', 'd2', etc.), look it up
+    if (typeof department === "string" && /^d\d+$/.test(department)) {
+      const dept = departments.find((dept) => dept.id === department);
+      return dept ? dept.name : department;
+    }
+    // If it's already a department name (not an ID), return it as-is
+    if (typeof department === "string") {
+      // Check if it's actually a department name by looking it up
+      const deptByName = departments.find((dept) => dept.name === department);
+      if (deptByName) {
+        return department; // It's a valid department name
+      }
+      // If not found by name, try as ID
+      const deptById = departments.find((dept) => dept.id === department);
+      return deptById ? deptById.name : department;
+    }
+    // If it's not a string, try to find by ID
+    const dept = departments.find((dept) => dept.id === department);
+    return dept ? dept.name : "N/A";
+  };
+
   // Filter employees based on search query, filters, and active tab
   const filteredEmployees = employees.filter((employee) => {
     const matchesSearch =
@@ -174,8 +199,8 @@ export default function Employees() {
     const matchesDepartment =
       selectedDepartment === null ||
       employee.department === selectedDepartment ||
-      getDepartmentName(employee.department) ===
-        getDepartmentName(selectedDepartment);
+      employee.department === getDepartmentName(selectedDepartment) ||
+      getDepartmentName(employee.department) === getDepartmentName(selectedDepartment);
 
     const matchesStatus =
       selectedStatus === null || employee.status === selectedStatus;
@@ -381,18 +406,6 @@ export default function Employees() {
       direction = "desc";
     }
     setSortConfig({ key, direction });
-  };
-
-  // Get department name (handles both string names and IDs)
-  const getDepartmentName = (department) => {
-    if (!department) return "N/A";
-    // If it's already a string name, return it
-    if (typeof department === "string") {
-      return department;
-    }
-    // If it's an ID, look it up in the departments array
-    const dept = departments.find((dept) => dept.id === department);
-    return dept ? dept.name : "N/A";
   };
 
   // Validation functions
