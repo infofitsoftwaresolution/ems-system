@@ -275,10 +275,10 @@ router.get('/', authenticateToken, async (req, res) => {
       const email = req.query.email.toLowerCase();
       
       // Get user email from User table (token contains user ID in 'sub')
-      const isAdminOrManager = req.user?.role === 'admin' || req.user?.role === 'manager';
+      const isAdminOrManagerOrHR = req.user?.role === 'admin' || req.user?.role === 'manager' || req.user?.role === 'hr';
       
-      // If not admin/manager, verify they're checking their own email
-      if (!isAdminOrManager) {
+      // If not admin/manager/hr, verify they're checking their own email
+      if (!isAdminOrManagerOrHR) {
         if (!req.user?.sub) {
           console.log('❌ No user ID in token');
           return res.status(403).json({ message: 'Insufficient permissions. Authentication required.' });
@@ -303,7 +303,7 @@ router.get('/', authenticateToken, async (req, res) => {
         
         console.log('✅ Permission granted - user checking own KYC status');
       } else {
-        console.log('✅ Admin/Manager access - allowing KYC status check');
+        console.log('✅ Admin/Manager/HR access - allowing KYC status check');
       }
       
       // First, try to find employee by email
@@ -388,10 +388,10 @@ router.get('/', authenticateToken, async (req, res) => {
       return res.json(kycData);
     }
     
-    // Otherwise, return all KYC requests (for admin/manager only)
-    // Check if user has admin/manager role
-    if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
-      return res.status(403).json({ message: 'Insufficient permissions. Admin or manager role required to list all KYC requests.' });
+    // Otherwise, return all KYC requests (for admin/manager/hr only)
+    // Check if user has admin/manager/hr role
+    if (req.user?.role !== 'admin' && req.user?.role !== 'manager' && req.user?.role !== 'hr') {
+      return res.status(403).json({ message: 'Insufficient permissions. Admin, manager, or HR role required to list all KYC requests.' });
     }
     
     const list = await Kyc.findAll({ 
@@ -433,8 +433,8 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Get by id (admin/manager)
-router.get('/:id', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+// Get by id (admin/manager/hr)
+router.get('/:id', authenticateToken, requireRole(['admin', 'manager', 'hr']), async (req, res) => {
   try {
     const item = await Kyc.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Not found' });
@@ -453,8 +453,8 @@ router.get('/:id', authenticateToken, requireRole(['admin', 'manager']), async (
   }
 });
 
-// Review (approve/reject) - requires admin/manager role
-router.post('/:id/review', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+// Review (approve/reject) - requires admin/manager/hr role
+router.post('/:id/review', authenticateToken, requireRole(['admin', 'manager', 'hr']), async (req, res) => {
   try {
     console.log('=== KYC REVIEW REQUEST ===');
     console.log('ID:', req.params.id);
@@ -584,8 +584,8 @@ router.get('/file/:filename', (req, res) => {
   res.sendFile(filePath);
 });
 
-// Delete KYC record (admin/manager)
-router.delete('/:id', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+// Delete KYC record (admin/manager/hr)
+router.delete('/:id', authenticateToken, requireRole(['admin', 'manager', 'hr']), async (req, res) => {
   try {
     const { id } = req.params;
     

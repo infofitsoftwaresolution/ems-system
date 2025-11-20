@@ -46,8 +46,8 @@ export default function KycManagement() {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Role-based access control - only admin and manager can access
-  if (!isLoading && user && user.role !== 'admin' && user.role !== 'manager') {
+  // Role-based access control - only admin, manager, and HR can access
+  if (!isLoading && user && user.role !== 'admin' && user.role !== 'manager' && user.role !== 'hr') {
     return <Navigate to="/" replace />;
   }
 

@@ -66,8 +66,8 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
       );
     }
 
-    // Add admin/manager specific items
-    if (user?.role === "admin" || user?.role === "manager") {
+    // Add admin/manager/hr specific items
+    if (user?.role === "admin" || user?.role === "manager" || user?.role === "hr") {
       baseItems.splice(
         1,
         0,
@@ -109,8 +109,8 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
       );
     }
 
-    // Add admin/manager items (before common items for better visibility)
-    if (user?.role === "admin" || user?.role === "manager") {
+    // Add admin/manager/hr items (before common items for better visibility)
+    if (user?.role === "admin" || user?.role === "manager" || user?.role === "hr") {
       baseItems.push(
         {
           title: "KYC Management",

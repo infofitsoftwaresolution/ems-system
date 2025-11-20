@@ -9,7 +9,7 @@ User.init(
     name: { type: DataTypes.STRING, allowNull: false },
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
     passwordHash: { type: DataTypes.STRING, allowNull: false },
-    role: { type: DataTypes.ENUM('admin', 'manager', 'employee'), allowNull: false, defaultValue: 'employee' },
+    role: { type: DataTypes.ENUM('admin', 'manager', 'hr', 'employee'), allowNull: false, defaultValue: 'employee' },
     mustChangePassword: { type: DataTypes.BOOLEAN, defaultValue: true },
     active: { type: DataTypes.BOOLEAN, defaultValue: true },
     avatar: { type: DataTypes.STRING, allowNull: true },

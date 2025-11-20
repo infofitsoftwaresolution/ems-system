@@ -6,8 +6,8 @@ import { Op } from 'sequelize';
 
 const router = Router();
 
-// Get all attendance data (for admin and manager/HR only)
-router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+// Get all attendance data (for admin, manager, and HR only)
+router.get('/', authenticateToken, requireRole(['admin', 'manager', 'hr']), async (req, res) => {
   // Wrap everything in a try-catch to ensure we always return a valid response
   try {
     console.log('📊 Fetching attendance data with filter:', req.query.filter);
@@ -280,7 +280,7 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req
 });
 
 // Test endpoint to check database connection and data count
-router.get('/test', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+router.get('/test', authenticateToken, requireRole(['admin', 'manager', 'hr']), async (req, res) => {
   try {
     console.log('🧪 Testing attendance database connection...');
     
