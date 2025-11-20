@@ -23,8 +23,8 @@ import { toast } from "sonner";
 export default function EmployeeAttendance() {
   const { user, isLoading: authLoading } = useAuth();
   
-  // Redirect admins to admin attendance page (wait for auth to load first)
-  if (!authLoading && user?.role === "admin") {
+  // Redirect admins, managers, and HR to admin attendance page (wait for auth to load first)
+  if (!authLoading && (user?.role === "admin" || user?.role === "manager" || user?.role === "hr")) {
     return <Navigate to="/admin-attendance" replace />;
   }
   const [attendance, setAttendance] = useState(null);

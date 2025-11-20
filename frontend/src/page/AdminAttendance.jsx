@@ -42,8 +42,8 @@ import { toast } from "sonner";
 export default function AdminAttendance() {
   const { user } = useAuth();
   
-  // Check if user has permission to export (admin or manager/HR)
-  const canExport = user?.role === 'admin' || user?.role === 'manager';
+  // Check if user has permission to export (admin, manager, or HR)
+  const canExport = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'hr';
   const [attendanceData, setAttendanceData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

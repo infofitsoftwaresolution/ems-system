@@ -31,8 +31,8 @@ router.get('/', authenticateToken, async (req, res) => {
   // Build where clause
   let where = {};
   
-  // If user is not admin/manager, only show their own leaves
-  if (userRole !== 'admin' && userRole !== 'manager') {
+  // If user is not admin/manager/hr, only show their own leaves
+  if (userRole !== 'admin' && userRole !== 'manager' && userRole !== 'hr') {
     // Get user email from User model using user ID from token
     if (userId) {
       try {
@@ -53,11 +53,11 @@ router.get('/', authenticateToken, async (req, res) => {
       return res.json([]);
     }
   } else {
-    // Admin/Manager can see all leaves, or filter by email if provided
+    // Admin/Manager/HR can see all leaves, or filter by email if provided
     if (queryEmail) {
       where.email = queryEmail;
     }
-    // If no query email and user is admin, show all (where remains empty object)
+    // If no query email and user is admin/manager/hr, show all (where remains empty object)
   }
   
   const rows = await Leave.findAll({ 
