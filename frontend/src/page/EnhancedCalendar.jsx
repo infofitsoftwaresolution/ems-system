@@ -136,22 +136,62 @@ export default function EnhancedCalendar() {
 
   // Helper function to handle event creation
   const handleCreateEvent = async () => {
-    if (!newEvent.title.trim()) {
+    // Validation
+    if (!newEvent.title || !newEvent.title.trim()) {
       toast.error("Please enter an event title");
+      return;
+    }
+
+    if (newEvent.title.trim().length < 2) {
+      toast.error("Event title must be at least 2 characters long");
+      return;
+    }
+
+    if (!newEvent.start) {
+      toast.error("Please select a start date and time");
+      return;
+    }
+
+    if (!newEvent.end) {
+      toast.error("Please select an end date and time");
+      return;
+    }
+
+    // Validate dates
+    const startDate = new Date(newEvent.start);
+    const endDate = new Date(newEvent.end);
+
+    if (isNaN(startDate.getTime())) {
+      toast.error("Invalid start date. Please select a valid date and time");
+      return;
+    }
+
+    if (isNaN(endDate.getTime())) {
+      toast.error("Invalid end date. Please select a valid date and time");
+      return;
+    }
+
+    if (endDate <= startDate) {
+      toast.error("End date and time must be after start date and time");
+      return;
+    }
+
+    if (!user?.email) {
+      toast.error("Unable to identify user. Please log in again.");
       return;
     }
 
     setIsLoading(true);
     try {
       const createdEvent = await apiService.createEvent({
-        title: newEvent.title,
-        description: newEvent.description,
-        type: newEvent.type,
-        start: newEvent.start,
-        end: newEvent.end,
-        allDay: newEvent.allDay,
-        attendees: newEvent.attendees,
-        createdByEmail: user?.email || "",
+        title: newEvent.title.trim(),
+        description: newEvent.description?.trim() || "",
+        type: newEvent.type || "meeting",
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        allDay: newEvent.allDay || false,
+        attendees: newEvent.attendees || [],
+        createdByEmail: user.email,
       });
 
       setAllEvents([...allEvents, createdEvent]);
@@ -469,7 +509,7 @@ export default function EnhancedCalendar() {
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="title" className="text-right">
-                      Title
+                      Title <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="title"
@@ -478,6 +518,8 @@ export default function EnhancedCalendar() {
                       onChange={(e) =>
                         setNewEvent({ ...newEvent, title: e.target.value })
                       }
+                      placeholder="Enter event title"
+                      required
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -517,7 +559,9 @@ export default function EnhancedCalendar() {
                     </Select>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Start Date</Label>
+                    <Label className="text-right">
+                      Start Date <span className="text-red-500">*</span>
+                    </Label>
                     <div className="col-span-3 flex flex-col sm:flex-row gap-2">
                       <div className="flex-1">
                         <Input
@@ -529,17 +573,20 @@ export default function EnhancedCalendar() {
                             "yyyy-MM-dd"
                           )}
                           onChange={(e) => {
-                            const date = e.target.value;
-                            const time = format(
-                              parseISO(
-                                newEvent.start || new Date().toISOString()
-                              ),
-                              "HH:mm:ss"
-                            );
-                            const newDate = new Date(`${date}T${time}`);
+                            const date = e.target.value; // YYYY-MM-DD format (local date)
+                            const currentStart = newEvent.start
+                              ? parseISO(newEvent.start)
+                              : new Date();
+                            const time = format(currentStart, "HH:mm:ss");
+
+                            // Create date in local timezone: YYYY-MM-DDTHH:mm:ss
+                            // JavaScript will interpret this as local time
+                            const localDateTime = `${date}T${time}`;
+                            const newDate = new Date(localDateTime);
+
                             setNewEvent({
                               ...newEvent,
-                              start: newDate.toISOString(),
+                              start: newDate.toISOString(), // Convert to UTC ISO string
                             });
                           }}
                         />
@@ -553,16 +600,19 @@ export default function EnhancedCalendar() {
                             "HH:mm"
                           )}
                           onValueChange={(value) => {
-                            const date = format(
-                              parseISO(
-                                newEvent.start || new Date().toISOString()
-                              ),
-                              "yyyy-MM-dd"
-                            );
-                            const newDate = new Date(`${date}T${value}:00`);
+                            const currentStart = newEvent.start
+                              ? parseISO(newEvent.start)
+                              : new Date();
+                            const date = format(currentStart, "yyyy-MM-dd");
+
+                            // Create date in local timezone: YYYY-MM-DDTHH:mm:00
+                            // JavaScript will interpret this as local time
+                            const localDateTime = `${date}T${value}:00`;
+                            const newDate = new Date(localDateTime);
+
                             setNewEvent({
                               ...newEvent,
-                              start: newDate.toISOString(),
+                              start: newDate.toISOString(), // Convert to UTC ISO string
                             });
                           }}>
                           <SelectTrigger>
@@ -580,48 +630,64 @@ export default function EnhancedCalendar() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">End Date</Label>
+                    <Label className="text-right">
+                      End Date <span className="text-red-500">*</span>
+                    </Label>
                     <div className="col-span-3 flex flex-col sm:flex-row gap-2">
                       <div className="flex-1">
                         <Input
                           type="date"
-                          value={format(
-                            parseISO(newEvent.end || new Date().toISOString()),
-                            "yyyy-MM-dd"
-                          )}
+                          value={(() => {
+                            // Parse UTC ISO string and convert to local date for display
+                            const endDate = newEvent.end
+                              ? parseISO(newEvent.end)
+                              : new Date();
+                            // Format as YYYY-MM-DD in local timezone
+                            return format(endDate, "yyyy-MM-dd");
+                          })()}
                           onChange={(e) => {
-                            const date = e.target.value;
-                            const time = format(
-                              parseISO(
-                                newEvent.end || new Date().toISOString()
-                              ),
-                              "HH:mm:ss"
-                            );
-                            const newDate = new Date(`${date}T${time}`);
+                            const date = e.target.value; // YYYY-MM-DD format (local date)
+                            const currentEnd = newEvent.end
+                              ? parseISO(newEvent.end)
+                              : new Date();
+                            const time = format(currentEnd, "HH:mm:ss");
+
+                            // Create date in local timezone: YYYY-MM-DDTHH:mm:ss
+                            // JavaScript will interpret this as local time
+                            const localDateTime = `${date}T${time}`;
+                            const newDate = new Date(localDateTime);
+
                             setNewEvent({
                               ...newEvent,
-                              end: newDate.toISOString(),
+                              end: newDate.toISOString(), // Convert to UTC ISO string
                             });
                           }}
                         />
                       </div>
                       <div className="flex-1">
                         <Select
-                          value={format(
-                            parseISO(newEvent.end || new Date().toISOString()),
-                            "HH:mm"
-                          )}
+                          value={(() => {
+                            // Parse UTC ISO string and convert to local time for display
+                            const endDate = newEvent.end
+                              ? parseISO(newEvent.end)
+                              : new Date();
+                            // Format as HH:mm in local timezone
+                            return format(endDate, "HH:mm");
+                          })()}
                           onValueChange={(value) => {
-                            const date = format(
-                              parseISO(
-                                newEvent.end || new Date().toISOString()
-                              ),
-                              "yyyy-MM-dd"
-                            );
-                            const newDate = new Date(`${date}T${value}:00`);
+                            const currentEnd = newEvent.end
+                              ? parseISO(newEvent.end)
+                              : new Date();
+                            const date = format(currentEnd, "yyyy-MM-dd");
+
+                            // Create date in local timezone: YYYY-MM-DDTHH:mm:00
+                            // JavaScript will interpret this as local time
+                            const localDateTime = `${date}T${value}:00`;
+                            const newDate = new Date(localDateTime);
+
                             setNewEvent({
                               ...newEvent,
-                              end: newDate.toISOString(),
+                              end: newDate.toISOString(), // Convert to UTC ISO string
                             });
                           }}>
                           <SelectTrigger>

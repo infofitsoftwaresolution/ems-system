@@ -13,11 +13,14 @@ export const sequelize = usePostgreSQL
         port: Number(process.env.POSTGRES_PORT || process.env.DB_PORT || 5432),
         dialect: 'postgres',
         logging: process.env.DB_LOGGING === 'true' ? console.log : false,
+        timezone: '+00:00', // Store all dates in UTC
         dialectOptions: {
           ssl: process.env.POSTGRES_SSL === 'true' || process.env.DB_SSL === 'true' ? {
             require: true,
             rejectUnauthorized: false
-          } : false
+          } : false,
+          // Ensure PostgreSQL uses timezone-aware timestamps
+          useUTC: true
         }
       }
     )

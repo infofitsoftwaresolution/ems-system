@@ -137,6 +137,17 @@ async function start() {
       // Continue even if migration fails - might already be applied
     }
 
+    // Run migration to update Event columns to TIMESTAMPTZ for proper timezone handling
+    try {
+      const { updateEventColumnsToTimestamptz } = await import(
+        "./migrations/updateEventColumnsToTimestamptz.js"
+      );
+      await updateEventColumnsToTimestamptz();
+    } catch (migrationError) {
+      console.error("Event timezone migration error:", migrationError.message);
+      // Continue even if migration fails - might already be applied
+    }
+
     // Run migration to add missing attendance fields (isLate, checkoutType)
     try {
       const { addAttendanceFields } = await import(
