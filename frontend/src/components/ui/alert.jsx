@@ -5,13 +5,19 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
+  "relative w-full rounded-xl border-2 p-5 shadow-md transition-all duration-200 [&>svg~*]:pl-8 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-5 [&>svg]:top-5 [&>svg]:text-foreground",
   {
     variants: {
       variant: {
-        default: "bg-background text-foreground",
+        default: "bg-background text-foreground border-border/50",
         destructive:
-          "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
+          "border-destructive/50 bg-destructive/5 text-destructive dark:border-destructive [&>svg]:text-destructive",
+        success:
+          "border-primary/50 bg-primary/5 text-primary [&>svg]:text-primary",
+        warning:
+          "border-accent/50 bg-accent/5 text-accent [&>svg]:text-accent",
+        info:
+          "border-primary/30 bg-primary/5 text-primary [&>svg]:text-primary",
       },
     },
     defaultVariants: {

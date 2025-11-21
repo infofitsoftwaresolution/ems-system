@@ -675,7 +675,7 @@ export default function EmployeeAttendance() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center space-x-3">
-                  <Clock className="h-4 w-4 text-blue-500" />
+                  <Clock className="h-4 w-4 text-primary" />
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">
                       <p className="text-sm font-medium">Check In</p>
@@ -755,7 +755,7 @@ export default function EmployeeAttendance() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center space-x-3">
-                  <MapPin className="h-4 w-4 text-green-500" />
+                  <MapPin className="h-4 w-4 text-primary" />
                   <div>
                     <p className="text-sm font-medium">Status</p>
                     <Badge variant={attendance.status === 'present' ? 'default' : 'secondary'}>
@@ -777,7 +777,7 @@ export default function EmployeeAttendance() {
                 {/* Location Information */}
                 {attendance.checkInLatitude && attendance.checkInLongitude && (
                   <div className="flex items-center space-x-3">
-                    <Navigation className="h-4 w-4 text-blue-500" />
+                    <Navigation className="h-4 w-4 text-primary" />
                     <div>
                       <p className="text-sm font-medium">Check-in Location</p>
                       <p className="text-xs text-gray-600 truncate">
@@ -803,12 +803,12 @@ export default function EmployeeAttendance() {
               <div className="space-y-4">
                 {/* Location Status */}
                 {location && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
                     <div className="flex items-center space-x-2">
-                      <Map className="h-4 w-4 text-blue-600" />
+                      <Map className="h-4 w-4 text-primary" />
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-blue-800">Current Location</p>
-                        <p className="text-xs text-blue-600">{location.fullAddress}</p>
+                        <p className="text-sm font-medium text-primary">Current Location</p>
+                        <p className="text-xs text-primary/80">{location.fullAddress}</p>
                         <div className="flex items-center space-x-2 mt-1">
                           <Badge 
                             variant={getAccuracyStatus() === 'excellent' ? 'default' : 
@@ -887,12 +887,12 @@ export default function EmployeeAttendance() {
               
               {/* Location Status for new check-in */}
               {location && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg max-w-md mx-auto">
+                <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg max-w-md mx-auto">
                   <div className="flex items-center space-x-2">
-                    <Map className="h-4 w-4 text-blue-600" />
+                    <Map className="h-4 w-4 text-primary" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-blue-800">Ready to Check In</p>
-                      <p className="text-xs text-blue-600">{location.fullAddress}</p>
+                      <p className="text-sm font-medium text-primary">Ready to Check In</p>
+                      <p className="text-xs text-primary/80">{location.fullAddress}</p>
                       <Badge 
                         variant={getAccuracyStatus() === 'excellent' ? 'default' : 
                                getAccuracyStatus() === 'good' ? 'secondary' : 'outline'}
@@ -948,7 +948,7 @@ export default function EmployeeAttendance() {
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-4 border rounded-lg">
-              <p className="text-2xl font-bold text-green-600">22</p>
+              <p className="text-2xl font-bold text-primary">22</p>
               <p className="text-sm text-gray-600">Days Present</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
@@ -956,7 +956,7 @@ export default function EmployeeAttendance() {
               <p className="text-sm text-gray-600">Days Absent</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">95.7%</p>
+              <p className="text-2xl font-bold text-accent">95.7%</p>
               <p className="text-sm text-gray-600">Attendance Rate</p>
             </div>
           </div>

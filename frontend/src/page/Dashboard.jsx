@@ -337,7 +337,8 @@ export default function Dashboard() {
       : [];
 
   // Colors for the pie chart
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
+  // Brand colors: Green (primary) and Orange (accent) with variations
+  const COLORS = ["#16763a", "#f97316", "#2d9f52", "#fb923c", "#0f5a28"];
 
   return (
     <div className="flex flex-col gap-6">
@@ -461,19 +462,19 @@ export default function Dashboard() {
                       <Line
                         type="monotone"
                         dataKey="activeUsers"
-                        stroke="#8884d8"
+                        stroke="#16763a"
                         name="Active Users"
                       />
                       <Line
                         type="monotone"
                         dataKey="completedTasks"
-                        stroke="#82ca9d"
+                        stroke="#f97316"
                         name="Completed Tasks"
                       />
                       <Line
                         type="monotone"
                         dataKey="newDocuments"
-                        stroke="#ffc658"
+                        stroke="#2d9f52"
                         name="New Documents"
                       />
                     </LineChart>
@@ -498,7 +499,7 @@ export default function Dashboard() {
                         cy="50%"
                         labelLine={false}
                         outerRadius={100}
-                        fill="#8884d8"
+                        fill="#16763a"
                         dataKey="value"
                         label={({ name, percent }) =>
                           `${name}: ${(percent * 100).toFixed(0)}%`
@@ -608,7 +609,7 @@ export default function Dashboard() {
                         <span
                           className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
                             employee.status === "active"
-                              ? "bg-green-100 text-green-700"
+                              ? "bg-primary/20 text-primary"
                               : employee.status === "onLeave"
                               ? "bg-yellow-100 text-yellow-700"
                               : "bg-red-100 text-red-700"
@@ -748,26 +749,26 @@ export default function Dashboard() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/20 text-primary">
                         <CheckCircle2 className="h-4 w-4" />
                       </div>
                       <div>Training Completion</div>
                     </div>
                     <div className="flex items-center gap-1 font-medium">
                       {stats?.trainingCompletionRate}%
-                      <TrendingUp className="h-4 w-4 text-green-500" />
+                      <TrendingUp className="h-4 w-4 text-primary" />
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 text-green-700">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20 text-accent">
                         <TrendingUp className="h-4 w-4" />
                       </div>
                       <div>Employee Satisfaction</div>
                     </div>
                     <div className="flex items-center gap-1 font-medium">
                       {stats?.employeeSatisfactionRate}%
-                      <ArrowUpRight className="h-4 w-4 text-green-500" />
+                      <ArrowUpRight className="h-4 w-4 text-accent" />
                     </div>
                   </div>
                   <Button

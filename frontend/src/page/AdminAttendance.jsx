@@ -129,7 +129,7 @@ export default function AdminAttendance() {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'present':
-        return <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" />Present</Badge>;
+        return <Badge variant="default" className="bg-primary"><CheckCircle className="h-3 w-3 mr-1" />Present</Badge>;
       case 'absent':
         return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Absent</Badge>;
       case 'half-day':
@@ -618,10 +618,10 @@ export default function AdminAttendance() {
                   <TableCell>
                     {record.checkInLatitude && record.checkInLongitude ? (
                       <div className="flex items-center space-x-1">
-                        <MapPin className="h-3 w-3 text-green-500" />
+                        <MapPin className="h-3 w-3 text-primary" />
                         <button
                           onClick={() => openMapLink(record.checkInLatitude, record.checkInLongitude)}
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center space-x-1"
+                          className="text-xs text-primary hover:text-primary/80 hover:underline flex items-center space-x-1"
                           title="Open in Google Maps"
                         >
                           <span>{record.checkInAddress || 'View on Map'}</span>
@@ -638,7 +638,7 @@ export default function AdminAttendance() {
                         <MapPin className="h-3 w-3 text-red-500" />
                         <button
                           onClick={() => openMapLink(record.checkOutLatitude, record.checkOutLongitude)}
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center space-x-1"
+                          className="text-xs text-primary hover:text-primary/80 hover:underline flex items-center space-x-1"
                           title="Open in Google Maps"
                         >
                           <span>{record.checkOutAddress || 'View on Map'}</span>
@@ -735,7 +735,7 @@ export default function AdminAttendance() {
                                 {record.checkInLatitude && record.checkInLongitude ? (
                                   <button
                                     onClick={() => openMapLink(record.checkInLatitude, record.checkInLongitude)}
-                                    className="text-blue-600 hover:text-blue-800 hover:underline flex items-center space-x-1 text-left"
+                                    className="text-primary hover:text-primary/80 hover:underline flex items-center space-x-1 text-left"
                                     title="Open in Google Maps"
                                   >
                                     <span className="font-medium">
@@ -792,7 +792,7 @@ export default function AdminAttendance() {
                                 {record.checkOutLatitude && record.checkOutLongitude ? (
                                   <button
                                     onClick={() => openMapLink(record.checkOutLatitude, record.checkOutLongitude)}
-                                    className="text-blue-600 hover:text-blue-800 hover:underline flex items-center space-x-1 text-left"
+                                    className="text-primary hover:text-primary/80 hover:underline flex items-center space-x-1 text-left"
                                     title="Open in Google Maps"
                                   >
                                     <span className="font-medium">
