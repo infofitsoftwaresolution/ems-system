@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -101,7 +101,7 @@ export default function Dashboard() {
           const aTime = parseISO(a.start).getTime();
           const bTime = parseISO(b.start).getTime();
           return aTime - bTime; // Sort ascending (earliest first)
-        } catch (error) {
+        } catch {
           return 0;
         }
       })

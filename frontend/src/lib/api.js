@@ -270,7 +270,7 @@ class ApiService {
     return null;
   }
 
-  async checkIn(locationData = null, fallbackEmail = null) {
+  async checkIn(locationData = null, fallbackEmail = null, photoBase64 = null) {
     const userEmail = this.getCurrentUserEmail() || fallbackEmail;
     if (!userEmail) {
       throw new Error('User email is required for check-in');
@@ -286,13 +286,17 @@ class ApiService {
       body.address = locationData.fullAddress || locationData.address;
     }
     
+    if (photoBase64) {
+      body.photoBase64 = photoBase64;
+    }
+    
     return this.request('/api/attendance/checkin', {
       method: 'POST',
       body: JSON.stringify(body),
     });
   }
 
-  async checkOut(locationData = null, fallbackEmail = null) {
+  async checkOut(locationData = null, fallbackEmail = null, photoBase64 = null) {
     const userEmail = this.getCurrentUserEmail() || fallbackEmail;
     if (!userEmail) {
       throw new Error('User email is required for check-out');
@@ -308,9 +312,14 @@ class ApiService {
       body.address = locationData.fullAddress || locationData.address;
     }
     
+    if (photoBase64) {
+      body.photoBase64 = photoBase64;
+    }
+    
     console.log('🔍 Checkout API call:', {
       userEmail,
       locationData,
+      hasPhoto: !!photoBase64,
       body
     });
     

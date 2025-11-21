@@ -21,7 +21,10 @@ Attendance.init(
     checkInAddress: { type: DataTypes.TEXT, allowNull: true },
     checkOutLatitude: { type: DataTypes.DECIMAL(10, 8), allowNull: true },
     checkOutLongitude: { type: DataTypes.DECIMAL(11, 8), allowNull: true },
-    checkOutAddress: { type: DataTypes.TEXT, allowNull: true }
+    checkOutAddress: { type: DataTypes.TEXT, allowNull: true },
+    // Photo fields for check-in and check-out
+    checkInPhoto: { type: DataTypes.TEXT, allowNull: true }, // Base64 encoded image
+    checkOutPhoto: { type: DataTypes.TEXT, allowNull: true } // Base64 encoded image
   },
   { sequelize, modelName: 'Attendance', tableName: 'attendance' }
 );

@@ -333,10 +333,10 @@ router.get('/today', authenticateToken, async (req, res) => {
 
 // Check-in
 router.post('/checkin', authenticateToken, async (req, res) => {
-  const { email, name, latitude, longitude, address } = req.body;
+  const { email, name, latitude, longitude, address, photoBase64 } = req.body;
   if (!email) return res.status(400).json({ message: 'email required' });
   
-  console.log('Check-in request:', { email, name, latitude, longitude, address });
+  console.log('Check-in request:', { email, name, latitude, longitude, address, hasPhoto: !!photoBase64 });
   
   const today = new Date().toISOString().slice(0, 10);
   let row = await Attendance.findOne({ where: { email, date: today } });
@@ -358,13 +358,15 @@ router.post('/checkin', authenticateToken, async (req, res) => {
       isLate: isLate,
       checkInLatitude: latitude || null,
       checkInLongitude: longitude || null,
-      checkInAddress: address || null
+      checkInAddress: address || null,
+      checkInPhoto: photoBase64 || null
     });
-    console.log('Created new attendance record with location:', {
+    console.log('Created new attendance record with location and photo:', {
       checkInLatitude: row.checkInLatitude,
       checkInLongitude: row.checkInLongitude,
       checkInAddress: row.checkInAddress,
-      isLate: row.isLate
+      isLate: row.isLate,
+      hasPhoto: !!row.checkInPhoto
     });
   } else {
     row.checkIn = checkInTime;
@@ -372,12 +374,14 @@ router.post('/checkin', authenticateToken, async (req, res) => {
     row.checkInLatitude = latitude || null;
     row.checkInLongitude = longitude || null;
     row.checkInAddress = address || null;
+    row.checkInPhoto = photoBase64 || null;
     await row.save();
-    console.log('Updated attendance record with location:', {
+    console.log('Updated attendance record with location and photo:', {
       checkInLatitude: row.checkInLatitude,
       checkInLongitude: row.checkInLongitude,
       checkInAddress: row.checkInAddress,
-      isLate: row.isLate
+      isLate: row.isLate,
+      hasPhoto: !!row.checkInPhoto
     });
   }
   res.json(row);
@@ -385,10 +389,10 @@ router.post('/checkin', authenticateToken, async (req, res) => {
 
 // Check-out
 router.post('/checkout', authenticateToken, async (req, res) => {
-  const { email, latitude, longitude, address, checkoutType } = req.body;
+  const { email, latitude, longitude, address, checkoutType, photoBase64 } = req.body;
   if (!email) return res.status(400).json({ message: 'email required' });
   
-  console.log('Check-out request:', { email, latitude, longitude, address, checkoutType });
+  console.log('Check-out request:', { email, latitude, longitude, address, checkoutType, hasPhoto: !!photoBase64 });
   
   const today = new Date().toISOString().slice(0, 10);
   const row = await Attendance.findOne({ where: { email: email.toLowerCase(), date: today } });
@@ -400,13 +404,15 @@ router.post('/checkout', authenticateToken, async (req, res) => {
   row.checkOutLatitude = latitude || null;
   row.checkOutLongitude = longitude || null;
   row.checkOutAddress = address || null;
+  row.checkOutPhoto = photoBase64 || null;
   await row.save();
   
-  console.log('Updated attendance record with check-out location:', {
+  console.log('Updated attendance record with check-out location and photo:', {
     checkOutLatitude: row.checkOutLatitude,
     checkOutLongitude: row.checkOutLongitude,
     checkOutAddress: row.checkOutAddress,
-    checkoutType: row.checkoutType
+    checkoutType: row.checkoutType,
+    hasPhoto: !!row.checkOutPhoto
   });
   
   res.json(row);

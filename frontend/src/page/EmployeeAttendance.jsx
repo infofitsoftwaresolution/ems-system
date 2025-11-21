@@ -1,8 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { 
   Clock, 
   CheckCircle, 
@@ -13,7 +21,9 @@ import {
   Navigation,
   RefreshCw,
   Map,
-  AlertTriangle
+  AlertTriangle,
+  Camera,
+  X
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useGeolocation } from "@/hooks/use-geolocation";
@@ -33,6 +43,16 @@ export default function EmployeeAttendance() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   
+  // Camera state
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const [cameraError, setCameraError] = useState(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // 'checkin' or 'checkout'
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  
   const {
     location,
     error: locationError,
@@ -43,6 +63,139 @@ export default function EmployeeAttendance() {
     getAccuracyStatus,
     clearLocation
   } = useGeolocation();
+
+  // Camera functions
+  const startCamera = async () => {
+    try {
+      setCameraError(null);
+      setIsCapturing(false);
+      
+      // Request camera access
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user', // Front-facing camera
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+      
+      setCameraStream(stream);
+      
+      // Set video source
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      setCameraError('Camera access denied. Please allow camera permission to continue.');
+      toast.error('Camera permission denied. Please enable camera access in your browser settings.');
+      
+      // Stop any existing stream
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+      }
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) {
+      toast.error('Camera not ready');
+      return;
+    }
+
+    try {
+      setIsCapturing(true);
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      
+      // Get video dimensions
+      const videoWidth = video.videoWidth;
+      const videoHeight = video.videoHeight;
+      
+      // Calculate new dimensions (max 800px on longest side to reduce file size)
+      const MAX_DIMENSION = 800;
+      let newWidth = videoWidth;
+      let newHeight = videoHeight;
+      
+      if (videoWidth > videoHeight) {
+        if (videoWidth > MAX_DIMENSION) {
+          newWidth = MAX_DIMENSION;
+          newHeight = (videoHeight / videoWidth) * MAX_DIMENSION;
+        }
+      } else {
+        if (videoHeight > MAX_DIMENSION) {
+          newHeight = MAX_DIMENSION;
+          newWidth = (videoWidth / videoHeight) * MAX_DIMENSION;
+        }
+      }
+      
+      // Set canvas dimensions to resized dimensions
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      
+      // Draw video frame to canvas with resizing
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, newWidth, newHeight);
+      
+      // Convert to base64 with lower quality (0.6) to reduce file size further
+      // This should result in ~50-150KB images instead of 500KB+
+      const photoBase64 = canvas.toDataURL('image/jpeg', 0.6);
+      setCapturedPhoto(photoBase64);
+      
+      // Log image size for debugging
+      const sizeInKB = (photoBase64.length * 3) / 4 / 1024;
+      console.log(`Captured photo size: ${sizeInKB.toFixed(2)} KB`);
+      
+      // Stop camera
+      stopCamera();
+      
+      toast.success('Photo captured successfully!');
+    } catch (error) {
+      console.error('Capture error:', error);
+      toast.error('Failed to capture photo');
+      setIsCapturing(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCapturing(false);
+  };
+
+  const handleCameraClose = () => {
+    stopCamera();
+    setCameraOpen(false);
+    setCapturedPhoto(null);
+    setCameraError(null);
+    setPendingAction(null);
+  };
+
+  const handleRetakePhoto = () => {
+    setCapturedPhoto(null);
+    setCameraError(null);
+    startCamera();
+  };
+
+  // Open camera for check-in or check-out
+  const openCameraForAction = async (action) => {
+    setPendingAction(action);
+    setCameraOpen(true);
+    setCapturedPhoto(null);
+    setCameraError(null);
+    
+    // Small delay to ensure dialog is open before starting camera
+    setTimeout(() => {
+      startCamera();
+    }, 100);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -115,9 +268,21 @@ export default function EmployeeAttendance() {
         // Permissions API not supported, ignore
       });
     }
+
+    // Cleanup camera stream on unmount
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
   }, [user]);
 
   const handleCheckIn = async () => {
+    // Open camera first
+    openCameraForAction('checkin');
+  };
+
+  const processCheckIn = async (photoBase64) => {
     try {
       setCheckingIn(true);
       clearLocation();
@@ -183,8 +348,8 @@ export default function EmployeeAttendance() {
       console.log('User email for check-in:', user?.email);
       console.log('Final location data:', locationData);
       
-      // Proceed with check-in (with or without location data)
-      await apiService.checkIn(locationData || {}, user?.email);
+      // Proceed with check-in (with or without location data, but with photo)
+      await apiService.checkIn(locationData || {}, user?.email, photoBase64);
       
       if (locationData && locationData.latitude && locationData.longitude) {
         const locationInfo = locationData.city && locationData.city !== 'Unknown City' 
@@ -198,6 +363,9 @@ export default function EmployeeAttendance() {
       // Reload attendance data
       const attendanceData = await apiService.getTodayAttendance(user.email);
       setAttendance(attendanceData);
+      
+      // Clear captured photo
+      setCapturedPhoto(null);
     } catch (err) {
       console.error('Check-in error:', err);
       if (err.message.includes('Location')) {
@@ -211,6 +379,11 @@ export default function EmployeeAttendance() {
   };
 
   const handleCheckOut = async () => {
+    // Open camera first
+    openCameraForAction('checkout');
+  };
+
+  const processCheckOut = async (photoBase64) => {
     try {
       setCheckingOut(true);
       clearLocation();
@@ -286,8 +459,8 @@ export default function EmployeeAttendance() {
       console.log('User email for check-out:', user?.email);
       console.log('Final location data:', locationData);
       
-      // Proceed with check-out with location data
-      await apiService.checkOut(locationData, user?.email);
+      // Proceed with check-out with location data and photo
+      await apiService.checkOut(locationData, user?.email, photoBase64);
       
       const locationInfo = locationData.city && locationData.city !== 'Unknown City' 
         ? ` from ${locationData.city}`
@@ -298,6 +471,9 @@ export default function EmployeeAttendance() {
       // Reload attendance data
       const attendanceData = await apiService.getTodayAttendance(user.email);
       setAttendance(attendanceData);
+      
+      // Clear captured photo
+      setCapturedPhoto(null);
     } catch (err) {
       console.error('Check-out error:', err);
       if (err.message.includes('Location') || err.message.includes('location')) {
@@ -328,6 +504,126 @@ export default function EmployeeAttendance() {
 
   return (
     <div className="space-y-6">
+      {/* Camera Dialog */}
+      <Dialog open={cameraOpen} onOpenChange={handleCameraClose}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingAction === 'checkin' ? 'Check-In Photo' : 'Check-Out Photo'}
+            </DialogTitle>
+            <DialogDescription>
+              {capturedPhoto 
+                ? 'Review your photo. Click "Retake" to capture again or "Confirm" to proceed.'
+                : 'Please allow camera access and position yourself in the frame. Click "Capture Photo" when ready.'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {cameraError ? (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="h-5 w-5 text-red-600" />
+                  <p className="text-sm text-red-800">{cameraError}</p>
+                </div>
+                <Button
+                  onClick={startCamera}
+                  variant="outline"
+                  className="mt-3"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
+                </Button>
+              </div>
+            ) : capturedPhoto ? (
+              <div className="space-y-4">
+                <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                  <img
+                    src={capturedPhoto}
+                    alt="Captured photo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    onClick={handleRetakePhoto}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Retake
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      handleCameraClose();
+                      if (pendingAction === 'checkin') {
+                        processCheckIn(capturedPhoto);
+                      } else {
+                        processCheckOut(capturedPhoto);
+                      }
+                    }}
+                    className="flex-1"
+                    disabled={checkingIn || checkingOut}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Confirm & {pendingAction === 'checkin' ? 'Check In' : 'Check Out'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                  {!cameraStream && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-center text-white">
+                        <Camera className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Starting camera...</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <Button
+                  onClick={capturePhoto}
+                  disabled={!cameraStream || isCapturing}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isCapturing ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Capturing...
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="h-4 w-4 mr-2" />
+                      Capture Photo
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button
+              onClick={handleCameraClose}
+              variant="outline"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hidden canvas for photo capture */}
+      <canvas ref={canvasRef} className="hidden" />
+
       {/* KYC Warning Banner */}
       {showKycWarning && (
         <Card className="border-yellow-500 bg-yellow-50">
@@ -398,6 +694,23 @@ export default function EmployeeAttendance() {
                         Expected: 10:00 AM
                       </p>
                     )}
+                    {attendance.checkInPhoto && (
+                      <div className="mt-2">
+                        <img
+                          src={attendance.checkInPhoto}
+                          alt="Check-in photo"
+                          className="w-16 h-16 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => {
+                            // Open full-size image in new window
+                            const newWindow = window.open();
+                            if (newWindow) {
+                              newWindow.document.write(`<img src="${attendance.checkInPhoto}" style="max-width:100%; height:auto;" />`);
+                            }
+                          }}
+                          title="Click to view full size"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -418,6 +731,23 @@ export default function EmployeeAttendance() {
                       <p className="text-xs text-gray-500 mt-1">
                         Auto-checkout (midnight reset)
                       </p>
+                    )}
+                    {attendance.checkOutPhoto && (
+                      <div className="mt-2">
+                        <img
+                          src={attendance.checkOutPhoto}
+                          alt="Check-out photo"
+                          className="w-16 h-16 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => {
+                            // Open full-size image in new window
+                            const newWindow = window.open();
+                            if (newWindow) {
+                              newWindow.document.write(`<img src="${attendance.checkOutPhoto}" style="max-width:100%; height:auto;" />`);
+                            }
+                          }}
+                          title="Click to view full size"
+                        />
+                      </div>
                     )}
                   </div>
                 </div>
