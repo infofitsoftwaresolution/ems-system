@@ -33,7 +33,10 @@ import {
   Download,
   Eye,
   RefreshCw,
-  Users
+  Users,
+  Camera,
+  ExternalLink,
+  X
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiService } from "@/lib/api";
@@ -51,6 +54,8 @@ export default function AdminAttendance() {
   const [dateFilter, setDateFilter] = useState("all"); // Default to "all" to show all records
   const [selectedAttendance, setSelectedAttendance] = useState(null);
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null); // For image lightbox
+  const [imageModalOpen, setImageModalOpen] = useState(false);
 
   // Load attendance data
   useEffect(() => {
@@ -153,6 +158,29 @@ export default function AdminAttendance() {
     const lng = Number(longitude);
     if (isNaN(lat) || isNaN(lng)) return 'Invalid location data';
     return address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  };
+
+  // Open map link
+  const openMapLink = (latitude, longitude) => {
+    if (!latitude || !longitude) return;
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (isNaN(lat) || isNaN(lng)) return;
+    // Open in Google Maps
+    const url = `https://www.google.com/maps?q=${lat},${lng}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Open image in lightbox
+  const openImageModal = (imageSrc, title) => {
+    setSelectedImage({ src: imageSrc, title });
+    setImageModalOpen(true);
+  };
+
+  // Close image modal
+  const closeImageModal = () => {
+    setImageModalOpen(false);
+    setSelectedImage(null);
   };
 
   // Export single employee attendance data
@@ -302,6 +330,36 @@ export default function AdminAttendance() {
 
   return (
     <div className="space-y-6">
+      {/* Image Lightbox Modal */}
+      <Dialog open={imageModalOpen} onOpenChange={setImageModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="flex items-center justify-between">
+              <span>{selectedImage?.title || 'Photo'}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeImageModal}
+                className="h-6 w-6"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="px-6 pb-6">
+            {selectedImage && (
+              <div className="relative w-full bg-black rounded-lg overflow-hidden">
+                <img
+                  src={selectedImage.src}
+                  alt={selectedImage.title}
+                  className="w-full h-auto max-h-[70vh] object-contain mx-auto"
+                />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Error Banner */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
@@ -448,7 +506,9 @@ export default function AdminAttendance() {
                 <TableHead>Date</TableHead>
                 <TableHead>Employee</TableHead>
                 <TableHead>Check In</TableHead>
+                <TableHead>Check In Photo</TableHead>
                 <TableHead>Check Out</TableHead>
+                <TableHead>Check Out Photo</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Late</TableHead>
                 <TableHead>Check In Location</TableHead>
@@ -487,13 +547,23 @@ export default function AdminAttendance() {
                           ) : null;
                         })()}
                       </div>
-                      {record.checkInLatitude && record.checkInLongitude && (
-                        <p className="text-xs text-gray-500">
-                          <Navigation className="h-3 w-3 inline mr-1" />
-                          {getLocationDisplay(record.checkInLatitude, record.checkInLongitude, record.checkInAddress)}
-                        </p>
-                      )}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {record.checkInPhoto ? (
+                      <div className="flex items-center space-x-2">
+                        <img
+                          src={record.checkInPhoto}
+                          alt="Check-in photo"
+                          className="w-12 h-12 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => openImageModal(record.checkInPhoto, `Check-in Photo - ${record.name || record.email}`)}
+                          title="Click to view full size"
+                        />
+                        <Camera className="h-3 w-3 text-gray-400" />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">No photo</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div>
@@ -505,18 +575,23 @@ export default function AdminAttendance() {
                           </Badge>
                         )}
                       </div>
-                      {record.checkOutLatitude && record.checkOutLongitude && (
-                        <p className="text-xs text-gray-500">
-                          <Navigation className="h-3 w-3 inline mr-1" />
-                          {getLocationDisplay(record.checkOutLatitude, record.checkOutLongitude, record.checkOutAddress)}
-                        </p>
-                      )}
-                      {record.checkoutType === 'auto-midnight' && (
-                        <p className="text-xs text-gray-400 mt-1">
-                          Auto-checkout (midnight reset)
-                        </p>
-                      )}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {record.checkOutPhoto ? (
+                      <div className="flex items-center space-x-2">
+                        <img
+                          src={record.checkOutPhoto}
+                          alt="Check-out photo"
+                          className="w-12 h-12 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => openImageModal(record.checkOutPhoto, `Check-out Photo - ${record.name || record.email}`)}
+                          title="Click to view full size"
+                        />
+                        <Camera className="h-3 w-3 text-gray-400" />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">No photo</span>
+                    )}
                   </TableCell>
                   <TableCell>{getStatusBadge(record.status)}</TableCell>
                   <TableCell>
@@ -544,9 +619,14 @@ export default function AdminAttendance() {
                     {record.checkInLatitude && record.checkInLongitude ? (
                       <div className="flex items-center space-x-1">
                         <MapPin className="h-3 w-3 text-green-500" />
-                        <span className="text-xs">
-                          {record.checkInAddress || 'Location Available'}
-                        </span>
+                        <button
+                          onClick={() => openMapLink(record.checkInLatitude, record.checkInLongitude)}
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center space-x-1"
+                          title="Open in Google Maps"
+                        >
+                          <span>{record.checkInAddress || 'View on Map'}</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </button>
                       </div>
                     ) : (
                       <span className="text-xs text-gray-400">No location</span>
@@ -556,9 +636,14 @@ export default function AdminAttendance() {
                     {record.checkOutLatitude && record.checkOutLongitude ? (
                       <div className="flex items-center space-x-1">
                         <MapPin className="h-3 w-3 text-red-500" />
-                        <span className="text-xs">
-                          {record.checkOutAddress || 'Location Available'}
-                        </span>
+                        <button
+                          onClick={() => openMapLink(record.checkOutLatitude, record.checkOutLongitude)}
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center space-x-1"
+                          title="Open in Google Maps"
+                        >
+                          <span>{record.checkOutAddress || 'View on Map'}</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </button>
                       </div>
                     ) : (
                       <span className="text-xs text-gray-400">No location</span>
@@ -647,16 +732,39 @@ export default function AdminAttendance() {
                               </div>
                               <div>
                                 <p className="text-sm text-gray-600">Location</p>
-                                <p className="font-medium">
-                                  {record.checkInAddress || 'No address available'}
-                                </p>
+                                {record.checkInLatitude && record.checkInLongitude ? (
+                                  <button
+                                    onClick={() => openMapLink(record.checkInLatitude, record.checkInLongitude)}
+                                    className="text-blue-600 hover:text-blue-800 hover:underline flex items-center space-x-1 text-left"
+                                    title="Open in Google Maps"
+                                  >
+                                    <span className="font-medium">
+                                      {record.checkInAddress || 'View on Map'}
+                                    </span>
+                                    <ExternalLink className="h-3 w-3" />
+                                  </button>
+                                ) : (
+                                  <p className="font-medium">No address available</p>
+                                )}
                                 {record.checkInLatitude && record.checkInLongitude && (
-                                  <p className="text-xs text-gray-500">
+                                  <p className="text-xs text-gray-500 mt-1">
                                     {Number(record.checkInLatitude).toFixed(6)}, {Number(record.checkInLongitude).toFixed(6)}
                                   </p>
                                 )}
                               </div>
                             </div>
+                            {record.checkInPhoto && (
+                              <div className="mt-3">
+                                <p className="text-sm text-gray-600 mb-2">Check-in Photo</p>
+                                <img
+                                  src={record.checkInPhoto}
+                                  alt="Check-in photo"
+                                  className="w-32 h-32 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => openImageModal(record.checkInPhoto, `Check-in Photo - ${record.name || record.email}`)}
+                                  title="Click to view full size"
+                                />
+                              </div>
+                            )}
                           </div>
 
                           {/* Check Out Details */}
@@ -681,16 +789,39 @@ export default function AdminAttendance() {
                               </div>
                               <div>
                                 <p className="text-sm text-gray-600">Location</p>
-                                <p className="font-medium">
-                                  {record.checkOutAddress || 'No address available'}
-                                </p>
+                                {record.checkOutLatitude && record.checkOutLongitude ? (
+                                  <button
+                                    onClick={() => openMapLink(record.checkOutLatitude, record.checkOutLongitude)}
+                                    className="text-blue-600 hover:text-blue-800 hover:underline flex items-center space-x-1 text-left"
+                                    title="Open in Google Maps"
+                                  >
+                                    <span className="font-medium">
+                                      {record.checkOutAddress || 'View on Map'}
+                                    </span>
+                                    <ExternalLink className="h-3 w-3" />
+                                  </button>
+                                ) : (
+                                  <p className="font-medium">No address available</p>
+                                )}
                                 {record.checkOutLatitude && record.checkOutLongitude && (
-                                  <p className="text-xs text-gray-500">
+                                  <p className="text-xs text-gray-500 mt-1">
                                     {Number(record.checkOutLatitude).toFixed(6)}, {Number(record.checkOutLongitude).toFixed(6)}
                                   </p>
                                 )}
                               </div>
                             </div>
+                            {record.checkOutPhoto && (
+                              <div className="mt-3">
+                                <p className="text-sm text-gray-600 mb-2">Check-out Photo</p>
+                                <img
+                                  src={record.checkOutPhoto}
+                                  alt="Check-out photo"
+                                  className="w-32 h-32 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => openImageModal(record.checkOutPhoto, `Check-out Photo - ${record.name || record.email}`)}
+                                  title="Click to view full size"
+                                />
+                              </div>
+                            )}
                           </div>
 
                           {/* Notes */}
