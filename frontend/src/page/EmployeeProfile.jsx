@@ -522,7 +522,7 @@ export default function EmployeeProfile() {
     switch (status) {
       case "approved":
         return (
-          <Badge variant="default" className="bg-green-500">
+          <Badge variant="default" className="bg-primary">
             <CheckCircle className="h-3 w-3 mr-1" />
             Approved
           </Badge>
@@ -744,12 +744,12 @@ export default function EmployeeProfile() {
               <div className="flex items-center space-x-3 p-3 border rounded-lg">
                 <div
                   className={`p-2 rounded-full ${
-                    kycStatus === "approved" ? "bg-green-100" : "bg-gray-100"
+                    kycStatus === "approved" ? "bg-primary/20" : "bg-muted"
                   }`}>
                   <Calendar
                     className={`h-4 w-4 ${
                       kycStatus === "approved"
-                        ? "text-green-600"
+                        ? "text-primary"
                         : "text-gray-400"
                     }`}
                   />
@@ -767,12 +767,12 @@ export default function EmployeeProfile() {
               <div className="flex items-center space-x-3 p-3 border rounded-lg">
                 <div
                   className={`p-2 rounded-full ${
-                    kycStatus === "approved" ? "bg-green-100" : "bg-gray-100"
+                    kycStatus === "approved" ? "bg-primary/20" : "bg-muted"
                   }`}>
                   <FileText
                     className={`h-4 w-4 ${
                       kycStatus === "approved"
-                        ? "text-green-600"
+                        ? "text-primary"
                         : "text-gray-400"
                     }`}
                   />
@@ -790,12 +790,12 @@ export default function EmployeeProfile() {
               <div className="flex items-center space-x-3 p-3 border rounded-lg">
                 <div
                   className={`p-2 rounded-full ${
-                    kycStatus === "approved" ? "bg-green-100" : "bg-gray-100"
+                    kycStatus === "approved" ? "bg-primary/20" : "bg-muted"
                   }`}>
                   <Clock
                     className={`h-4 w-4 ${
                       kycStatus === "approved"
-                        ? "text-green-600"
+                        ? "text-primary"
                         : "text-gray-400"
                     }`}
                   />

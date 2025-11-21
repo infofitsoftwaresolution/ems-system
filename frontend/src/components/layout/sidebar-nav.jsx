@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "react-router-dom";
 import {
   Users,
@@ -67,7 +66,11 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
     }
 
     // Add admin/manager/hr specific items
-    if (user?.role === "admin" || user?.role === "manager" || user?.role === "hr") {
+    if (
+      user?.role === "admin" ||
+      user?.role === "manager" ||
+      user?.role === "hr"
+    ) {
       baseItems.splice(
         1,
         0,
@@ -110,25 +113,25 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
     }
 
     // Add admin/manager/hr items (before common items for better visibility)
-    if (user?.role === "admin" || user?.role === "manager" || user?.role === "hr") {
-      baseItems.push(
-        {
-          title: "KYC Management",
-          href: "/kyc-management",
-          icon: ShieldCheck,
-        }
-      );
+    if (
+      user?.role === "admin" ||
+      user?.role === "manager" ||
+      user?.role === "hr"
+    ) {
+      baseItems.push({
+        title: "KYC Management",
+        href: "/kyc-management",
+        icon: ShieldCheck,
+      });
     }
 
     // Add admin-only items
     if (user?.role === "admin") {
-      baseItems.push(
-        {
-          title: "Administration",
-          href: "/admin",
-          icon: ServerCog,
-        }
-      );
+      baseItems.push({
+        title: "Administration",
+        href: "/admin",
+        icon: ServerCog,
+      });
     }
 
     // Add common items for all users
@@ -161,21 +164,26 @@ export function SidebarNav({ className, isCollapsed, ...props }) {
   const items = getNavigationItems();
 
   return (
-    <nav className={cn("flex flex-col gap-2", className)} {...props}>
+    <nav className={cn("flex flex-col gap-1", className)} {...props}>
       {items.map((item) => {
         const isActive = location.pathname === item.href;
         return (
-          <Button
+          <Link
             key={item.href}
-            variant={isActive ? "secondary" : "ghost"}
-            size={isCollapsed ? "icon" : "default"}
-            className={cn("justify-start", isCollapsed && "h-10 w-10 p-0")}
-            asChild>
-            <Link to={item.href}>
-              <item.icon className={cn("h-5 w-5", !isCollapsed && "mr-2")} />
-              {!isCollapsed && <span>{item.title}</span>}
-            </Link>
-          </Button>
+            to={item.href}
+            className={cn(
+              "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 h-10",
+              "hover:bg-accent hover:text-accent-foreground",
+              isActive && "bg-accent text-accent-foreground font-medium",
+              isCollapsed && "justify-center px-0 w-10"
+            )}
+            role="menuitem"
+            tabIndex={-1}>
+            <item.icon
+              className={cn("h-5 w-5 flex-shrink-0", !isCollapsed && "mr-2")}
+            />
+            {!isCollapsed && <span>{item.title}</span>}
+          </Link>
         );
       })}
     </nav>

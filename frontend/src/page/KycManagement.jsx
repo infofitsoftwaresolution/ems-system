@@ -105,7 +105,7 @@ export default function KycManagement() {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'approved':
-        return <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
+        return <Badge variant="default" className="bg-primary"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
       case 'rejected':
         return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejected</Badge>;
       case 'pending':
@@ -239,7 +239,7 @@ export default function KycManagement() {
                         return (
                           <>
                             {Array.from({ length: Math.min(docCount, 3) }).map((_, i) => (
-                              <FileImage key={i} className="h-4 w-4 text-blue-500" />
+                              <FileImage key={i} className="h-4 w-4 text-primary" />
                             ))}
                             <span className="text-sm text-gray-500">
                               {docCount} file{docCount !== 1 ? 's' : ''}
@@ -516,7 +516,7 @@ export default function KycManagement() {
                                   size="sm"
                                   onClick={() => handleStatusUpdate(submission.id, 'approved')}
                                   disabled={submission.status === 'approved'}
-                                  className="bg-green-50 hover:bg-green-100"
+                                  className="bg-primary/10 hover:bg-primary/20"
                                 >
                                   <CheckCircle className="h-4 w-4 mr-1" />
                                   Approve

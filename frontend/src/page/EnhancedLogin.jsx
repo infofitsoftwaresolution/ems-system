@@ -125,8 +125,8 @@ export default function EnhancedLogin() {
       </div>
 
       {/* Decorative elements */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-green-200/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-200/20 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
+      <div className="absolute top-0 left-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
 
       <motion.div
         className="relative z-20 w-full max-w-md flex flex-col items-center justify-center px-1 py-8"
@@ -157,14 +157,14 @@ export default function EnhancedLogin() {
               />
             ) : (
               <div className="flex items-center gap-3 mx-auto">
-                <div className="w-12 h-12 rounded-full bg-[#FF6B35] flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 6 L8 16 L16 16 Z" fill="#1a1a1a"/>
+                    <path d="M12 6 L8 16 L16 16 Z" fill="white"/>
                   </svg>
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-[#166534] leading-tight">RURAL</h1>
-                  <h1 className="text-2xl font-bold text-[#FF6B35] leading-tight">SAMRIDDHI</h1>
+                  <h1 className="text-2xl font-bold text-primary leading-tight">RURAL</h1>
+                  <h1 className="text-2xl font-bold text-accent leading-tight">SAMRIDDHI</h1>
                 </div>
               </div>
             )}

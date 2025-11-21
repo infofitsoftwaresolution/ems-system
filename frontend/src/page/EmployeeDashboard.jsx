@@ -133,9 +133,9 @@ export default function EmployeeDashboard() {
 
   const getNotificationIcon = (type) => {
     switch (type) {
-      case "success": return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case "success": return <CheckCircle className="h-4 w-4 text-primary" />;
       case "warning": return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-      case "info": return <Bell className="h-4 w-4 text-blue-500" />;
+      case "info": return <Bell className="h-4 w-4 text-accent" />;
       default: return <Bell className="h-4 w-4" />;
     }
   };
@@ -144,7 +144,7 @@ export default function EmployeeDashboard() {
     switch (status) {
       case 'approved':
         return (
-          <Badge variant="default" className="bg-green-500">
+          <Badge variant="default" className="bg-primary">
             <CheckCircle className="h-3 w-3 mr-1" />
             KYC Approved
           </Badge>
