@@ -80,9 +80,9 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager', 'hr']), asyn
           'status', 'notes', 
           'checkInLatitude', 'checkInLongitude', 'checkInAddress',
           'checkOutLatitude', 'checkOutLongitude', 'checkOutAddress',
+          'checkInPhoto', 'checkOutPhoto', // Photo fields
+          'isLate', 'checkoutType', // Late status and checkout type
           'createdAt', 'updatedAt'
-          // Note: isLate and checkoutType are excluded if they don't exist in DB
-          // They will be calculated/added in the enrichment step
         ],
         order: [['date', 'DESC'], ['checkIn', 'DESC']],
         limit: limit,
