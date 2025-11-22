@@ -4,6 +4,8 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import cron from "node-cron";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import { sequelize } from "./sequelize.js";
 import { Attendance } from "./models/Attendance.js";
 import { Op } from "sequelize";
@@ -35,6 +37,41 @@ import eventsRouter from "./routes/events.js";
 import messagesRouter from "./routes/messages.js";
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:4173",
+      "http://13.233.73.43:80",
+      "http://13.233.73.43:3001",
+      "http://13.233.73.43",
+      "http://13.233.73.43.nip.io",
+    ],
+    credentials: true,
+    methods: ["GET", "POST"],
+  },
+  transports: ['polling', 'websocket'],
+  allowEIO3: true,
+});
+
+// Make io available to routes
+app.set("io", io);
+
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  console.log('✅ Socket.io client connected:', socket.id);
+
+  socket.on('disconnect', (reason) => {
+    console.log('Socket.io client disconnected:', socket.id, 'Reason:', reason);
+  });
+
+  socket.on('error', (error) => {
+    console.error('Socket.io error:', error);
+  });
+});
 
 app.use(
   helmet({
@@ -254,8 +291,9 @@ async function start() {
         }
       }
     }
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
       console.log(`Server listening on http://localhost:${PORT}`);
+      console.log(`Socket.io listening on port ${PORT}`);
       
       // Schedule auto-checkout at 11:59 PM every day
       // Cron format: minute hour day month dayOfWeek

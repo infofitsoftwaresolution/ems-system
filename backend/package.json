@@ -12,7 +12,9 @@
     "seed:kyc": "node src/seedKyc.js",
     "update-admin": "node src/updateAdminPassword.js",
     "setup": "npm run seed && npm run seed:kyc",
-    "reset-db": "rm -f database.sqlite && npm run setup"
+    "reset-db": "rm -f database.sqlite && npm run setup",
+    "fix-messages": "node fix-messages-table.js",
+    "test-messages": "node test-messages-endpoint.js"
   },
   "keywords": [
     "employee-management",
@@ -45,6 +47,7 @@
     "pdfkit": "^0.17.1",
     "pg": "^8.11.3",
     "sequelize": "^6.35.0",
+    "socket.io": "^4.8.1",
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {

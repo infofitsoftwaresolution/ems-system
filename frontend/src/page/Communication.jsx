@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -54,6 +54,7 @@ import { users } from "@/lib/data";
 import { useAuth } from "@/hooks/use-auth";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
+import { useSocket } from "@/hooks/use-socket";
 
 /**
  * @typedef {Object} Message
@@ -77,8 +78,8 @@ import { toast } from "sonner";
  * @property {string} createdAt - Creation date
  */
 
-// Sample direct messages data
-const directMessages = [
+// Sample direct messages data (kept for reference, now using API)
+const _directMessages = [
   {
     id: "dm1",
     senderId: "u2",
@@ -149,8 +150,8 @@ const directMessages = [
   },
 ];
 
-// Sample channels data
-const channels = [
+// Sample channels data (kept for reference, now using API)
+const _channels = [
   {
     id: "c1",
     name: "general",
@@ -177,8 +178,8 @@ const channels = [
   },
 ];
 
-// Sample channel messages
-const channelMessages = [
+// Sample channel messages (kept for reference, now using API)
+const _channelMessages = [
   {
     id: "cm1",
     senderId: "u2",
@@ -256,7 +257,8 @@ export default function Communication() {
   const [conversations, setConversations] = useState([]);
   const [messages, setMessages] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isNewConversationDialogOpen, setIsNewConversationDialogOpen] = useState(false);
+  const [isNewConversationDialogOpen, setIsNewConversationDialogOpen] =
+    useState(false);
   const [availableUsers, setAvailableUsers] = useState([]);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
@@ -265,6 +267,123 @@ export default function Communication() {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // Handle real-time direct messages
+  const handleNewDirectMessage = useCallback(
+    (newMessage) => {
+      // Only add if it's for the current conversation
+      if (
+        activeConversation?.type === "direct" &&
+        (newMessage.senderEmail === activeConversation.email ||
+          newMessage.recipientEmail === activeConversation.email)
+      ) {
+        const transformedMessage = {
+          id: newMessage.id.toString(),
+          senderId: newMessage.senderEmail,
+          senderEmail: newMessage.senderEmail,
+          senderName: newMessage.senderName,
+          recipientId: newMessage.recipientEmail,
+          recipientEmail: newMessage.recipientEmail,
+          content: newMessage.content,
+          timestamp: newMessage.createdAt || new Date().toISOString(),
+          read: newMessage.read,
+          attachments: newMessage.attachments
+            ? JSON.parse(newMessage.attachments)
+            : [],
+        };
+
+        // Check if message already exists to prevent duplicates
+        setMessages((prev) => {
+          const messageExists = prev.some(
+            (msg) => msg.id === transformedMessage.id
+          );
+          if (messageExists) {
+            return prev; // Don't add duplicate
+          }
+          return [...prev, transformedMessage];
+        });
+        scrollToBottom();
+      }
+
+      // Update conversations list
+      setConversations((prevConversations) => {
+        const existing = prevConversations.find(
+          (c) =>
+            c.email === newMessage.senderEmail ||
+            c.email === newMessage.recipientEmail
+        );
+        if (existing) {
+          return prevConversations.map((conv) =>
+            conv.email === newMessage.senderEmail ||
+            conv.email === newMessage.recipientEmail
+              ? {
+                  ...conv,
+                  lastMessage: newMessage.content,
+                  timestamp: newMessage.createdAt,
+                }
+              : conv
+          );
+        }
+        return prevConversations;
+      });
+    },
+    [activeConversation]
+  );
+
+  // Handle real-time channel messages
+  const handleNewChannelMessage = useCallback(
+    (channelId, newMessage) => {
+      // Only add if it's for the current channel
+      if (
+        activeConversation?.type === "channel" &&
+        activeConversation.id === channelId
+      ) {
+        const transformedMessage = {
+          id: newMessage.id.toString(),
+          senderId: newMessage.senderEmail,
+          senderEmail: newMessage.senderEmail,
+          senderName: newMessage.senderName,
+          recipientId: null,
+          channelId: newMessage.channelId,
+          content: newMessage.content,
+          timestamp: newMessage.createdAt || new Date().toISOString(),
+          read: newMessage.read,
+          attachments: newMessage.attachments
+            ? JSON.parse(newMessage.attachments)
+            : [],
+        };
+
+        // Check if message already exists to prevent duplicates
+        setMessages((prev) => {
+          const messageExists = prev.some(
+            (msg) => msg.id === transformedMessage.id
+          );
+          if (messageExists) {
+            return prev; // Don't add duplicate
+          }
+          return [...prev, transformedMessage];
+        });
+        scrollToBottom();
+      }
+
+      // Update channels list
+      setConversations((prevConversations) => {
+        return prevConversations.map((conv) =>
+          conv.id === channelId
+            ? {
+                ...conv,
+                lastMessage: newMessage.content,
+                timestamp: newMessage.createdAt,
+              }
+            : conv
+        );
+      });
+    },
+    [activeConversation]
+  );
+
+  // Setup Socket.io connection
+  useSocket(handleNewDirectMessage, handleNewChannelMessage);
+
   // Load conversations from API
   useEffect(() => {
     const loadConversations = async () => {
@@ -272,7 +391,7 @@ export default function Communication() {
         try {
           setIsLoadingConversations(true);
           const conversationsData = await apiService.getConversations();
-          
+
           // Transform API data to match component format
           const transformedConversations = conversationsData.map((conv) => ({
             id: conv.email, // Use email as ID
@@ -282,50 +401,42 @@ export default function Communication() {
             timestamp: conv.lastMessageTime || new Date().toISOString(),
             unread: conv.unread || 0,
             online: false, // Can be enhanced later with real-time status
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.name)}`,
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+              conv.name
+            )}`,
           }));
 
           setConversations(transformedConversations);
         } catch (error) {
-          console.error('Error loading conversations:', error);
-          toast.error('Failed to load conversations');
+          console.error("Error loading conversations:", error);
+          toast.error("Failed to load conversations");
           setConversations([]);
         } finally {
           setIsLoadingConversations(false);
         }
       } else if (activeTab === "channels") {
-        // Channels functionality - keep mock for now or implement later
-        setConversations(
-          channels
-            .filter((channel) => channel.members.includes(user?.id || ""))
-            .map((channel) => {
-              const lastChannelMsg = channelMessages
-                .filter((msg) => msg.channelId === channel.id)
-                .sort(
-                  (a, b) =>
-                    new Date(b.timestamp).getTime() -
-                    new Date(a.timestamp).getTime()
-                )[0];
+        try {
+          setIsLoadingConversations(true);
+          const channelsData = await apiService.getChannels();
 
-              return {
-                id: channel.id,
-                name: channel.name,
-                lastMessage: lastChannelMsg?.content || "No messages yet",
-                timestamp: lastChannelMsg?.timestamp || channel.createdAt,
-                unread: channelMessages.filter(
-                  (msg) =>
-                    msg.channelId === channel.id &&
-                    !msg.read &&
-                    msg.senderId !== user?.id
-                ).length,
-                online: true,
-              };
-            })
-            .sort(
-              (a, b) =>
-                new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-            )
-        );
+          // Transform API data to match component format
+          const transformedChannels = channelsData.map((channel) => ({
+            id: channel.id,
+            name: channel.name,
+            lastMessage: channel.lastMessage || "No messages yet",
+            timestamp: channel.lastMessageTime || new Date().toISOString(),
+            unread: channel.unread || 0,
+            online: true,
+          }));
+
+          setConversations(transformedChannels);
+        } catch (error) {
+          console.error("Error loading channels:", error);
+          toast.error("Failed to load channels");
+          setConversations([]);
+        } finally {
+          setIsLoadingConversations(false);
+        }
       }
     };
 
@@ -340,8 +451,10 @@ export default function Communication() {
       if (activeConversation.type === "direct") {
         try {
           setIsLoadingMessages(true);
-          const messagesData = await apiService.getConversation(activeConversation.email || activeConversation.id);
-          
+          const messagesData = await apiService.getConversation(
+            activeConversation.email || activeConversation.id
+          );
+
           // Transform API data to match component format
           const transformedMessages = messagesData.map((msg) => ({
             id: msg.id.toString(),
@@ -358,32 +471,58 @@ export default function Communication() {
 
           setMessages(transformedMessages);
 
-          // Mark messages as read
+          // Mark messages as read (don't block if this fails)
           if (activeConversation.email) {
-            await apiService.markMessagesAsRead(activeConversation.email);
-            setConversations((prevConversations) =>
-              prevConversations.map((conv) =>
-                conv.email === activeConversation.email ? { ...conv, unread: 0 } : conv
-              )
-            );
+            try {
+              await apiService.markMessagesAsRead(activeConversation.email);
+              setConversations((prevConversations) =>
+                prevConversations.map((conv) =>
+                  conv.email === activeConversation.email
+                    ? { ...conv, unread: 0 }
+                    : conv
+                )
+              );
+            } catch (readError) {
+              console.error("Error marking messages as read:", readError);
+              // Continue anyway - not critical
+            }
           }
         } catch (error) {
-          console.error('Error loading messages:', error);
-          toast.error('Failed to load messages');
+          console.error("Error loading messages:", error);
+          toast.error("Failed to load messages");
           setMessages([]);
         } finally {
           setIsLoadingMessages(false);
         }
-      } else {
-        // Channel messages - keep mock for now
-        setMessages(
-          channelMessages
-            .filter((msg) => msg.channelId === activeConversation.id)
-            .sort(
-              (a, b) =>
-                new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-            )
-        );
+      } else if (activeConversation.type === "channel") {
+        try {
+          setIsLoadingMessages(true);
+          const messagesData = await apiService.getChannelMessages(
+            activeConversation.id
+          );
+
+          // Transform API data to match component format
+          const transformedMessages = messagesData.map((msg) => ({
+            id: msg.id.toString(),
+            senderId: msg.senderEmail,
+            senderEmail: msg.senderEmail,
+            senderName: msg.senderName,
+            recipientId: null,
+            channelId: msg.channelId,
+            content: msg.content,
+            timestamp: msg.createdAt || msg.timestamp,
+            read: msg.read,
+            attachments: msg.attachments ? JSON.parse(msg.attachments) : [],
+          }));
+
+          setMessages(transformedMessages);
+        } catch (error) {
+          console.error("Error loading channel messages:", error);
+          toast.error("Failed to load channel messages");
+          setMessages([]);
+        } finally {
+          setIsLoadingMessages(false);
+        }
       }
 
       // Scroll to bottom of messages
@@ -403,7 +542,13 @@ export default function Communication() {
   };
 
   const handleSendMessage = async () => {
-    if (!message.trim() || !activeConversation || !user?.email) return;
+    if (
+      !message.trim() ||
+      !activeConversation ||
+      !user?.email ||
+      isSendingMessage
+    )
+      return;
 
     const messageContent = message.trim();
     setMessage(""); // Clear input immediately for better UX
@@ -411,12 +556,17 @@ export default function Communication() {
     if (activeConversation.type === "direct") {
       try {
         setIsSendingMessage(true);
-        const recipientEmail = activeConversation.email || activeConversation.id;
-        
+        const recipientEmail =
+          activeConversation.email || activeConversation.id;
+
         // Send message via API
-        const sentMessage = await apiService.sendMessage(recipientEmail, messageContent);
-        
-        // Add message to local state
+        const sentMessage = await apiService.sendMessage(
+          recipientEmail,
+          messageContent
+        );
+
+        // Add message to local state only if it doesn't already exist
+        // (socket event might have already added it)
         const newMessage = {
           id: sentMessage.id.toString(),
           senderId: sentMessage.senderEmail,
@@ -430,8 +580,14 @@ export default function Communication() {
           attachments: [],
         };
 
-        setMessages((prev) => [...prev, newMessage]);
-        
+        setMessages((prev) => {
+          const messageExists = prev.some((msg) => msg.id === newMessage.id);
+          if (messageExists) {
+            return prev; // Don't add duplicate
+          }
+          return [...prev, newMessage];
+        });
+
         // Update conversation last message
         setConversations((prevConversations) =>
           prevConversations.map((conv) =>
@@ -446,7 +602,7 @@ export default function Communication() {
         );
 
         scrollToBottom();
-        
+
         // Refresh conversations list to update last message
         if (activeTab === "direct" && user?.email) {
           try {
@@ -459,33 +615,79 @@ export default function Communication() {
               timestamp: conv.lastMessageTime || new Date().toISOString(),
               unread: conv.unread || 0,
               online: false,
-              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.name)}`,
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                conv.name
+              )}`,
             }));
             setConversations(transformedConversations);
           } catch (error) {
-            console.error('Error refreshing conversations:', error);
+            console.error("Error refreshing conversations:", error);
           }
         }
       } catch (error) {
-        console.error('Error sending message:', error);
-        toast.error('Failed to send message');
+        console.error("Error sending message:", error);
+        toast.error("Failed to send message");
         setMessage(messageContent); // Restore message on error
       } finally {
         setIsSendingMessage(false);
       }
-    } else {
-      // Channel messages - keep local for now
-      const newMessage = {
-        id: `msg-${Date.now()}`,
-        senderId: user?.id || "u1",
-        recipientId: null,
-        channelId: activeConversation.id,
-        content: messageContent,
-        timestamp: new Date().toISOString(),
-        read: false,
-      };
+    } else if (activeConversation.type === "channel") {
+      try {
+        setIsSendingMessage(true);
+        const channelId = activeConversation.id;
 
-      setMessages([...messages, newMessage]);
+        // Send message via API
+        const sentMessage = await apiService.sendMessage(
+          null,
+          messageContent,
+          channelId,
+          channelId
+        );
+
+        // Add message to local state only if it doesn't already exist
+        // (socket event might have already added it)
+        const newMessage = {
+          id: sentMessage.id.toString(),
+          senderId: sentMessage.senderEmail,
+          senderEmail: sentMessage.senderEmail,
+          senderName: sentMessage.senderName,
+          recipientId: null,
+          channelId: sentMessage.channelId,
+          content: sentMessage.content,
+          timestamp: sentMessage.createdAt || new Date().toISOString(),
+          read: false,
+          attachments: [],
+        };
+
+        setMessages((prev) => {
+          const messageExists = prev.some((msg) => msg.id === newMessage.id);
+          if (messageExists) {
+            return prev; // Don't add duplicate
+          }
+          return [...prev, newMessage];
+        });
+
+        // Update channel last message
+        setConversations((prevConversations) =>
+          prevConversations.map((conv) =>
+            conv.id === channelId
+              ? {
+                  ...conv,
+                  lastMessage: messageContent,
+                  timestamp: newMessage.timestamp,
+                }
+              : conv
+          )
+        );
+
+        scrollToBottom();
+      } catch (error) {
+        console.error("Error sending channel message:", error);
+        toast.error("Failed to send message");
+        setMessage(messageContent); // Restore message on error
+      } finally {
+        setIsSendingMessage(false);
+      }
     }
   };
 
@@ -508,19 +710,27 @@ export default function Communication() {
     if (message) {
       return {
         name: message.senderName || "Unknown User",
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(message.senderName || "Unknown")}`,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          message.senderName || "Unknown"
+        )}`,
       };
     }
-    
+
     // Fallback to users list
-    const foundUser = users.find((u) => u.email === senderEmail || u.id === senderEmail);
+    const foundUser = users.find(
+      (u) => u.email === senderEmail || u.id === senderEmail
+    );
     if (foundUser) {
       return {
         name: foundUser.name,
-        avatar: foundUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(foundUser.name)}`,
+        avatar:
+          foundUser.avatar ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            foundUser.name
+          )}`,
       };
     }
-    
+
     return {
       name: "Unknown User",
       avatar: `https://ui-avatars.com/api/?name=Unknown`,
@@ -531,59 +741,68 @@ export default function Communication() {
   useEffect(() => {
     const loadUsers = async () => {
       if (!isNewConversationDialogOpen) return;
-      
+
+      try {
+        setIsLoadingUsers(true);
+        // Get all employees/users for messaging
+        let usersData = [];
         try {
-          setIsLoadingUsers(true);
-          // Get all employees/users for messaging
-          let usersData = [];
-          try {
-            // Try to get employees first
-            const employees = await apiService.getEmployees();
-            usersData = employees
-              .filter((emp) => emp.email !== user?.email) // Exclude current user
-              .map((emp) => ({
-                id: emp.email, // Use email as ID
-                email: emp.email,
-                name: emp.name,
-                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.name)}`,
-              }));
-            
-            // Also try to get users (for admins) - only if user is admin
-            if (user?.role === 'admin') {
-              try {
-                const allUsers = await apiService.getUsers();
-                if (Array.isArray(allUsers)) {
-                  allUsers.forEach((u) => {
-                    if (u.email !== user?.email && !usersData.find((ud) => ud.email === u.email)) {
-                      usersData.push({
-                        id: u.email,
-                        email: u.email,
-                        name: u.name,
-                        avatar: u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}`,
-                      });
-                    }
-                  });
-                }
-              } catch (userError) {
-                console.error("Error loading users:", userError);
-                // Don't show error toast for this, as employees endpoint might be sufficient
+          // Try to get employees first
+          const employees = await apiService.getEmployees();
+          usersData = employees
+            .filter((emp) => emp.email !== user?.email) // Exclude current user
+            .map((emp) => ({
+              id: emp.email, // Use email as ID
+              email: emp.email,
+              name: emp.name,
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                emp.name
+              )}`,
+            }));
+
+          // Also try to get users (for admins) - only if user is admin
+          if (user?.role === "admin") {
+            try {
+              const allUsers = await apiService.getUsers();
+              if (Array.isArray(allUsers)) {
+                allUsers.forEach((u) => {
+                  if (
+                    u.email !== user?.email &&
+                    !usersData.find((ud) => ud.email === u.email)
+                  ) {
+                    usersData.push({
+                      id: u.email,
+                      email: u.email,
+                      name: u.name,
+                      avatar:
+                        u.avatar ||
+                        `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                          u.name
+                        )}`,
+                    });
+                  }
+                });
               }
+            } catch (userError) {
+              console.error("Error loading users:", userError);
+              // Don't show error toast for this, as employees endpoint might be sufficient
             }
-          } catch (error) {
-            console.error("Error loading employees:", error);
-            toast.error("Failed to load users");
           }
-          setAvailableUsers(usersData);
         } catch (error) {
-          console.error("Error loading users:", error);
+          console.error("Error loading employees:", error);
           toast.error("Failed to load users");
-        } finally {
-          setIsLoadingUsers(false);
         }
+        setAvailableUsers(usersData);
+      } catch (error) {
+        console.error("Error loading users:", error);
+        toast.error("Failed to load users");
+      } finally {
+        setIsLoadingUsers(false);
+      }
     };
 
     loadUsers();
-  }, [isNewConversationDialogOpen, user?.id]);
+  }, [isNewConversationDialogOpen, user?.id, user?.email, user?.role]);
 
   // Handle starting a new conversation
   const handleStartNewConversation = (selectedUser) => {
@@ -638,9 +857,10 @@ export default function Communication() {
 
   // Filter available users by search query
   const filteredAvailableUsers = userSearchQuery
-    ? availableUsers.filter((u) =>
-        u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-        u.email?.toLowerCase().includes(userSearchQuery.toLowerCase())
+    ? availableUsers.filter(
+        (u) =>
+          u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+          u.email?.toLowerCase().includes(userSearchQuery.toLowerCase())
       )
     : availableUsers;
 
@@ -667,22 +887,28 @@ export default function Communication() {
                     if (activeTab === "direct" && user?.email) {
                       try {
                         setIsLoadingConversations(true);
-                        const conversationsData = await apiService.getConversations();
-                        const transformedConversations = conversationsData.map((conv) => ({
-                          id: conv.email,
-                          email: conv.email,
-                          name: conv.name,
-                          lastMessage: conv.lastMessage || "No messages yet",
-                          timestamp: conv.lastMessageTime || new Date().toISOString(),
-                          unread: conv.unread || 0,
-                          online: false,
-                          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.name)}`,
-                        }));
+                        const conversationsData =
+                          await apiService.getConversations();
+                        const transformedConversations = conversationsData.map(
+                          (conv) => ({
+                            id: conv.email,
+                            email: conv.email,
+                            name: conv.name,
+                            lastMessage: conv.lastMessage || "No messages yet",
+                            timestamp:
+                              conv.lastMessageTime || new Date().toISOString(),
+                            unread: conv.unread || 0,
+                            online: false,
+                            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                              conv.name
+                            )}`,
+                          })
+                        );
                         setConversations(transformedConversations);
                         toast.success("Conversations refreshed");
                       } catch (error) {
-                        console.error('Error refreshing conversations:', error);
-                        toast.error('Failed to refresh conversations');
+                        console.error("Error refreshing conversations:", error);
+                        toast.error("Failed to refresh conversations");
                       } finally {
                         setIsLoadingConversations(false);
                       }
@@ -690,7 +916,11 @@ export default function Communication() {
                   }}
                   title="Refresh"
                   disabled={isLoadingConversations}>
-                  <RefreshCw className={`h-4 w-4 ${isLoadingConversations ? 'animate-spin' : ''}`} />
+                  <RefreshCw
+                    className={`h-4 w-4 ${
+                      isLoadingConversations ? "animate-spin" : ""
+                    }`}
+                  />
                 </Button>
                 <Button
                   variant="ghost"
@@ -733,7 +963,9 @@ export default function Communication() {
                 <div className="flex items-center justify-center py-8">
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-2 text-sm text-gray-600">Loading conversations...</p>
+                    <p className="mt-2 text-sm text-gray-600">
+                      Loading conversations...
+                    </p>
                   </div>
                 </div>
               ) : filteredConversations.length === 0 ? (
@@ -747,9 +979,9 @@ export default function Communication() {
                   </p>
                 </div>
               ) : (
-                filteredConversations.map((conversation) => (
+                filteredConversations.map((conversation, index) => (
                   <div
-                    key={conversation.id}
+                    key={`${conversation.id}-${conversation.email || index}`}
                     className={`flex items-center gap-3 p-3 rounded-md cursor-pointer ${
                       activeConversation?.id === conversation.id
                         ? "bg-primary/10"
@@ -758,7 +990,9 @@ export default function Communication() {
                     onClick={() =>
                       setActiveConversation({
                         id: conversation.id,
-                        email: conversation.email || conversation.id,
+                        email:
+                          conversation.email ||
+                          (activeTab === "direct" ? conversation.id : null),
                         type: activeTab,
                         name: conversation.name,
                       })
@@ -853,10 +1087,10 @@ export default function Communication() {
                           #{activeConversation.name}
                         </h3>
                         <p className="text-xs text-muted-foreground">
-                          {
-                            channels.find((c) => c.id === activeConversation.id)
-                              ?.description
-                          }
+                          {conversations.find(
+                            (c) => c.id === activeConversation.id
+                          )?.description ||
+                            `${activeConversation.name} department channel`}
                         </p>
                       </div>
                     </>
@@ -885,98 +1119,116 @@ export default function Communication() {
                     <div className="flex items-center justify-center py-8">
                       <div className="text-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                        <p className="mt-2 text-sm text-gray-600">Loading messages...</p>
+                        <p className="mt-2 text-sm text-gray-600">
+                          Loading messages...
+                        </p>
                       </div>
                     </div>
                   ) : (
                     messages.map((msg, index) => {
-                      const isCurrentUser = msg.senderEmail === user?.email || msg.senderId === user?.id;
-                      const sender = getSenderInfo(msg.senderEmail || msg.senderId);
+                      const isCurrentUser =
+                        msg.senderEmail === user?.email ||
+                        msg.senderId === user?.id;
+                      const sender = getSenderInfo(
+                        msg.senderEmail || msg.senderId
+                      );
 
-                    // Check for date change
-                    const showDateDivider =
-                      index === 0 ||
-                      format(
-                        parseISO(messages[index - 1].timestamp),
-                        "yyyy-MM-dd"
-                      ) !== format(parseISO(msg.timestamp), "yyyy-MM-dd");
+                      // Check for date change
+                      const showDateDivider =
+                        index === 0 ||
+                        format(
+                          parseISO(messages[index - 1].timestamp),
+                          "yyyy-MM-dd"
+                        ) !== format(parseISO(msg.timestamp), "yyyy-MM-dd");
 
-                    return (
-                      <div key={msg.id} className="space-y-4">
-                        {showDateDivider && (
-                          <div className="flex justify-center">
-                            <Badge variant="outline" className="bg-background">
-                              {format(parseISO(msg.timestamp), "MMMM d, yyyy")}
-                            </Badge>
-                          </div>
-                        )}
+                      return (
                         <div
-                          className={`flex ${
-                            isCurrentUser ? "justify-end" : "justify-start"
-                          }`}>
+                          key={`msg-${msg.id}-${index}`}
+                          className="space-y-4">
+                          {showDateDivider && (
+                            <div className="flex justify-center">
+                              <Badge
+                                variant="outline"
+                                className="bg-background">
+                                {format(
+                                  parseISO(msg.timestamp),
+                                  "MMMM d, yyyy"
+                                )}
+                              </Badge>
+                            </div>
+                          )}
                           <div
-                            className={`flex gap-2 max-w-[80%] ${
-                              isCurrentUser ? "flex-row-reverse" : ""
+                            className={`flex ${
+                              isCurrentUser ? "justify-end" : "justify-start"
                             }`}>
-                            {!isCurrentUser &&
-                              activeConversation.type === "channel" && (
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage src={sender.avatar} />
-                                  <AvatarFallback>
-                                    {sender.name.charAt(0).toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                              )}
                             <div
-                              className={`space-y-1 ${
-                                isCurrentUser ? "items-end" : "items-start"
+                              className={`flex gap-2 max-w-[80%] ${
+                                isCurrentUser ? "flex-row-reverse" : ""
                               }`}>
                               {!isCurrentUser &&
                                 activeConversation.type === "channel" && (
-                                  <p className="text-xs font-medium">
-                                    {sender.name}
-                                  </p>
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarImage src={sender.avatar} />
+                                    <AvatarFallback>
+                                      {sender.name.charAt(0).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
                                 )}
                               <div
-                                className={`rounded-lg px-4 py-2 inline-block ${
-                                  isCurrentUser
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted"
+                                className={`space-y-1 ${
+                                  isCurrentUser ? "items-end" : "items-start"
                                 }`}>
-                                <p className="text-sm">{msg.content}</p>
+                                {!isCurrentUser &&
+                                  activeConversation.type === "channel" && (
+                                    <p className="text-xs font-medium">
+                                      {sender.name}
+                                    </p>
+                                  )}
+                                <div
+                                  className={`rounded-lg px-4 py-2 inline-block ${
+                                    isCurrentUser
+                                      ? "bg-primary text-primary-foreground"
+                                      : "bg-muted"
+                                  }`}>
+                                  <p className="text-sm">{msg.content}</p>
+                                </div>
+                                {msg.attachments &&
+                                  msg.attachments.length > 0 && (
+                                    <div className="flex gap-2 mt-1">
+                                      {msg.attachments.map(
+                                        (attachment, attIdx) => (
+                                          <div
+                                            key={`attachment-${
+                                              attachment.id || attIdx
+                                            }-${msg.id}`}
+                                            className={`rounded-md p-2 flex items-center gap-2 text-xs ${
+                                              isCurrentUser
+                                                ? "bg-primary/80 text-primary-foreground"
+                                                : "bg-muted/80"
+                                            }`}>
+                                            <FileText className="h-4 w-4" />
+                                            <span className="truncate max-w-[150px]">
+                                              {attachment.name}
+                                            </span>
+                                            <ChevronRight className="h-3 w-3" />
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  )}
+                                <p
+                                  className={`text-xs text-muted-foreground ${
+                                    isCurrentUser ? "text-right" : "text-left"
+                                  }`}>
+                                  {formatMessageDate(msg.timestamp)}
+                                </p>
                               </div>
-                              {msg.attachments &&
-                                msg.attachments.length > 0 && (
-                                  <div className="flex gap-2 mt-1">
-                                    {msg.attachments.map((attachment) => (
-                                      <div
-                                        key={attachment.id}
-                                        className={`rounded-md p-2 flex items-center gap-2 text-xs ${
-                                          isCurrentUser
-                                            ? "bg-primary/80 text-primary-foreground"
-                                            : "bg-muted/80"
-                                        }`}>
-                                        <FileText className="h-4 w-4" />
-                                        <span className="truncate max-w-[150px]">
-                                          {attachment.name}
-                                        </span>
-                                        <ChevronRight className="h-3 w-3" />
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              <p
-                                className={`text-xs text-muted-foreground ${
-                                  isCurrentUser ? "text-right" : "text-left"
-                                }`}>
-                                {formatMessageDate(msg.timestamp)}
-                              </p>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  }))}
+                      );
+                    })
+                  )}
                   <div ref={messagesEndRef} />
                 </div>
               </CardContent>
@@ -1055,21 +1307,23 @@ export default function Communication() {
             <div className="max-h-[400px] overflow-y-auto space-y-2">
               {isLoadingUsers ? (
                 <div className="flex items-center justify-center py-8">
-                  <p className="text-sm text-muted-foreground">Loading users...</p>
+                  <p className="text-sm text-muted-foreground">
+                    Loading users...
+                  </p>
                 </div>
               ) : filteredAvailableUsers.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8">
                   <Users className="h-10 w-10 text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground">
-                    {userSearchQuery
-                      ? "No users found"
-                      : "No users available"}
+                    {userSearchQuery ? "No users found" : "No users available"}
                   </p>
                 </div>
               ) : (
-                filteredAvailableUsers.map((availableUser) => (
+                filteredAvailableUsers.map((availableUser, userIdx) => (
                   <div
-                    key={availableUser.id}
+                    key={`user-${
+                      availableUser.id || availableUser.email || userIdx
+                    }`}
                     className="flex items-center gap-3 p-3 rounded-md hover:bg-accent cursor-pointer transition-colors"
                     onClick={() => handleStartNewConversation(availableUser)}>
                     <Avatar className="h-10 w-10">
@@ -1079,7 +1333,9 @@ export default function Communication() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium truncate">{availableUser.name}</h4>
+                      <h4 className="font-medium truncate">
+                        {availableUser.name}
+                      </h4>
                       {availableUser.email && (
                         <p className="text-sm text-muted-foreground truncate">
                           {availableUser.email}

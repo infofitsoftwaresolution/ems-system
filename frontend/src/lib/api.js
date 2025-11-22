@@ -510,6 +510,14 @@ class ApiService {
   async getUnreadCount() {
     return this.request('/api/messages/unread-count');
   }
+
+  async getChannels() {
+    return this.request('/api/messages/channels');
+  }
+
+  async getChannelMessages(channelId) {
+    return this.request(`/api/messages/channel/${encodeURIComponent(channelId)}`);
+  }
 }
 
 // Create and export a singleton instance
