@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-<<<<<<< HEAD
 import { useSearchParams } from "react-router-dom";
-=======
->>>>>>> 6c6bd6c72613766ae6e6cf0e8d97c1fbdbd053bc
 import {
   Card,
   CardContent,

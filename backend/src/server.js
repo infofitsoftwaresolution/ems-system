@@ -39,45 +39,7 @@ import messagesRouter from "./routes/messages.js";
 import notificationsRouter from "./routes/notifications.js";
 
 const app = express();
-<<<<<<< HEAD
 const server = createServer(app);
-=======
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:4173",
-      "http://13.233.73.43:80",
-      "http://13.233.73.43:3001",
-      "http://13.233.73.43",
-      "http://13.233.73.43.nip.io",
-    ],
-    credentials: true,
-    methods: ["GET", "POST"],
-  },
-  transports: ['polling', 'websocket'],
-  allowEIO3: true,
-});
-
-// Make io available to routes
-app.set("io", io);
-
-// Socket.io connection handling
-io.on('connection', (socket) => {
-  console.log('✅ Socket.io client connected:', socket.id);
-
-  socket.on('disconnect', (reason) => {
-    console.log('Socket.io client disconnected:', socket.id, 'Reason:', reason);
-  });
-
-  socket.on('error', (error) => {
-    console.error('Socket.io error:', error);
-  });
-});
->>>>>>> 6c6bd6c72613766ae6e6cf0e8d97c1fbdbd053bc
 
 // Initialize Socket.IO with proper CORS configuration
 // Socket.IO must be initialized before Express middleware to avoid conflicts
@@ -383,7 +345,6 @@ async function start() {
         }
       }
     }
-<<<<<<< HEAD
     server.listen(PORT, () => {
       console.log(`✅ Server listening on http://localhost:${PORT}`);
       console.log(`✅ Socket.io listening on port ${PORT}`);
@@ -394,12 +355,6 @@ async function start() {
       // Test Socket.IO server
       console.log(`✅ Socket.IO server ready. Waiting for connections...`);
 
-=======
-    httpServer.listen(PORT, () => {
-      console.log(`Server listening on http://localhost:${PORT}`);
-      console.log(`Socket.io listening on port ${PORT}`);
-      
->>>>>>> 6c6bd6c72613766ae6e6cf0e8d97c1fbdbd053bc
       // Schedule auto-checkout at 11:59 PM every day
       // Cron format: minute hour day month dayOfWeek
       // 59 23 * * * = 11:59 PM every day

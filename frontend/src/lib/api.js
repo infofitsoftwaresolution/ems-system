@@ -193,7 +193,7 @@ class ApiService {
         const user = JSON.parse(userStr);
         return user.email;
       }
-    } catch (e) {
+    } catch {
       // Ignore
     }
     return null;
@@ -251,40 +251,6 @@ class ApiService {
   // Get employee's own attendance history
   async getMyAttendance(filter = "all") {
     return this.request(`/api/attendance/my?filter=${filter}`);
-  }
-
-  // Helper method to get current user email from token
-  getCurrentUserEmail() {
-    // Try to get email from localStorage first
-    const storedEmail = localStorage.getItem("currentUserEmail");
-    if (storedEmail) {
-      return storedEmail;
-    }
-
-    // Try to get email from token
-    const token = this.getAuthToken();
-    if (token) {
-      try {
-        // Decode JWT token to get user info (basic decode without verification)
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        if (payload.email) {
-          // Store email in localStorage for future use
-          localStorage.setItem("currentUserEmail", payload.email);
-          return payload.email;
-        }
-      } catch (error) {
-        console.error("Error decoding token:", error);
-      }
-    }
-
-    // Try to get from user context if available
-    const userContext = JSON.parse(localStorage.getItem("userContext") || "{}");
-    if (userContext.email) {
-      localStorage.setItem("currentUserEmail", userContext.email);
-      return userContext.email;
-    }
-
-    return null;
   }
 
   async checkIn(locationData = null, fallbackEmail = null, photoBase64 = null) {

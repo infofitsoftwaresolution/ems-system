@@ -30,7 +30,7 @@ export default function EmployeeDashboard() {
   const [upcomingTasks, setUpcomingTasks] = useState([]);
   const [notifications, setNotifications] = useState([]);
 
-  const loadAttendanceData = async () => {
+  const loadAttendanceData = useCallback(async () => {
     try {
       if (user?.email) {
         const todayAttendance = await apiService.getTodayAttendance(user.email);
@@ -62,9 +62,9 @@ export default function EmployeeDashboard() {
     } catch (error) {
       console.error('Error loading attendance data:', error);
     }
-  };
+  }, [user?.email]);
 
-  const loadKycStatus = async () => {
+  const loadKycStatus = useCallback(async () => {
     try {
       setLoading(true);
       if (user?.email) {
@@ -101,12 +101,12 @@ export default function EmployeeDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.email]);
 
   useEffect(() => {
     loadKycStatus();
     loadAttendanceData();
-  }, [user]);
+  }, [user, loadKycStatus, loadAttendanceData]);
 
   // Refresh KYC status every 30 seconds to catch updates
   useEffect(() => {
@@ -118,7 +118,7 @@ export default function EmployeeDashboard() {
     }, 30000); // 30 seconds
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, loadKycStatus]);
 
   const getPriorityColor = (priority) => {
     switch (priority) {

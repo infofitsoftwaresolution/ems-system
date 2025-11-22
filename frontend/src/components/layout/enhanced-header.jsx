@@ -36,7 +36,7 @@ export function EnhancedHeader({ toggleSidebar }) {
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
   // Fetch notifications
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     if (!user?.id) return;
 
     try {
@@ -55,7 +55,7 @@ export function EnhancedHeader({ toggleSidebar }) {
     } finally {
       setIsLoadingNotifications(false);
     }
-  };
+  }, [user?.id]);
 
   // Load notifications on mount and when user changes
   useEffect(() => {
@@ -65,7 +65,7 @@ export function EnhancedHeader({ toggleSidebar }) {
       const interval = setInterval(loadNotifications, 30000);
       return () => clearInterval(interval);
     }
-  }, [user?.id]);
+  }, [user?.id, loadNotifications]);
 
   // Handle real-time notifications via Socket.io
   const handleNewNotification = useCallback(

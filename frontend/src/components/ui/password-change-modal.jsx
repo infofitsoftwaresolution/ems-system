@@ -18,7 +18,7 @@ export function PasswordChangeModal({ isOpen, onClose, onPasswordChange }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!newPassword || !confirmPassword) {
       toast.error("Please fill in all fields");
       return;
@@ -43,7 +43,7 @@ export function PasswordChangeModal({ isOpen, onClose, onPasswordChange }) {
         setConfirmPassword("");
         onClose();
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to update password. Please try again.");
     } finally {
       setIsLoading(false);

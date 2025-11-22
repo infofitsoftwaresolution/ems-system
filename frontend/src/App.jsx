@@ -26,7 +26,6 @@ import EmployeeLeave from "./page/EmployeeLeave.jsx";
 import AdminLeaveManagement from "./page/AdminLeaveManagement.jsx";
 import EnhancedLogin from "./page/EnhancedLogin.jsx";
 import NotFound from "./page/NotFound.jsx";
-import { useAuth } from "./hooks/use-auth";
 import { RoleBasedDashboard } from "./components/RoleBasedDashboard.jsx";
 
 const queryClient = new QueryClient({

@@ -19,11 +19,10 @@ export function EnhancedDashboardLayout() {
   const {
     isAuthenticated,
     isLoading,
-    user,
+    user: _user,
     requiresPasswordChange,
-    updatePassword
+    updatePassword,
   } = useAuth();
-  
 
   useEffect(() => {
     setMounted(true);
@@ -145,7 +144,7 @@ export function EnhancedDashboardLayout() {
           </div>
         </motion.main>
       </div>
-      
+
       {/* Password Change Modal */}
       <PasswordChangeModal
         isOpen={requiresPasswordChange}

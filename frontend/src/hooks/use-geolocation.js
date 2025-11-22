@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useMemo } from "react";
 
 export function useGeolocation(options = {}) {
   const [location, setLocation] = useState(null);
@@ -6,17 +6,20 @@ export function useGeolocation(options = {}) {
   const [loading, setLoading] = useState(false);
   const [accuracy, setAccuracy] = useState(null);
 
-  const defaultOptions = {
-    enableHighAccuracy: true,
-    timeout: 60000, // Increased timeout to 60 seconds for better accuracy
-    maximumAge: 0, // Don't use cached location - always get fresh location for accuracy
-    ...options
-  };
+  const defaultOptions = useMemo(
+    () => ({
+      enableHighAccuracy: true,
+      timeout: 60000, // Increased timeout to 60 seconds for better accuracy
+      maximumAge: 0, // Don't use cached location - always get fresh location for accuracy
+      ...options,
+    }),
+    [options]
+  );
 
   const getCurrentPosition = useCallback(() => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error('Geolocation is not supported by this browser'));
+        reject(new Error("Geolocation is not supported by this browser"));
         return;
       }
 
@@ -31,24 +34,27 @@ export function useGeolocation(options = {}) {
             latitude,
             longitude,
             accuracy,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           };
-          
+
           setLocation(locationData);
           setAccuracy(accuracy);
           setLoading(false);
           resolve(locationData);
         },
         (error) => {
-          console.warn('High accuracy location failed, trying fallback...', error);
-          
+          console.warn(
+            "High accuracy location failed, trying fallback...",
+            error
+          );
+
           // Fallback to lower accuracy if high accuracy fails
           const fallbackOptions = {
             enableHighAccuracy: false,
             timeout: 45000, // Increased timeout for fallback
-            maximumAge: 0 // Don't use cached location
+            maximumAge: 0, // Don't use cached location
           };
-          
+
           navigator.geolocation.getCurrentPosition(
             (position) => {
               const { latitude, longitude, accuracy } = position.coords;
@@ -57,32 +63,36 @@ export function useGeolocation(options = {}) {
                 longitude,
                 accuracy,
                 timestamp: new Date().toISOString(),
-                fallback: true
+                fallback: true,
               };
-              
+
               setLocation(locationData);
               setAccuracy(accuracy);
               setLoading(false);
               resolve(locationData);
             },
             (fallbackError) => {
-              let errorMessage = 'Failed to get location';
-              
+              let errorMessage = "Failed to get location";
+
               switch (fallbackError.code) {
                 case fallbackError.PERMISSION_DENIED:
-                  errorMessage = 'Location permission denied. Please click the lock icon in your browser address bar and allow location access.';
+                  errorMessage =
+                    "Location permission denied. Please click the lock icon in your browser address bar and allow location access.";
                   break;
                 case fallbackError.POSITION_UNAVAILABLE:
-                  errorMessage = 'Location information is unavailable. Please check your GPS settings.';
+                  errorMessage =
+                    "Location information is unavailable. Please check your GPS settings.";
                   break;
                 case fallbackError.TIMEOUT:
-                  errorMessage = 'Location request timed out. Please try again.';
+                  errorMessage =
+                    "Location request timed out. Please try again.";
                   break;
                 default:
-                  errorMessage = 'Unable to get your location. Please check your device settings.';
+                  errorMessage =
+                    "Unable to get your location. Please check your device settings.";
                   break;
               }
-              
+
               setError(errorMessage);
               setLoading(false);
               reject(new Error(errorMessage));
@@ -101,56 +111,58 @@ export function useGeolocation(options = {}) {
       const response = await fetch(
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
       );
-      
+
       if (!response.ok) {
-        throw new Error('Failed to get address');
+        throw new Error("Failed to get address");
       }
-      
+
       const data = await response.json();
       return {
-        address: data.localityInfo?.administrative?.[0]?.name || 'Unknown Location',
-        city: data.city || data.locality || 'Unknown City',
-        country: data.countryName || 'Unknown Country',
-        fullAddress: `${data.locality || ''}, ${data.city || ''}, ${data.countryName || ''}`.replace(/^,\s*|,\s*$/g, '')
+        address:
+          data.localityInfo?.administrative?.[0]?.name || "Unknown Location",
+        city: data.city || data.locality || "Unknown City",
+        country: data.countryName || "Unknown Country",
+        fullAddress: `${data.locality || ""}, ${data.city || ""}, ${
+          data.countryName || ""
+        }`.replace(/^,\s*|,\s*$/g, ""),
       };
     } catch (error) {
-      console.error('Error getting address:', error);
+      console.error("Error getting address:", error);
       return {
-        address: 'Unknown Location',
-        city: 'Unknown City',
-        country: 'Unknown Country',
-        fullAddress: 'Location not available'
+        address: "Unknown Location",
+        city: "Unknown City",
+        country: "Unknown Country",
+        fullAddress: "Location not available",
       };
     }
   }, []);
 
   const getLocationWithAddress = useCallback(async () => {
-    try {
-      const locationData = await getCurrentPosition();
-      const addressData = await getAddressFromCoordinates(
-        locationData.latitude, 
-        locationData.longitude
-      );
-      
-      return {
-        ...locationData,
-        ...addressData
-      };
-    } catch (error) {
-      throw error;
-    }
+    const locationData = await getCurrentPosition();
+    const addressData = await getAddressFromCoordinates(
+      locationData.latitude,
+      locationData.longitude
+    );
+
+    return {
+      ...locationData,
+      ...addressData,
+    };
   }, [getCurrentPosition, getAddressFromCoordinates]);
 
-  const isLocationAccurate = useCallback((accuracyThreshold = 100) => {
-    return accuracy !== null && accuracy <= accuracyThreshold;
-  }, [accuracy]);
+  const isLocationAccurate = useCallback(
+    (accuracyThreshold = 100) => {
+      return accuracy !== null && accuracy <= accuracyThreshold;
+    },
+    [accuracy]
+  );
 
   const getAccuracyStatus = useCallback(() => {
-    if (accuracy === null) return 'unknown';
-    if (accuracy <= 10) return 'excellent';
-    if (accuracy <= 50) return 'good';
-    if (accuracy <= 100) return 'fair';
-    return 'poor';
+    if (accuracy === null) return "unknown";
+    if (accuracy <= 10) return "excellent";
+    if (accuracy <= 50) return "good";
+    if (accuracy <= 100) return "fair";
+    return "poor";
   }, [accuracy]);
 
   return {
@@ -166,6 +178,6 @@ export function useGeolocation(options = {}) {
       setLocation(null);
       setError(null);
       setAccuracy(null);
-    }
+    },
   };
 }
