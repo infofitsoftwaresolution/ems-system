@@ -1,107 +1,79 @@
-# Quick Start Guide - EMS System
+# ⚡ Quick Start Guide
 
-## 🚀 Starting the Application
+## 🚀 Start Both Servers
 
-### Step 1: Start Backend Server
+### Option 1: Manual (Recommended for debugging)
 
-Open a terminal and run:
+**Terminal 1 - Backend:**
 ```bash
 cd backend
 npm start
 ```
 
-You should see:
-```
-Server listening on http://localhost:3001
-```
-
-**Keep this terminal window open!**
-
-### Step 2: Start Frontend Server (if not already running)
-
-Open another terminal and run:
+**Terminal 2 - Frontend:**
 ```bash
 cd frontend
 npm run dev
 ```
 
-You should see:
-```
-Local:   http://localhost:5173/
-```
+### Option 2: Using npm scripts (if configured)
 
-## 🔐 Login Credentials
+Check if you have a root `package.json` with start scripts.
 
-### Admin Login:
-- **Email:** `s24346379@gmail.com`
-- **Password:** `rsamriddhi@6287`
-- **Role:** Admin
+## ✅ Verification Checklist
 
-### Employee Login:
-If you need to create an employee account, use the admin panel or run:
+### Backend (Port 3001):
+- [ ] Server starts without errors
+- [ ] Database connection successful
+- [ ] Migration runs successfully
+- [ ] Socket.io initialized
+- [ ] Health check works: `curl http://localhost:3001/api/health`
+
+### Frontend (Port 5173):
+- [ ] Vite dev server starts
+- [ ] No connection errors in console
+- [ ] Can access: http://localhost:5173
+- [ ] Token verification succeeds (if logged in)
+
+## 🔍 Common Issues & Quick Fixes
+
+### Backend won't start:
 ```bash
-cd backend
-npm run seed:kyc
+# Check if port 3001 is in use
+netstat -ano | findstr :3001  # Windows
+lsof -i :3001                 # Mac/Linux
+
+# Check database connection
+# Verify .env file has correct DATABASE_URL
 ```
 
-## 🛠️ Troubleshooting
+### Frontend shows connection refused:
+1. Verify backend is running on port 3001
+2. Check `VITE_API_URL` in frontend `.env`
+3. Check browser console for specific error
 
-### Backend Server Not Starting?
+### Messages return 500 error:
+1. Check backend logs for database errors
+2. Verify migration ran successfully
+3. Check if `sender_email`, `sender_name`, `content` columns exist
 
-1. **Check if port 3001 is in use:**
-   ```bash
-   netstat -ano | findstr :3001
-   ```
+## 📝 Environment Files
 
-2. **Install dependencies:**
-   ```bash
-   cd backend
-   npm install
-   ```
-
-3. **Check for errors in the terminal**
-
-### Can't Login?
-
-1. **Make sure backend server is running** (check http://localhost:3001/api/health)
-
-2. **Reset admin password:**
-   ```bash
-   cd backend
-   npm run seed
-   ```
-
-3. **Check database:**
-   ```bash
-   cd backend
-   node ../check-login-credentials.js
-   ```
-
-### Connection Refused Error?
-
-- ✅ Backend server must be running on port 3001
-- ✅ Frontend server must be running on port 5173
-- ✅ Check browser console for specific errors
-
-## 📝 Quick Commands
-
-```bash
-# Start backend
-cd backend && npm start
-
-# Start frontend  
-cd frontend && npm run dev
-
-# Seed database (create admin user)
-cd backend && npm run seed
-
-# Check login credentials
-node check-login-credentials.js
+### Backend `.env`:
+```env
+PORT=3001
+DATABASE_URL=postgresql://user:pass@localhost:5432/ems_db
+JWT_SECRET=your-secret-key
 ```
 
-## 🌐 Access URLs
+### Frontend `.env`:
+```env
+VITE_API_URL=http://localhost:3001
+```
 
-- **Frontend:** http://localhost:5173
-- **Backend API:** http://localhost:3001
-- **Health Check:** http://localhost:3001/api/health
+## 🆘 Still Having Issues?
 
+1. Check `STARTUP_GUIDE.md` for detailed troubleshooting
+2. Review backend logs for specific errors
+3. Check browser console for frontend errors
+4. Verify all environment variables are set correctly

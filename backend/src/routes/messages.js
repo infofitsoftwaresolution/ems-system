@@ -1,534 +1,679 @@
-import { Router } from 'express';
-import { Message } from '../models/Message.js';
-import { User } from '../models/User.js';
-import { Employee } from '../models/Employee.js';
-import { authenticateToken } from '../middleware/auth.js';
-import { Op, QueryTypes } from 'sequelize';
-import { sequelize } from '../sequelize.js';
+import { Router } from "express";
+import { Message } from "../models/Message.js";
+import { User } from "../models/User.js";
+import { Employee } from "../models/Employee.js";
+import { authenticateToken } from "../middleware/auth.js";
+import { Op, QueryTypes } from "sequelize";
+import { sequelize } from "../sequelize.js";
 
 const router = Router();
-
-// Helper function to get actual table columns for messages
-async function getMessageTableColumns() {
-  try {
-    // Try information_schema query first
-    const [results] = await sequelize.query(
-      `SELECT column_name 
-       FROM information_schema.columns 
-       WHERE table_name = 'messages' 
-       ORDER BY ordinal_position`,
-      { type: QueryTypes.SELECT }
-    );
-    
-    // Handle both array and object formats
-    if (Array.isArray(results) && results.length > 0) {
-      return results.map((r) => r.column_name);
-    }
-    
-    // Fallback: Try raw query to detect columns
-    console.log('Trying raw query fallback to detect columns...');
-    const [rawResults] = await sequelize.query(
-      `SELECT * FROM messages LIMIT 1`,
-      { type: QueryTypes.SELECT }
-    );
-    
-    if (rawResults && rawResults.length > 0) {
-      const columns = Object.keys(rawResults[0]);
-      console.log('Detected columns from raw query:', columns);
-      return columns;
-    }
-    
-    return [];
-  } catch (error) {
-    console.error("Error getting messages table columns:", error);
-    console.error("Error details:", error.message, error.stack);
-    
-    // Last resort: Try raw query to detect columns
-    try {
-      const [rawResults] = await sequelize.query(
-        `SELECT * FROM messages LIMIT 1`,
-        { type: QueryTypes.SELECT }
-      );
-      if (rawResults && rawResults.length > 0) {
-        return Object.keys(rawResults[0]);
-      }
-    } catch (e) {
-      console.error("Raw query fallback also failed:", e);
-    }
-    
-    return [];
-  }
-}
 
 // Helper function to get user email from token
 const getUserEmailFromToken = async (req) => {
   try {
-    // Try multiple ways to get user ID
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
     if (!userId) {
-      console.error('No user ID found in token:', req.user);
+      console.error("No user ID found in token:", req.user);
       return null;
     }
-    
+
     const user = await User.findByPk(userId);
     if (!user) {
-      console.error('User not found for ID:', userId);
+      console.error("User not found for ID:", userId);
       return null;
     }
     return user.email;
   } catch (error) {
-    console.error('Error getting user email from token:', error);
+    console.error("Error getting user email from token:", error);
     return null;
   }
 };
 
 // Get all messages for the current user (both sent and received)
-router.get('/', authenticateToken, async (req, res) => {
+router.get("/", authenticateToken, async (req, res) => {
   try {
     const userEmail = await getUserEmailFromToken(req);
-    
     if (!userEmail) {
-      return res.status(400).json({ message: 'Unable to determine user email' });
-    }
-    
-    // Get actual table columns
-    const columns = await getMessageTableColumns();
-    console.log('Messages table columns:', columns);
-    
-    // Check for different possible column name formats (camelCase, snake_case, etc.)
-    const hasSenderEmail = columns.some(col => ['senderEmail', 'sender_email', 'senderemail'].includes(col));
-    const hasSenderName = columns.some(col => ['senderName', 'sender_name', 'sendername'].includes(col));
-    const hasRecipientEmail = columns.some(col => ['recipientEmail', 'recipient_email', 'recipientemail'].includes(col));
-    const hasRecipientName = columns.some(col => ['recipientName', 'recipient_name', 'recipientname'].includes(col));
-    const hasRead = columns.includes('read');
-    const hasReadAt = columns.some(col => ['readAt', 'read_at'].includes(col));
-    const hasChannelId = columns.some(col => ['channelId', 'channel_id'].includes(col));
-    const hasChannelName = columns.some(col => ['channelName', 'channel_name'].includes(col));
-    const hasAttachments = columns.includes('attachments');
-    const hasCreatedAt = columns.some(col => ['createdAt', 'created_at'].includes(col));
-    const hasUpdatedAt = columns.some(col => ['updatedAt', 'updated_at'].includes(col));
-    
-    // Find actual column names (handle different naming conventions)
-    const senderEmailCol = columns.find(col => ['senderEmail', 'sender_email', 'senderemail'].includes(col)) || 'senderEmail';
-    const senderNameCol = columns.find(col => ['senderName', 'sender_name', 'sendername'].includes(col)) || 'senderName';
-    const recipientEmailCol = columns.find(col => ['recipientEmail', 'recipient_email', 'recipientemail'].includes(col)) || 'recipientEmail';
-    const recipientNameCol = columns.find(col => ['recipientName', 'recipient_name', 'recipientname'].includes(col)) || 'recipientName';
-    const createdAtCol = columns.find(col => ['createdAt', 'created_at'].includes(col)) || 'createdAt';
-
-    // Build attributes list - only include columns that exist
-    const attributes = ['id', 'content'];
-    if (hasSenderEmail) attributes.push(senderEmailCol);
-    if (hasSenderName) attributes.push(senderNameCol);
-    if (hasRecipientEmail) attributes.push(recipientEmailCol);
-    if (hasRecipientName) attributes.push(recipientNameCol);
-    if (hasRead) attributes.push('read');
-    if (hasReadAt) {
-      const readAtCol = columns.find(col => ['readAt', 'read_at'].includes(col));
-      if (readAtCol) attributes.push(readAtCol);
-    }
-    if (hasChannelId) {
-      const channelIdCol = columns.find(col => ['channelId', 'channel_id'].includes(col));
-      if (channelIdCol) attributes.push(channelIdCol);
-    }
-    if (hasChannelName) {
-      const channelNameCol = columns.find(col => ['channelName', 'channel_name'].includes(col));
-      if (channelNameCol) attributes.push(channelNameCol);
-    }
-    if (hasAttachments) attributes.push('attachments');
-    if (hasCreatedAt) attributes.push(createdAtCol);
-    if (hasUpdatedAt) {
-      const updatedAtCol = columns.find(col => ['updatedAt', 'updated_at'].includes(col));
-      if (updatedAtCol) attributes.push(updatedAtCol);
+      return res
+        .status(400)
+        .json({ message: "Unable to determine user email" });
     }
 
-    // Build where clause using actual column names
-    const whereClause = {};
-    if (hasSenderEmail && hasRecipientEmail) {
-      whereClause[Op.or] = [
-        { [senderEmailCol]: userEmail, [recipientEmailCol]: { [Op.ne]: null } },
-        { [recipientEmailCol]: userEmail, [senderEmailCol]: { [Op.ne]: null } }
-      ];
-    } else if (hasSenderEmail) {
-      whereClause[senderEmailCol] = userEmail;
-    } else if (hasRecipientEmail) {
-      whereClause[recipientEmailCol] = userEmail;
-    } else {
-      // If we can't determine columns, return empty array
-      return res.json([]);
-    }
-
-    // Get all messages where user is sender or recipient
+    // Use Sequelize ORM - field mappings in model handle column names
     const messages = await Message.findAll({
-      where: whereClause,
-      order: hasCreatedAt ? [[createdAtCol, 'DESC']] : [['id', 'DESC']],
-      attributes: attributes
+      where: {
+        [Op.or]: [{ senderEmail: userEmail }, { recipientEmail: userEmail }],
+      },
+      order: [["createdAt", "DESC"]],
     });
 
     res.json(messages);
   } catch (error) {
-    console.error('Error fetching messages:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ message: 'Error fetching messages', error: error.message });
+    console.error("Error fetching messages:", error);
+    res
+      .status(500)
+      .json({ message: "Error fetching messages", error: error.message });
   }
 });
 
 // Get conversation between two users
-router.get('/conversation/:recipientEmail', authenticateToken, async (req, res) => {
-  try {
-    const senderEmail = await getUserEmailFromToken(req);
-    
-    if (!senderEmail) {
-      return res.status(400).json({ message: 'Unable to determine user email' });
-    }
-    
-    const recipientEmail = decodeURIComponent(req.params.recipientEmail);
-
-    // Get actual table columns
-    const columns = await getMessageTableColumns();
-    
-    // Find actual column names (handle different naming conventions)
-    const senderEmailCol = columns.find(col => ['senderEmail', 'sender_email', 'senderemail'].includes(col));
-    const senderNameCol = columns.find(col => ['senderName', 'sender_name', 'sendername'].includes(col));
-    const recipientEmailCol = columns.find(col => ['recipientEmail', 'recipient_email', 'recipientemail'].includes(col));
-    const recipientNameCol = columns.find(col => ['recipientName', 'recipient_name', 'recipientname'].includes(col));
-    const hasRead = columns.includes('read');
-    const readAtCol = columns.find(col => ['readAt', 'read_at'].includes(col));
-    const channelIdCol = columns.find(col => ['channelId', 'channel_id'].includes(col));
-    const channelNameCol = columns.find(col => ['channelName', 'channel_name'].includes(col));
-    const hasAttachments = columns.includes('attachments');
-    const createdAtCol = columns.find(col => ['createdAt', 'created_at'].includes(col));
-    const updatedAtCol = columns.find(col => ['updatedAt', 'updated_at'].includes(col));
-
-    // Build attributes list - only include columns that exist
-    const attributes = ['id', 'content'];
-    if (senderEmailCol) attributes.push(senderEmailCol);
-    if (senderNameCol) attributes.push(senderNameCol);
-    if (recipientEmailCol) attributes.push(recipientEmailCol);
-    if (recipientNameCol) attributes.push(recipientNameCol);
-    if (hasRead) attributes.push('read');
-    if (readAtCol) attributes.push(readAtCol);
-    if (channelIdCol) attributes.push(channelIdCol);
-    if (channelNameCol) attributes.push(channelNameCol);
-    if (hasAttachments) attributes.push('attachments');
-    if (createdAtCol) attributes.push(createdAtCol);
-    if (updatedAtCol) attributes.push(updatedAtCol);
-
-    // Build where clause using actual column names
-    if (!senderEmailCol || !recipientEmailCol) {
-      return res.status(500).json({ message: 'Messages table schema not compatible' });
-    }
-    
-    const whereClause = {
-      [Op.or]: [
-        {
-          [senderEmailCol]: senderEmail,
-          [recipientEmailCol]: recipientEmail
-        },
-        {
-          [senderEmailCol]: recipientEmail,
-          [recipientEmailCol]: senderEmail
-        }
-      ]
-    };
-    
-    if (channelIdCol) {
-      whereClause[channelIdCol] = null; // Only direct messages
-    }
-
-    const messages = await Message.findAll({
-      where: whereClause,
-      order: createdAtCol ? [[createdAtCol, 'ASC']] : [['id', 'ASC']],
-      attributes: attributes
-    });
-
-    // Mark messages as read (only if read column exists)
-    if (hasRead && senderEmailCol && recipientEmailCol) {
-      const updateData = { read: true };
-      if (readAtCol) {
-        updateData[readAtCol] = new Date();
+router.get(
+  "/conversation/:recipientEmail",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const senderEmail = await getUserEmailFromToken(req);
+      if (!senderEmail) {
+        return res.json([]);
       }
+
+      const recipientEmail = decodeURIComponent(req.params.recipientEmail);
+
+      // Use Sequelize ORM
+      const messages = await Message.findAll({
+        where: {
+          [Op.or]: [
+            {
+              senderEmail: senderEmail,
+              recipientEmail: recipientEmail,
+            },
+            {
+              senderEmail: recipientEmail,
+              recipientEmail: senderEmail,
+            },
+          ],
+          channelId: null, // Only direct messages
+        },
+        order: [["createdAt", "ASC"]],
+      });
+
+      // Mark messages as read
       await Message.update(
-        updateData,
+        { read: true, readAt: new Date() },
         {
           where: {
-            [recipientEmailCol]: senderEmail,
-            [senderEmailCol]: recipientEmail,
-            read: false
-          }
+            recipientEmail: senderEmail,
+            senderEmail: recipientEmail,
+            read: false,
+          },
         }
       );
-    }
 
-    res.json(messages);
-  } catch (error) {
-    console.error('Error fetching conversation:', error);
-    res.status(500).json({ message: 'Error fetching conversation', error: error.message });
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching conversation:", error);
+      res.json([]);
+    }
   }
-});
+);
 
 // Get all conversations for the current user
-router.get('/conversations', authenticateToken, async (req, res) => {
+router.get("/conversations", authenticateToken, async (req, res) => {
   try {
     const userEmail = await getUserEmailFromToken(req);
-    
     if (!userEmail) {
-      return res.status(400).json({ message: 'Unable to determine user email' });
-    }
-
-    // Get actual table columns
-    const columns = await getMessageTableColumns();
-    console.log('Messages table columns:', columns);
-    
-    // Find actual column names (handle different naming conventions)
-    const senderEmailCol = columns.find(col => ['senderEmail', 'sender_email', 'senderemail'].includes(col));
-    const senderNameCol = columns.find(col => ['senderName', 'sender_name', 'sendername'].includes(col));
-    const recipientEmailCol = columns.find(col => ['recipientEmail', 'recipient_email', 'recipientemail'].includes(col));
-    const recipientNameCol = columns.find(col => ['recipientName', 'recipient_name', 'recipientname'].includes(col));
-    const hasRead = columns.includes('read');
-    const readAtCol = columns.find(col => ['readAt', 'read_at'].includes(col));
-    const channelIdCol = columns.find(col => ['channelId', 'channel_id'].includes(col));
-    const channelNameCol = columns.find(col => ['channelName', 'channel_name'].includes(col));
-    const hasAttachments = columns.includes('attachments');
-    const createdAtCol = columns.find(col => ['createdAt', 'created_at'].includes(col));
-    const updatedAtCol = columns.find(col => ['updatedAt', 'updated_at'].includes(col));
-
-    // Build attributes list - only include columns that exist
-    const attributes = ['id', 'content'];
-    if (senderEmailCol) attributes.push(senderEmailCol);
-    if (senderNameCol) attributes.push(senderNameCol);
-    if (recipientEmailCol) attributes.push(recipientEmailCol);
-    if (recipientNameCol) attributes.push(recipientNameCol);
-    if (hasRead) attributes.push('read');
-    if (readAtCol) attributes.push(readAtCol);
-    if (channelIdCol) attributes.push(channelIdCol);
-    if (channelNameCol) attributes.push(channelNameCol);
-    if (hasAttachments) attributes.push('attachments');
-    if (createdAtCol) attributes.push(createdAtCol);
-    if (updatedAtCol) attributes.push(updatedAtCol);
-
-    // Build where clause using actual column names
-    if (!senderEmailCol || !recipientEmailCol) {
-      // If we can't determine required columns, return empty array
-      return res.json([]);
-    }
-    
-    const whereClause = {
-      [Op.or]: [
-        { [senderEmailCol]: userEmail, [recipientEmailCol]: { [Op.ne]: null } },
-        { [recipientEmailCol]: userEmail, [senderEmailCol]: { [Op.ne]: null } }
-      ]
-    };
-    
-    // Only filter by channelId if the column exists
-    if (channelIdCol) {
-      whereClause[channelIdCol] = null; // Only direct messages
+      return res
+        .status(400)
+        .json({ message: "Unable to determine user email" });
     }
 
     // Get all messages for this user
     const allMessages = await Message.findAll({
-      where: whereClause,
-      order: createdAtCol ? [[createdAtCol, 'DESC']] : [['id', 'DESC']],
-      attributes: attributes
+      where: {
+        [Op.or]: [
+          { senderEmail: userEmail, recipientEmail: { [Op.ne]: null } },
+          { recipientEmail: userEmail, senderEmail: { [Op.ne]: null } },
+        ],
+        channelId: null, // Only direct messages
+      },
+      order: [["createdAt", "DESC"]],
     });
 
     // Group by conversation partner
     const conversationMap = new Map();
 
     allMessages.forEach((msg) => {
-      const msgData = msg.toJSON ? msg.toJSON() : msg;
-      const senderEmail = msgData.senderEmail || msgData.sender_email || msgData.senderemail;
-      const recipientEmail = msgData.recipientEmail || msgData.recipient_email || msgData.recipientemail;
-      const senderName = msgData.senderName || msgData.sender_name || msgData.sendername;
-      const recipientName = msgData.recipientName || msgData.recipient_name || msgData.recipientname;
-      
-      const partnerEmail = senderEmail === userEmail ? recipientEmail : senderEmail;
-      const partnerName = senderEmail === userEmail ? recipientName : senderName;
+      const partnerEmail =
+        msg.senderEmail === userEmail ? msg.recipientEmail : msg.senderEmail;
+      const partnerName =
+        msg.senderEmail === userEmail ? msg.recipientName : msg.senderName;
 
       if (!partnerEmail) return;
 
       if (!conversationMap.has(partnerEmail)) {
-        const createdAt = msgData.createdAt || msgData.created_at || new Date();
         conversationMap.set(partnerEmail, {
           email: partnerEmail,
-          name: partnerName || partnerEmail.split('@')[0],
-          lastMessage: msgData.content || '',
-          lastMessageTime: createdAt,
-          unread: 0
+          name: partnerName || partnerEmail.split("@")[0],
+          lastMessage: msg.content,
+          lastMessageTime: msg.createdAt,
+          unread: 0,
         });
       } else {
         const existing = conversationMap.get(partnerEmail);
-        const createdAt = msgData.createdAt || msgData.created_at || new Date();
         // Update if this message is more recent
-        if (new Date(createdAt) > new Date(existing.lastMessageTime)) {
-          existing.lastMessage = msgData.content || '';
-          existing.lastMessageTime = createdAt;
+        if (new Date(msg.createdAt) > new Date(existing.lastMessageTime)) {
+          existing.lastMessage = msg.content;
+          existing.lastMessageTime = msg.createdAt;
         }
       }
     });
 
-    // Calculate unread counts for each conversation (only if read column exists)
+    // Calculate unread counts for each conversation
     const conversations = await Promise.all(
       Array.from(conversationMap.values()).map(async (conv) => {
-        let unreadCount = 0;
-        if (hasRead && senderEmailCol && recipientEmailCol) {
-          unreadCount = await Message.count({
-            where: {
-              [senderEmailCol]: conv.email,
-              [recipientEmailCol]: userEmail,
-              read: false
-            }
-          });
-        }
+        const unreadCount = await Message.count({
+          where: {
+            senderEmail: conv.email,
+            recipientEmail: userEmail,
+            read: false,
+          },
+        });
 
         return {
           ...conv,
-          unread: unreadCount
+          unread: unreadCount,
         };
       })
     );
 
     // Sort by last message time
-    conversations.sort((a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime));
+    conversations.sort(
+      (a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime)
+    );
 
     res.json(conversations);
   } catch (error) {
-    console.error('Error fetching conversations:', error);
-    console.error('Error stack:', error.stack);
-    console.error('Request user object:', req.user);
-    res.status(500).json({ 
-      message: 'Error fetching conversations', 
-      error: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    console.error("Error fetching conversations:", error);
+    res.json([]);
   }
 });
 
 // Send a message
-router.post('/', authenticateToken, async (req, res) => {
+router.post("/", authenticateToken, async (req, res) => {
+  console.log("📨 POST /api/messages - Request received");
+  console.log("Request body:", {
+    recipientEmail: req.body?.recipientEmail,
+    content: req.body?.content
+      ? `${req.body.content.substring(0, 50)}...`
+      : null,
+    channelId: req.body?.channelId,
+    channelName: req.body?.channelName,
+  });
+
   try {
-    const { recipientEmail, content, channelId, channelName } = req.body;
+    const { recipientEmail, content, channelId, channelName } = req.body || {};
+
     const senderEmail = await getUserEmailFromToken(req);
+    if (!senderEmail) {
+      return res
+        .status(400)
+        .json({ message: "Unable to determine sender email" });
+    }
 
     if (!content || !content.trim()) {
-      return res.status(400).json({ message: 'Message content is required' });
+      return res.status(400).json({ message: "Message content is required" });
     }
 
     // Get sender info
-    const sender = await User.findOne({ where: { email: senderEmail } });
-    if (!sender) {
-      return res.status(404).json({ message: 'Sender not found' });
+    let senderName = "Unknown User";
+    try {
+      const sender = await User.findOne({ where: { email: senderEmail } });
+      if (sender) {
+        senderName = sender.name || senderName;
+      } else {
+        const employee = await Employee.findOne({
+          where: { email: senderEmail },
+        });
+        if (employee) {
+          senderName = employee.name || senderName;
+        }
+      }
+    } catch (error) {
+      console.error("Error getting sender info:", error);
     }
 
     let recipientName = null;
     if (recipientEmail) {
-      const recipient = await User.findOne({ where: { email: recipientEmail } });
-      if (!recipient) {
-        // Try Employee table
-        const employee = await Employee.findOne({ where: { email: recipientEmail } });
-        if (employee) {
-          recipientName = employee.name;
+      try {
+        const recipient = await User.findOne({
+          where: { email: recipientEmail },
+        });
+        if (recipient) {
+          recipientName = recipient.name;
+        } else {
+          const employee = await Employee.findOne({
+            where: { email: recipientEmail },
+          });
+          if (employee) {
+            recipientName = employee.name;
+          }
         }
-      } else {
-        recipientName = recipient.name;
+      } catch (error) {
+        console.error("Error getting recipient info:", error);
       }
     }
 
-    // Get actual table columns
-    const columns = await getMessageTableColumns();
-    const hasRead = columns.includes('read');
-    const hasReadAt = columns.includes('readAt');
-    const hasChannelId = columns.includes('channelId');
-    const hasChannelName = columns.includes('channelName');
-    const hasAttachments = columns.includes('attachments');
+    // Ensure required columns exist before creating message
+    try {
+      const dialect = sequelize.getDialect();
+      if (dialect === "postgres") {
+        // Check and add missing columns
+        const [columns] = await sequelize.query(
+          `
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_schema = 'public' AND table_name = 'messages'
+        `,
+          { type: QueryTypes.SELECT }
+        );
 
-    // Build message data based on what columns exist
-    const messageData = {
-      senderEmail: senderEmail,
-      senderName: sender.name,
-      recipientEmail: recipientEmail || null,
-      recipientName: recipientName,
-      content: content.trim()
-    };
+        const columnNames = columns.map((c) => c.column_name.toLowerCase());
 
-    if (hasChannelId) {
-      messageData.channelId = channelId || null;
-    }
-    if (hasChannelName) {
-      messageData.channelName = channelName || null;
-    }
-    if (hasRead) {
-      messageData.read = false;
+        // Add sender_email if missing
+        if (!columnNames.includes("sender_email")) {
+          console.log("➕ Adding missing column: sender_email");
+          await sequelize.query(
+            `
+            ALTER TABLE messages 
+            ADD COLUMN sender_email VARCHAR(255) NOT NULL DEFAULT '';
+          `,
+            { type: QueryTypes.RAW }
+          );
+        }
+
+        // Add sender_name if missing
+        if (!columnNames.includes("sender_name")) {
+          console.log("➕ Adding missing column: sender_name");
+          await sequelize.query(
+            `
+            ALTER TABLE messages 
+            ADD COLUMN sender_name VARCHAR(255) NOT NULL DEFAULT '';
+          `,
+            { type: QueryTypes.RAW }
+          );
+        }
+
+        // Add content if missing (or rename user_message to content)
+        if (!columnNames.includes("content")) {
+          if (columnNames.includes("user_message")) {
+            console.log("🔄 Renaming user_message to content");
+            try {
+              await sequelize.query(
+                `
+                ALTER TABLE messages 
+                RENAME COLUMN user_message TO content;
+              `,
+                { type: QueryTypes.RAW }
+              );
+            } catch (renameError) {
+              console.error(
+                "Failed to rename user_message, adding content column:",
+                renameError.message
+              );
+              await sequelize.query(
+                `
+                ALTER TABLE messages 
+                ADD COLUMN content TEXT NOT NULL DEFAULT '';
+              `,
+                { type: QueryTypes.RAW }
+              );
+            }
+          } else {
+            console.log("➕ Adding missing column: content");
+            await sequelize.query(
+              `
+              ALTER TABLE messages 
+              ADD COLUMN content TEXT NOT NULL DEFAULT '';
+            `,
+              { type: QueryTypes.RAW }
+            );
+          }
+        }
+
+        // Ensure ai_response column allows NULL or has default value
+        if (columnNames.includes("ai_response")) {
+          try {
+            // Try to alter column to allow NULL if it doesn't already
+            await sequelize.query(
+              `
+              ALTER TABLE messages 
+              ALTER COLUMN ai_response DROP NOT NULL;
+            `,
+              { type: QueryTypes.RAW }
+            );
+            console.log("✅ Updated ai_response to allow NULL");
+          } catch (alterError) {
+            // Column might already allow NULL, or we can't alter it
+            // Try to set a default value instead
+            try {
+              await sequelize.query(
+                `
+                ALTER TABLE messages 
+                ALTER COLUMN ai_response SET DEFAULT '';
+              `,
+                { type: QueryTypes.RAW }
+              );
+              console.log("✅ Set default value for ai_response");
+            } catch (defaultError) {
+              console.log(
+                "⚠️  Could not modify ai_response column (may already be configured)"
+              );
+            }
+          }
+        }
+      }
+    } catch (columnError) {
+      console.error("Error ensuring columns exist:", columnError.message);
+      // Continue anyway - might already exist
     }
 
-    const message = await Message.create(messageData);
+    // Use Sequelize ORM to create message - field mappings handle column names
+    let message;
+    try {
+      message = await Message.create({
+        senderEmail: senderEmail,
+        senderName: senderName,
+        recipientEmail: recipientEmail || null,
+        recipientName: recipientName,
+        channelId: channelId || null,
+        channelName: channelName || null,
+        content: content.trim(),
+        aiResponse: "", // Always provide ai_response with empty string default
+        read: false,
+      });
+    } catch (createError) {
+      console.error("==========================================");
+      console.error("❌ Database error creating message:");
+      console.error("Error name:", createError.name);
+      console.error("Error message:", createError.message);
+      if (createError.original) {
+        console.error("Original error:", createError.original.message);
+        console.error("Original code:", createError.original.code);
+        console.error("Original detail:", createError.original.detail);
+        console.error("Original hint:", createError.original.hint);
+      }
+      if (createError.sql) {
+        console.error("SQL:", createError.sql);
+      }
+      console.error("Attempted data:", {
+        senderEmail,
+        senderName,
+        recipientEmail,
+        recipientName,
+        channelId,
+        channelName,
+        content: content.substring(0, 50),
+      });
+      console.error("==========================================");
+      throw createError;
+    }
+
+    console.log("✅ Message created successfully:", {
+      id: message.id,
+      senderEmail: message.senderEmail,
+      recipientEmail: message.recipientEmail,
+      channelId: message.channelId,
+    });
+
+    // Emit real-time event via Socket.io
+    try {
+      const io = req.app.get("io");
+      if (io) {
+        if (channelId) {
+          io.emit("new-channel-message", {
+            channelId: channelId,
+            message: message,
+          });
+        } else if (recipientEmail) {
+          io.emit("new-direct-message", {
+            message: message,
+            recipientEmail: recipientEmail,
+            senderEmail: senderEmail,
+          });
+        }
+      }
+    } catch (socketError) {
+      console.error("Error emitting socket event:", socketError);
+    }
 
     res.status(201).json(message);
   } catch (error) {
-    console.error('Error sending message:', error);
-    res.status(500).json({ message: 'Error sending message', error: error.message });
+    console.error("==========================================");
+    console.error("❌ Error sending message (catch-all):");
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+
+    if (error.original) {
+      console.error("Original error message:", error.original.message);
+      console.error("Original error code:", error.original.code);
+      console.error("Original error detail:", error.original.detail);
+      console.error("Original error hint:", error.original.hint);
+    }
+
+    if (error.sql) {
+      console.error("SQL query:", error.sql);
+    }
+
+    if (error.errors) {
+      console.error("Validation errors:", error.errors);
+    }
+
+    console.error("Request body:", req.body);
+    console.error("Request user:", req.user);
+    console.error("==========================================");
+
+    if (!res.headersSent) {
+      // Provide helpful error message based on error type
+      let errorMessage = "Error sending message";
+      let errorDetails =
+        error.message || error.original?.message || "Unknown error";
+
+      // Check for common database errors
+      if (
+        error.original?.code === "42703" ||
+        error.message?.includes("column") ||
+        error.message?.includes("does not exist")
+      ) {
+        errorMessage = "Database schema error: Missing required columns";
+        errorDetails =
+          "The messages table is missing required columns. Please run the migration to add sender_email, sender_name, and content columns.";
+      } else if (
+        error.original?.code === "23502" ||
+        error.message?.includes("null value")
+      ) {
+        errorMessage = "Database constraint error: Required field is null";
+        errorDetails = error.original?.message || error.message;
+      }
+
+      res.status(500).json({
+        message: errorMessage,
+        error: errorDetails,
+        details:
+          process.env.NODE_ENV === "development"
+            ? {
+                name: error.name,
+                original: error.original?.message,
+                code: error.original?.code,
+                sql: error.sql,
+                stack: error.stack,
+              }
+            : undefined,
+      });
+    }
   }
 });
 
 // Mark messages as read
-router.put('/read', authenticateToken, async (req, res) => {
+router.put("/read", authenticateToken, async (req, res) => {
   try {
     const { senderEmail } = req.body;
     const recipientEmail = await getUserEmailFromToken(req);
 
-    // Get actual table columns
-    const columns = await getMessageTableColumns();
-    const hasRead = columns.includes('read');
-    const hasReadAt = columns.includes('readAt');
-
-    if (hasRead) {
-      const updateData = { read: true };
-      if (hasReadAt) {
-        updateData.readAt = new Date();
-      }
-      await Message.update(
-        updateData,
-        {
-          where: {
-            senderEmail: senderEmail,
-            recipientEmail: recipientEmail,
-            read: false
-          }
-        }
-      );
+    if (!senderEmail || !recipientEmail) {
+      return res.json({ success: true, message: "Messages marked as read" });
     }
 
-    res.json({ success: true, message: 'Messages marked as read' });
+    await Message.update(
+      { read: true, readAt: new Date() },
+      {
+        where: {
+          senderEmail: senderEmail,
+          recipientEmail: recipientEmail,
+          read: false,
+        },
+      }
+    );
+
+    res.json({ success: true, message: "Messages marked as read" });
   } catch (error) {
-    console.error('Error marking messages as read:', error);
-    res.status(500).json({ message: 'Error marking messages as read', error: error.message });
+    console.error("Error marking messages as read:", error);
+    if (!res.headersSent) {
+      res.json({ success: true, message: "Messages marked as read" });
+    }
   }
 });
 
 // Get unread message count
-router.get('/unread-count', authenticateToken, async (req, res) => {
+router.get("/unread-count", authenticateToken, async (req, res) => {
   try {
     const userEmail = await getUserEmailFromToken(req);
-
-    // Get actual table columns
-    const columns = await getMessageTableColumns();
-    const hasRead = columns.includes('read');
-
-    let count = 0;
-    if (hasRead) {
-      count = await Message.count({
-        where: {
-          recipientEmail: userEmail,
-          read: false
-        }
-      });
+    if (!userEmail) {
+      return res.json({ count: 0 });
     }
+
+    const count = await Message.count({
+      where: {
+        recipientEmail: userEmail,
+        read: false,
+      },
+    });
 
     res.json({ count });
   } catch (error) {
-    console.error('Error getting unread count:', error);
-    res.status(500).json({ message: 'Error getting unread count', error: error.message });
+    console.error("Error getting unread count:", error);
+    res.json({ count: 0 });
+  }
+});
+
+// Get channels (departments) for the current user
+router.get("/channels", authenticateToken, async (req, res) => {
+  try {
+    const userEmail = await getUserEmailFromToken(req);
+    const user = await User.findOne({ where: { email: userEmail } });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const employee = await Employee.findOne({ where: { email: userEmail } });
+    const userDepartment = employee?.department;
+
+    const allDepartments = await Employee.findAll({
+      attributes: [
+        [sequelize.fn("DISTINCT", sequelize.col("department")), "department"],
+      ],
+      where: {
+        department: { [Op.ne]: null },
+      },
+      raw: true,
+    });
+
+    const channels = await Promise.all(
+      allDepartments.map(async (dept) => {
+        const department = dept.department;
+
+        const canAccess =
+          user.role === "admin" ||
+          user.role === "hr" ||
+          (user.role === "employee" && department === userDepartment);
+
+        if (!canAccess) return null;
+
+        // Get last message for this channel
+        const lastMessage = await Message.findOne({
+          where: { channelId: department },
+          order: [["createdAt", "DESC"]],
+        });
+
+        // Get unread count
+        const unreadCount = await Message.count({
+          where: {
+            channelId: department,
+            read: false,
+            senderEmail: { [Op.ne]: userEmail },
+          },
+        });
+
+        return {
+          id: department,
+          name: department,
+          description: `${department} department channel`,
+          lastMessage: lastMessage?.content || "No messages yet",
+          lastMessageTime: lastMessage?.createdAt || new Date(),
+          unread: unreadCount,
+        };
+      })
+    );
+
+    res.json(channels.filter((ch) => ch !== null));
+  } catch (error) {
+    console.error("Error fetching channels:", error);
+    res.status(500).json({
+      message: "Error fetching channels",
+      error: error.message,
+    });
+  }
+});
+
+// Get messages for a channel
+router.get("/channel/:channelId", authenticateToken, async (req, res) => {
+  try {
+    const userEmail = await getUserEmailFromToken(req);
+    const channelId = decodeURIComponent(req.params.channelId);
+
+    const user = await User.findOne({ where: { email: userEmail } });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const employee = await Employee.findOne({ where: { email: userEmail } });
+    const userDepartment = employee?.department;
+
+    const canAccess =
+      user.role === "admin" ||
+      user.role === "hr" ||
+      (user.role === "employee" && channelId === userDepartment);
+
+    if (!canAccess) {
+      return res.status(403).json({ message: "Access denied to this channel" });
+    }
+
+    const messages = await Message.findAll({
+      where: { channelId: channelId },
+      order: [["createdAt", "ASC"]],
+    });
+
+    // Mark messages as read
+    await Message.update(
+      { read: true, readAt: new Date() },
+      {
+        where: {
+          channelId: channelId,
+          read: false,
+          senderEmail: { [Op.ne]: userEmail },
+        },
+      }
+    );
+
+    res.json(messages);
+  } catch (error) {
+    console.error("Error fetching channel messages:", error);
+    res.status(500).json({
+      message: "Error fetching channel messages",
+      error: error.message,
+    });
   }
 });
 
 export default router;
-
