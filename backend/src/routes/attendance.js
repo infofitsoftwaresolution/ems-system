@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { Attendance } from '../models/Attendance.js';
 import { Employee } from '../models/Employee.js';
+import { User } from '../models/User.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { Op } from 'sequelize';
 
@@ -329,6 +330,108 @@ router.get('/today', authenticateToken, async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const row = await Attendance.findOne({ where: { email, date: today } });
   res.json(row || null);
+});
+
+// Get employee's own attendance history (for employees)
+router.get('/my', authenticateToken, async (req, res) => {
+  try {
+    // Get user ID from token and fetch user to get email
+    const userId = req.user?.sub || req.user?.id;
+    if (!userId) {
+      return res.status(400).json({ message: 'Unable to determine user ID from token' });
+    }
+
+    // Fetch user to get email
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const email = String(user.email).toLowerCase();
+    const { filter } = req.query;
+    let whereClause = { email };
+
+    // Apply date filters
+    if (filter === 'today') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().slice(0, 10);
+      whereClause.date = todayStr;
+    } else if (filter === 'week') {
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      const day = startOfWeek.getDay();
+      const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+      startOfWeek.setDate(diff);
+      startOfWeek.setHours(0, 0, 0, 0);
+      const startOfWeekStr = startOfWeek.toISOString().slice(0, 10);
+      whereClause.date = {
+        [Op.gte]: startOfWeekStr
+      };
+    } else if (filter === 'month') {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const startOfMonthStr = startOfMonth.toISOString().slice(0, 10);
+      whereClause.date = {
+        [Op.gte]: startOfMonthStr
+      };
+    }
+    // 'all' filter doesn't add date restriction - returns all records for the user
+
+    const limit = parseInt(req.query.limit) || 1000;
+
+    const attendanceList = await Attendance.findAll({
+      attributes: [
+        'id', 'email', 'name', 'date', 'checkIn', 'checkOut', 
+        'status', 'notes', 
+        'checkInLatitude', 'checkInLongitude', 'checkInAddress',
+        'checkOutLatitude', 'checkOutLongitude', 'checkOutAddress',
+        'checkInPhoto', 'checkOutPhoto',
+        'isLate', 'checkoutType',
+        'createdAt', 'updatedAt'
+      ],
+      where: whereClause,
+      order: [['date', 'DESC'], ['checkIn', 'DESC']],
+      limit: limit,
+      raw: false
+    });
+
+    // Convert to JSON format
+    const formattedList = attendanceList.map(att => {
+      const attData = att.toJSON ? att.toJSON() : att;
+      return {
+        id: attData.id,
+        email: attData.email,
+        name: attData.name,
+        date: attData.date,
+        checkIn: attData.checkIn,
+        checkOut: attData.checkOut,
+        status: attData.status,
+        notes: attData.notes,
+        checkInLatitude: attData.checkInLatitude,
+        checkInLongitude: attData.checkInLongitude,
+        checkInAddress: attData.checkInAddress,
+        checkOutLatitude: attData.checkOutLatitude,
+        checkOutLongitude: attData.checkOutLongitude,
+        checkOutAddress: attData.checkOutAddress,
+        checkInPhoto: attData.checkInPhoto,
+        checkOutPhoto: attData.checkOutPhoto,
+        isLate: attData.isLate,
+        checkoutType: attData.checkoutType,
+        createdAt: attData.createdAt,
+        updatedAt: attData.updatedAt
+      };
+    });
+
+    res.json(formattedList);
+  } catch (error) {
+    console.error('Error fetching employee attendance:', error);
+    res.status(500).json({ 
+      message: 'Error fetching attendance', 
+      error: error.message 
+    });
+  }
 });
 
 // Check-in

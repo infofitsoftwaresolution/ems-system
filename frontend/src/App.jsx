@@ -12,6 +12,7 @@ import Training from "./page/Training.jsx";
 import Calendar from "./page/Calendar.jsx";
 import Tasks from "./page/Tasks.jsx";
 import Communication from "./page/Communication.jsx";
+import Notifications from "./page/Notifications.jsx";
 import Settings from "./page/Settings.jsx";
 import Administration from "./page/Administration.jsx";
 import KycManagement from "./page/KycManagement.jsx";
@@ -63,18 +64,26 @@ const App = () => (
               <Route path="/attendance" element={<EmployeeAttendance />} />
               <Route path="/admin-attendance" element={<AdminAttendance />} />
               <Route path="/payslip" element={<EmployeePayslip />} />
-              <Route path="/payslip-management" element={
-                <ErrorBoundary>
-                  <PayslipManagement />
-                </ErrorBoundary>
-              } />
+              <Route
+                path="/payslip-management"
+                element={
+                  <ErrorBoundary>
+                    <PayslipManagement />
+                  </ErrorBoundary>
+                }
+              />
               <Route path="/leave" element={<EmployeeLeave />} />
-              <Route path="/admin-leave-management" element={<AdminLeaveManagement />} />
+              <Route
+                path="/admin-leave-management"
+                element={<AdminLeaveManagement />}
+              />
               <Route path="/employees" element={<Employees />} />
               <Route path="/training" element={<Training />} />
               <Route path="/calendar" element={<EnhancedCalendar />} />
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/messages" element={<Communication />} />
+              <Route path="/communication" element={<Communication />} />
+              <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/kyc-management" element={<KycManagement />} />
               <Route path="/admin" element={<Administration />} />

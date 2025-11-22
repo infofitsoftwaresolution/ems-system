@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,10 +34,8 @@ export default function EmployeeDashboard() {
     try {
       if (user?.email) {
         const todayAttendance = await apiService.getTodayAttendance(user.email);
-        const allAttendance = await apiService.getAllAttendance('all');
-        
-        // Filter for current user's attendance
-        const userAttendance = allAttendance.filter(att => att.email === user.email);
+        // Use employee-specific endpoint instead of admin endpoint
+        const userAttendance = await apiService.getMyAttendance('all');
         
         // Calculate this week's attendance
         const thisWeek = userAttendance.filter(att => {

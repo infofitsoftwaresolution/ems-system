@@ -53,6 +53,10 @@ export function AuthProvider({ children }) {
 
   // Check for existing session on mount
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 seconds
+
     const checkAuth = async () => {
       try {
         const token = localStorage.getItem("authToken");
@@ -62,19 +66,48 @@ export function AuthProvider({ children }) {
 
         if (token && storedUserId) {
           // Verify token with backend
-          const userData = await apiService.verifyToken();
-          console.log('Token verification successful:', userData);
-          setUser(userData);
+          try {
+            const userData = await apiService.verifyToken();
+            console.log('Token verification successful:', userData);
+            setUser(userData);
+            retryCount = 0; // Reset retry count on success
+          } catch (verifyError) {
+            // Check if it's a connection error
+            if (verifyError.message.includes('Backend server is not running') || 
+                verifyError.message.includes('Failed to fetch') ||
+                verifyError.message.includes('ERR_CONNECTION_REFUSED')) {
+              console.warn(`⚠️ Backend server not available (attempt ${retryCount + 1}/${maxRetries})`);
+              
+              if (retryCount < maxRetries) {
+                retryCount++;
+                setTimeout(checkAuth, retryDelay);
+                return; // Don't clear session yet, will retry
+              } else {
+                console.error('❌ Backend server not available after multiple attempts');
+                setError("Backend server is not running. Please start the backend server.");
+                // Don't clear session - user might start backend later
+              }
+            } else {
+              // Other auth errors - clear session
+              console.error('Auth verification failed:', verifyError);
+              localStorage.removeItem("currentUserId");
+              localStorage.removeItem("authToken");
+              setUser(null);
+            }
+          }
         } else {
           console.log('No valid session found');
         }
       } catch (err) {
         setError("Authentication error");
         console.error('Auth check error:', err);
-        // Clear invalid session on error
-        localStorage.removeItem("currentUserId");
-        localStorage.removeItem("authToken");
-        setUser(null);
+        // Only clear session if it's not a connection error
+        if (!err.message?.includes('Backend server is not running') && 
+            !err.message?.includes('Failed to fetch')) {
+          localStorage.removeItem("currentUserId");
+          localStorage.removeItem("authToken");
+          setUser(null);
+        }
       } finally {
         setIsLoading(false);
       }

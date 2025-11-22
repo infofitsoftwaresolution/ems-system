@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Bell, Search, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
+import { useSocket } from "@/hooks/use-socket";
 import { Badge } from "@/components/ui/badge";
-import { notifications } from "@/lib/data";
+import { apiService } from "@/lib/api";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -30,11 +31,72 @@ export function EnhancedHeader({ toggleSidebar }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+
+  // Fetch notifications
+  const loadNotifications = async () => {
+    if (!user?.id) return;
+
+    try {
+      setIsLoadingNotifications(true);
+      const [allNotifications, countData] = await Promise.all([
+        apiService.getNotifications(50, 0, true), // Get unread only for dropdown
+        apiService.getUnreadNotificationCount(),
+      ]);
+
+      setNotifications(allNotifications || []);
+      setUnreadCount(countData?.count || 0);
+    } catch (error) {
+      console.error("Error loading notifications:", error);
+      setNotifications([]);
+      setUnreadCount(0);
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  };
+
+  // Load notifications on mount and when user changes
+  useEffect(() => {
+    if (user?.id) {
+      loadNotifications();
+      // Refresh notifications every 30 seconds
+      const interval = setInterval(loadNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user?.id]);
+
+  // Handle real-time notifications via Socket.io
+  const handleNewNotification = useCallback(
+    (data) => {
+      // Only reload if notification is for current user
+      if (data.userId === user?.id) {
+        console.log("New notification received:", data);
+        loadNotifications();
+      }
+    },
+    [user?.id, loadNotifications]
+  );
+
+  // Use the existing socket hook to listen for notifications
+  // Pass null for message handlers since we only need notifications here
+  useSocket(null, null, handleNewNotification);
 
   // Filter unread notifications
   const unreadNotifications = notifications.filter(
     (notification) => !notification.isRead
   );
+
+  // Handle mark all as read
+  const handleMarkAllAsRead = async () => {
+    try {
+      await apiService.markAllNotificationsAsRead();
+      await loadNotifications(); // Refresh notifications
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
+  };
 
   // Handle search focus
   const handleSearchFocus = () => {
@@ -169,7 +231,7 @@ export function EnhancedHeader({ toggleSidebar }) {
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="h-5 w-5" />
                 <AnimatePresence>
-                  {unreadNotifications.length > 0 && (
+                  {unreadCount > 0 && (
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
@@ -178,7 +240,7 @@ export function EnhancedHeader({ toggleSidebar }) {
                       <Badge
                         variant="destructive"
                         className="h-5 w-5 p-0 flex items-center justify-center shadow-sm">
-                        {unreadNotifications.length}
+                        {unreadCount}
                       </Badge>
                     </motion.div>
                   )}
@@ -188,13 +250,27 @@ export function EnhancedHeader({ toggleSidebar }) {
             <DropdownMenuContent align="end" className="w-[350px]">
               <DropdownMenuLabel className="flex items-center justify-between">
                 <span>Notifications</span>
-                <Button variant="ghost" size="sm" className="h-7 text-xs">
-                  Mark all as read
-                </Button>
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={handleMarkAllAsRead}
+                    disabled={isLoadingNotifications}>
+                    Mark all as read
+                  </Button>
+                )}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <div className="max-h-[300px] overflow-y-auto">
-                {unreadNotifications.length === 0 ? (
+                {isLoadingNotifications ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                      <p>Loading notifications...</p>
+                    </div>
+                  </div>
+                ) : unreadNotifications.length === 0 ? (
                   <div className="p-4 text-center text-sm text-muted-foreground">
                     <motion.div
                       initial={{ opacity: 0 }}
@@ -207,33 +283,77 @@ export function EnhancedHeader({ toggleSidebar }) {
                     </motion.div>
                   </div>
                 ) : (
-                  unreadNotifications.map((notification, index) => (
-                    <motion.div
-                      key={notification.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      whileHover={{ backgroundColor: "rgba(0,0,0,0.03)" }}>
-                      <DropdownMenuItem className="cursor-pointer p-3 flex flex-col gap-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">
-                            {notification.title}
+                  unreadNotifications.map((notification, index) => {
+                    // Format date
+                    const formatTime = (dateString) => {
+                      if (!dateString) return "";
+                      const date = new Date(dateString);
+                      const now = new Date();
+                      const diffMs = now - date;
+                      const diffMins = Math.floor(diffMs / 60000);
+                      const diffHours = Math.floor(diffMs / 3600000);
+                      const diffDays = Math.floor(diffMs / 86400000);
+
+                      if (diffMins < 1) return "Just now";
+                      if (diffMins < 60) return `${diffMins}m ago`;
+                      if (diffHours < 24) return `${diffHours}h ago`;
+                      if (diffDays < 7) return `${diffDays}d ago`;
+                      return date.toLocaleDateString();
+                    };
+
+                    return (
+                      <motion.div
+                        key={notification.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        whileHover={{ backgroundColor: "rgba(0,0,0,0.03)" }}>
+                        <DropdownMenuItem
+                          className="cursor-pointer p-3 flex flex-col gap-1"
+                          onClick={async () => {
+                            if (!notification.isRead) {
+                              try {
+                                await apiService.markNotificationAsRead(
+                                  notification.id
+                                );
+                                await loadNotifications();
+                              } catch (error) {
+                                console.error(
+                                  "Error marking notification as read:",
+                                  error
+                                );
+                              }
+                            }
+                            if (notification.link) {
+                              window.location.href = notification.link;
+                            }
+                          }}>
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">
+                              {notification.title}
+                            </span>
+                            <Badge
+                              variant={
+                                notification.type === "error"
+                                  ? "destructive"
+                                  : notification.type === "success"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                              className="ml-auto">
+                              {notification.type}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {notification.message}
+                          </p>
+                          <span className="text-xs text-muted-foreground/70 mt-1">
+                            {formatTime(notification.createdAt)}
                           </span>
-                          <Badge
-                            variant={notification.type}
-                            className="ml-auto">
-                            {notification.type}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {notification.message}
-                        </p>
-                        <span className="text-xs text-muted-foreground/70 mt-1">
-                          {notification.time}
-                        </span>
-                      </DropdownMenuItem>
-                    </motion.div>
-                  ))
+                        </DropdownMenuItem>
+                      </motion.div>
+                    );
+                  })
                 )}
               </div>
               <DropdownMenuSeparator />
