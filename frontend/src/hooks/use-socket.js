@@ -53,8 +53,14 @@ export function useSocket(onMessage, onChannelMessage, onNotification) {
 
       // Connection event - basic test
       globalSocket.on("connect", () => {
-        console.log("✅ Connected", globalSocket.id);
-        console.log("Socket transport:", globalSocket.io.engine.transport.name);
+        const socketId = globalSocket.id || "connecting...";
+        console.log("✅ Connected", socketId);
+        if (globalSocket.io?.engine?.transport) {
+          console.log(
+            "Socket transport:",
+            globalSocket.io.engine.transport.name
+          );
+        }
       });
 
       // Listen for test message from server
