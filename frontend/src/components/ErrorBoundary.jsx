@@ -1,43 +1,90 @@
-import { Component } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React from "react";
+import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-class ErrorBoundary extends Component {
+/**
+ * Production-ready Error Boundary component
+ * Catches React errors and displays a user-friendly error message
+ */
+class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+    // Update state so the next render will show the fallback UI
+    return { hasError: true };
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("Error caught by boundary:", error, errorInfo);
+    // Log error to console for debugging
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+
+    // Update state with error details
+    this.setState({
+      error,
+      errorInfo,
+    });
+
+    // In production, you might want to log this to an error reporting service
+    // Example: logErrorToService(error, errorInfo);
   }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null });
+    // Optionally reload the page
+    if (this.props.resetOnError) {
+      window.location.reload();
+    }
+  };
 
   render() {
     if (this.state.hasError) {
+      // Custom fallback UI
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+
+      // Default fallback UI
       return (
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">Error</h1>
-            <p className="text-muted-foreground">Something went wrong</p>
-          </div>
-          <Card>
+        <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+          <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Error Details</CardTitle>
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <CardTitle>Something went wrong</CardTitle>
+              </div>
             </CardHeader>
-            <CardContent>
-              <p className="text-red-600 mb-4">
-                {this.state.error?.message || "An unexpected error occurred"}
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                {this.props.message ||
+                  "An unexpected error occurred. Please try refreshing the page."}
               </p>
-              <Button 
-                onClick={() => window.location.reload()}
-                variant="outline"
-              >
-                Reload Page
-              </Button>
+
+              {process.env.NODE_ENV === "development" && this.state.error && (
+                <details className="mt-4">
+                  <summary className="cursor-pointer text-sm font-medium text-gray-700">
+                    Error Details (Development Only)
+                  </summary>
+                  <pre className="mt-2 p-3 bg-gray-100 rounded text-xs overflow-auto max-h-48">
+                    {this.state.error.toString()}
+                    {this.state.errorInfo?.componentStack}
+                  </pre>
+                </details>
+              )}
+
+              <div className="flex space-x-2">
+                <Button onClick={this.handleReset} variant="default">
+                  Try Again
+                </Button>
+                <Button
+                  onClick={() => (window.location.href = "/")}
+                  variant="outline">
+                  Go Home
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

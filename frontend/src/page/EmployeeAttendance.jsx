@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import {
   Card,
@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useGeolocation } from "@/hooks/use-geolocation";
+import { useCamera } from "@/hooks/use-camera";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -52,15 +53,24 @@ export default function EmployeeAttendance() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
 
-  // Camera state
+  // Camera state using reusable hook
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraStream, setCameraStream] = useState(null);
-  const [capturedPhoto, setCapturedPhoto] = useState(null);
-  const [cameraError, setCameraError] = useState(null);
-  const [isCapturing, setIsCapturing] = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // 'checkin' or 'checkout'
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const {
+    cameraStream,
+    capturedPhoto,
+    cameraError,
+    isCapturing,
+    isStarting,
+    videoRef,
+    canvasRef,
+    startCamera,
+    capturePhoto,
+    stopCamera,
+    resetCamera,
+    setCapturedPhoto,
+    setCameraError,
+  } = useCamera();
 
   const {
     location,
@@ -73,212 +83,124 @@ export default function EmployeeAttendance() {
     clearLocation,
   } = useGeolocation();
 
-  // Camera functions
-  const startCamera = async () => {
-    try {
-      setCameraError(null);
-      setIsCapturing(false);
+  // Camera handlers using the hook
+  const handleCameraClose = useCallback(() => {
+    resetCamera();
+    setCameraOpen(false);
+    setPendingAction(null);
+  }, [resetCamera]);
 
-      // Request camera access
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user", // Front-facing camera
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      });
+  const handleRetakePhoto = useCallback(() => {
+    resetCamera();
+    // Start camera again after a short delay
+    setTimeout(() => {
+      startCamera();
+    }, 100);
+  }, [resetCamera, startCamera]);
 
-      setCameraStream(stream);
-
-      // Set video source
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    } catch (error) {
-      console.error("Camera error:", error);
-      setCameraError(
-        "Camera access denied. Please allow camera permission to continue."
-      );
-      toast.error(
-        "Camera permission denied. Please enable camera access in your browser settings."
-      );
-
-      // Stop any existing stream
-      if (cameraStream) {
-        cameraStream.getTracks().forEach((track) => track.stop());
-        setCameraStream(null);
-      }
+  // Handle photo capture
+  const handleCapturePhoto = useCallback(() => {
+    const photoBase64 = capturePhoto();
+    if (photoBase64) {
+      toast.success("Photo captured successfully!");
+      stopCamera(); // Stop camera after capture
+    } else {
+      toast.error("Failed to capture photo. Please try again.");
     }
-  };
+  }, [capturePhoto, stopCamera]);
 
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) {
-      toast.error("Camera not ready");
+  // Open camera automatically for check-in or check-out
+  const openCameraForAction = useCallback(
+    async (action) => {
+      setPendingAction(action);
+      setCameraOpen(true);
+      resetCamera();
+
+      // Wait for dialog to render, then start camera
+      setTimeout(() => {
+        startCamera();
+      }, 300);
+    },
+    [startCamera, resetCamera]
+  );
+
+  // Use ref to prevent multiple simultaneous calls
+  const isLoadingRef = useRef(false);
+
+  // Memoize loadData to prevent recreation on every render
+  const loadData = useCallback(async () => {
+    if (!user?.email || user?.role === "admin") {
+      return; // Skip if no user or admin
+    }
+
+    // Prevent multiple simultaneous calls
+    if (isLoadingRef.current) {
       return;
     }
 
     try {
-      setIsCapturing(true);
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
+      isLoadingRef.current = true;
+      setLoading(true);
 
-      // Get video dimensions
-      const videoWidth = video.videoWidth;
-      const videoHeight = video.videoHeight;
+      // Check KYC status first (skip for admins)
+      try {
+        const kycInfo = await apiService.getKycStatus(user.email);
 
-      // Calculate new dimensions (max 800px on longest side to reduce file size)
-      const MAX_DIMENSION = 800;
-      let newWidth = videoWidth;
-      let newHeight = videoHeight;
+        // IMPORTANT: Only use the status from KYC request, not from Employee model
+        // The status must be explicitly 'approved' from the KYC review process
+        let kycStatusValue = kycInfo.status;
 
-      if (videoWidth > videoHeight) {
-        if (videoWidth > MAX_DIMENSION) {
-          newWidth = MAX_DIMENSION;
-          newHeight = (videoHeight / videoWidth) * MAX_DIMENSION;
+        // Handle edge cases
+        if (
+          !kycStatusValue ||
+          (kycStatusValue === "pending" &&
+            kycInfo.message === "No KYC request found")
+        ) {
+          kycStatusValue = "not_submitted";
         }
-      } else {
-        if (videoHeight > MAX_DIMENSION) {
-          newHeight = MAX_DIMENSION;
-          newWidth = (videoWidth / videoHeight) * MAX_DIMENSION;
+
+        // Ensure we're using the actual KYC request status
+        if (
+          kycStatusValue !== "approved" &&
+          kycStatusValue !== "rejected" &&
+          kycStatusValue !== "pending" &&
+          kycStatusValue !== "not_submitted"
+        ) {
+          console.warn(
+            "Unexpected KYC status:",
+            kycStatusValue,
+            "Defaulting to not_submitted"
+          );
+          kycStatusValue = "not_submitted";
         }
+
+        setKycStatus(kycStatusValue);
+      } catch (kycError) {
+        console.error("Error loading KYC status:", kycError);
+        setKycStatus("not_submitted");
       }
 
-      // Set canvas dimensions to resized dimensions
-      canvas.width = newWidth;
-      canvas.height = newHeight;
-
-      // Draw video frame to canvas with resizing
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, newWidth, newHeight);
-
-      // Convert to base64 with lower quality (0.6) to reduce file size further
-      // This should result in ~50-150KB images instead of 500KB+
-      const photoBase64 = canvas.toDataURL("image/jpeg", 0.6);
-      setCapturedPhoto(photoBase64);
-
-      // Log image size for debugging
-      const sizeInKB = (photoBase64.length * 3) / 4 / 1024;
-      console.log(`Captured photo size: ${sizeInKB.toFixed(2)} KB`);
-
-      // Stop camera
-      stopCamera();
-
-      toast.success("Photo captured successfully!");
-    } catch (error) {
-      console.error("Capture error:", error);
-      toast.error("Failed to capture photo");
-      setIsCapturing(false);
+      // Always load attendance data, regardless of KYC status
+      try {
+        const attendanceData = await apiService.getTodayAttendance(user.email);
+        setAttendance(attendanceData);
+      } catch (attendanceError) {
+        console.error("Error loading attendance:", attendanceError);
+        // Don't show error if it's just no data
+        if (!attendanceError.message.includes("not found")) {
+          toast.error("Failed to load attendance data");
+        }
+      }
+    } catch (err) {
+      console.error("Error loading data:", err);
+      toast.error("Failed to load data");
+    } finally {
+      isLoadingRef.current = false;
+      setLoading(false);
     }
-  };
-
-  const stopCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
-      setCameraStream(null);
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setIsCapturing(false);
-  };
-
-  const handleCameraClose = () => {
-    stopCamera();
-    setCameraOpen(false);
-    setCapturedPhoto(null);
-    setCameraError(null);
-    setPendingAction(null);
-  };
-
-  const handleRetakePhoto = () => {
-    setCapturedPhoto(null);
-    setCameraError(null);
-    startCamera();
-  };
-
-  // Open camera for check-in or check-out
-  const openCameraForAction = async (action) => {
-    setPendingAction(action);
-    setCameraOpen(true);
-    setCapturedPhoto(null);
-    setCameraError(null);
-
-    // Small delay to ensure dialog is open before starting camera
-    setTimeout(() => {
-      startCamera();
-    }, 100);
-  };
+  }, [user?.email, user?.role]);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-
-        if (user?.email && user?.role !== "admin") {
-          // Check KYC status first (skip for admins)
-          console.log("🔍 Checking KYC status for:", user.email);
-          try {
-            const kycInfo = await apiService.getKycStatus(user.email);
-            console.log("📋 KYC Info received:", kycInfo);
-
-            // IMPORTANT: Only use the status from KYC request, not from Employee model
-            // The status must be explicitly 'approved' from the KYC review process
-            let kycStatusValue = kycInfo.status;
-
-            // Handle edge cases
-            if (
-              !kycStatusValue ||
-              (kycStatusValue === "pending" &&
-                kycInfo.message === "No KYC request found")
-            ) {
-              kycStatusValue = "not_submitted";
-            }
-
-            // Ensure we're using the actual KYC request status
-            if (
-              kycStatusValue !== "approved" &&
-              kycStatusValue !== "rejected" &&
-              kycStatusValue !== "pending" &&
-              kycStatusValue !== "not_submitted"
-            ) {
-              console.warn(
-                "Unexpected KYC status:",
-                kycStatusValue,
-                "Defaulting to not_submitted"
-              );
-              kycStatusValue = "not_submitted";
-            }
-
-            setKycStatus(kycStatusValue);
-          } catch (kycError) {
-            console.error("Error loading KYC status:", kycError);
-            setKycStatus("not_submitted");
-          }
-
-          // Always load attendance data, regardless of KYC status
-          console.log("📊 Loading attendance data for:", user.email);
-          try {
-            const attendanceData = await apiService.getTodayAttendance(
-              user.email
-            );
-            console.log("✅ Attendance data loaded:", attendanceData);
-            setAttendance(attendanceData);
-          } catch (attendanceError) {
-            console.error("Error loading attendance:", attendanceError);
-            // Don't show error if it's just no data
-            if (!attendanceError.message.includes("not found")) {
-              toast.error("Failed to load attendance data");
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Error loading data:", err);
-        toast.error("Failed to load data");
-      } finally {
-        setLoading(false);
-      }
-    };
     loadData();
 
     // Request location permission early for better accuracy
@@ -306,12 +228,14 @@ export default function EmployeeAttendance() {
         cameraStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [user, cameraStream]);
+  }, [user, cameraStream, loadData]);
 
-  const handleCheckIn = async () => {
-    // Open camera first
+  // Camera stream attachment is now handled by the useCamera hook
+
+  const handleCheckIn = useCallback(() => {
+    // Automatically open camera for check-in
     openCameraForAction("checkin");
-  };
+  }, [openCameraForAction]);
 
   const processCheckIn = async (photoBase64) => {
     try {
@@ -434,10 +358,10 @@ export default function EmployeeAttendance() {
     }
   };
 
-  const handleCheckOut = async () => {
-    // Open camera first
+  const handleCheckOut = useCallback(() => {
+    // Automatically open camera for check-out
     openCameraForAction("checkout");
-  };
+  }, [openCameraForAction]);
 
   const processCheckOut = async (photoBase64) => {
     try {
@@ -612,11 +536,16 @@ export default function EmployeeAttendance() {
                   <p className="text-sm text-red-800">{cameraError}</p>
                 </div>
                 <Button
-                  onClick={startCamera}
+                  onClick={() => startCamera()}
                   variant="outline"
-                  className="mt-3">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Try Again
+                  className="mt-3"
+                  disabled={isStarting}>
+                  <RefreshCw
+                    className={`h-4 w-4 mr-2 ${
+                      isStarting ? "animate-spin" : ""
+                    }`}
+                  />
+                  {isStarting ? "Starting..." : "Try Again"}
                 </Button>
               </div>
             ) : capturedPhoto ? (
@@ -662,25 +591,51 @@ export default function EmployeeAttendance() {
                     playsInline
                     muted
                     className="w-full h-full object-cover"
+                    style={{ transform: "scaleX(-1)" }} // Mirror the video for better UX
                   />
-                  {!cameraStream && (
-                    <div className="absolute inset-0 flex items-center justify-center">
+                  {!cameraStream && !isStarting && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
                       <div className="text-center text-white">
                         <Camera className="h-12 w-12 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">Starting camera...</p>
                       </div>
                     </div>
                   )}
+                  {isStarting && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                      <div className="text-center text-white">
+                        <RefreshCw className="h-12 w-12 mx-auto mb-2 opacity-50 animate-spin" />
+                        <p className="text-sm">Initializing camera...</p>
+                      </div>
+                    </div>
+                  )}
+                  {cameraStream &&
+                    videoRef.current &&
+                    videoRef.current.paused && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50">
+                        <div className="text-center text-white">
+                          <RefreshCw className="h-8 w-8 mx-auto mb-2 opacity-50 animate-spin" />
+                          <p className="text-xs">Starting video...</p>
+                        </div>
+                      </div>
+                    )}
                 </div>
+                {/* Hidden canvas for photo capture */}
+                <canvas ref={canvasRef} className="hidden" />
                 <Button
-                  onClick={capturePhoto}
-                  disabled={!cameraStream || isCapturing}
+                  onClick={handleCapturePhoto}
+                  disabled={!cameraStream || isCapturing || isStarting}
                   className="w-full"
                   size="lg">
                   {isCapturing ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                       Capturing...
+                    </>
+                  ) : isStarting ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Starting Camera...
                     </>
                   ) : (
                     <>

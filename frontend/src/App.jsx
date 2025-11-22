@@ -60,7 +60,14 @@ const App = () => (
             <Route element={<EnhancedDashboardLayout />}>
               <Route path="/" element={<RoleBasedDashboard />} />
               <Route path="/profile" element={<EmployeeProfile />} />
-              <Route path="/attendance" element={<EmployeeAttendance />} />
+              <Route
+                path="/attendance"
+                element={
+                  <ErrorBoundary>
+                    <EmployeeAttendance />
+                  </ErrorBoundary>
+                }
+              />
               <Route path="/admin-attendance" element={<AdminAttendance />} />
               <Route path="/payslip" element={<EmployeePayslip />} />
               <Route
