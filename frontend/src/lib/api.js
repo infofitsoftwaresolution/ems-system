@@ -583,6 +583,14 @@ class ApiService {
       body: JSON.stringify(data),
     });
   }
+
+  async getChannels() {
+    return this.request('/api/messages/channels');
+  }
+
+  async getChannelMessages(channelId) {
+    return this.request(`/api/messages/channel/${encodeURIComponent(channelId)}`);
+  }
 }
 
 // Create and export a singleton instance

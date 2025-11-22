@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { Message } from "../models/Message.js";
+<<<<<<< HEAD
 import { Notification } from "../models/Notification.js";
+=======
+>>>>>>> 6c6bd6c72613766ae6e6cf0e8d97c1fbdbd053bc
 import { User } from "../models/User.js";
 import { Employee } from "../models/Employee.js";
 import { authenticateToken } from "../middleware/auth.js";
@@ -416,6 +419,7 @@ router.post("/", authenticateToken, async (req, res) => {
       channelId: message.channelId,
     });
 
+<<<<<<< HEAD
     // Create notification for recipient (direct message) or channel members
     try {
       if (recipientEmail && !channelId) {
@@ -530,6 +534,8 @@ router.post("/", authenticateToken, async (req, res) => {
       // Don't fail the message creation if notification fails
     }
 
+=======
+>>>>>>> 6c6bd6c72613766ae6e6cf0e8d97c1fbdbd053bc
     // Emit real-time event via Socket.io
     try {
       const io = req.app.get("io");
