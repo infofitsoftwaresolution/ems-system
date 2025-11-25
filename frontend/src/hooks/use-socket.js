@@ -3,7 +3,13 @@ import { io } from "socket.io-client";
 import { useAuth } from "./use-auth";
 
 // Get backend URL - handle both absolute and relative URLs
+// This function must be called at runtime, not at module load time
 const getSocketUrl = () => {
+  // Check if we're in a browser environment
+  if (typeof window === 'undefined') {
+    return "http://localhost:3001";
+  }
+  
   const apiUrl = import.meta.env.VITE_API_URL;
   
   // If VITE_API_URL is an absolute URL (starts with http:// or https://)
@@ -21,8 +27,6 @@ const getSocketUrl = () => {
   // Fallback to localhost for development
   return "http://localhost:3001";
 };
-
-const SOCKET_URL = getSocketUrl();
 
 // Singleton socket instance to prevent multiple connections
 let globalSocket = null;
@@ -73,8 +77,12 @@ export function useSocket(onMessage, onChannelMessage, onNotification) {
       // But if backend is on a different port/path, we might need to specify path
       // For now, let Socket.IO auto-detect the path
       
-      console.log("🔌 Connecting to Socket.IO at:", SOCKET_URL);
-      globalSocket = io(SOCKET_URL, socketOptions);
+      // Get Socket URL at runtime (not at module load time)
+      const socketUrl = getSocketUrl();
+      console.log("🔌 Connecting to Socket.IO at:", socketUrl);
+      console.log("🔌 VITE_API_URL:", import.meta.env.VITE_API_URL);
+      console.log("🔌 window.location.origin:", typeof window !== 'undefined' ? window.location.origin : 'N/A');
+      globalSocket = io(socketUrl, socketOptions);
       socketRef.current = globalSocket;
 
       // Connection event - basic test
@@ -99,7 +107,9 @@ export function useSocket(onMessage, onChannelMessage, onNotification) {
         console.error("Socket connection error:", error);
         console.error("Error type:", error.type);
         console.error("Error message:", error.message);
-        console.error("Socket URL:", SOCKET_URL);
+        console.error("Socket URL:", socketUrl);
+        console.error("VITE_API_URL:", import.meta.env.VITE_API_URL);
+        console.error("window.location.origin:", typeof window !== 'undefined' ? window.location.origin : 'N/A');
       });
 
       globalSocket.on("disconnect", (reason) => {

@@ -179,8 +179,12 @@ jobs:
           fi
           
           # Create necessary directories
-          mkdir -p backend/uploads backend/logs
+          mkdir -p backend/uploads backend/logs backend/uploads/kyc
           mkdir -p ssl-certs
+          # Ensure uploads directory has correct permissions
+          chmod -R 755 backend/uploads || true
+          # Create kyc subdirectory if it doesn't exist
+          mkdir -p backend/uploads/kyc || true
           
           # Setup environment file with RDS configuration (preserve existing if it has custom values)
           echo "⚙️ Setting up environment configuration..."
@@ -216,7 +220,7 @@ jobs:
           
           # File Upload
           MAX_FILE_SIZE=10485760
-          UPLOAD_PATH=./uploads
+          UPLOAD_PATH=/app/uploads
           
           # Logging
           LOG_LEVEL=info
