@@ -35,13 +35,45 @@ const allow = [
   'image/jpeg',
   'image/jpg',
   'image/png',
+  'image/webp',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 ];
 
-const fileFilter = (_req, file, cb) => {
-  if (allow.includes(file.mimetype)) return cb(null, true);
-  cb(new Error('Invalid file type'));
+const fileFilter = (req, file, cb) => {
+  // Log file info for debugging
+  console.log('File upload attempt:', {
+    fieldname: file.fieldname,
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size
+  });
+  
+  // Normalize mimetype for comparison (lowercase)
+  const normalizedMimeType = file.mimetype?.toLowerCase();
+  
+  // Check if mimetype is in allowed list
+  if (allow.some(allowed => allowed.toLowerCase() === normalizedMimeType)) {
+    return cb(null, true);
+  }
+  
+  // Also check file extension as fallback
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
+  
+  if (allowedExtensions.includes(ext)) {
+    console.log('File accepted by extension:', ext);
+    return cb(null, true);
+  }
+  
+  console.error('File rejected:', {
+    mimetype: file.mimetype,
+    extension: ext,
+    fieldname: file.fieldname,
+    originalname: file.originalname
+  });
+  
+  cb(new Error(`Invalid file type: ${file.mimetype || 'unknown'}. Allowed types: PDF, JPG, JPEG, PNG, WebP`));
 };
 
 const upload = multer({ storage, fileFilter, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB

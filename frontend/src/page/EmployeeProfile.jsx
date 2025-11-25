@@ -57,8 +57,14 @@ export default function EmployeeProfile() {
     ifscCode: "",
   });
   const [panCardFile, setPanCardFile] = useState(null);
-  const [aadharCardFile, setAadharCardFile] = useState(null);
   const [employeePhotoFile, setEmployeePhotoFile] = useState(null);
+  // New KYC document files
+  const [salarySlipMonth1, setSalarySlipMonth1] = useState(null);
+  const [salarySlipMonth2, setSalarySlipMonth2] = useState(null);
+  const [salarySlipMonth3, setSalarySlipMonth3] = useState(null);
+  const [bankProofFile, setBankProofFile] = useState(null);
+  const [aadhaarFrontFile, setAadhaarFrontFile] = useState(null);
+  const [aadhaarBackFile, setAadhaarBackFile] = useState(null);
   const [submittingKyc, setSubmittingKyc] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
 
@@ -145,7 +151,7 @@ export default function EmployeeProfile() {
     return "";
   };
 
-  const validateEmergencyContactAddress = (address) => {
+  const validateEmergencyContactAddress = () => {
     // Optional field, no validation needed
     return "";
   };
@@ -187,14 +193,21 @@ export default function EmployeeProfile() {
 
   const validateFile = (file, fieldName) => {
     if (!file) return `${fieldName} is required`;
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    // Allow both images and PDFs for all document types
+    const allowedTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ];
 
     if (!allowedTypes.includes(file.type)) {
-      return "Please upload a valid image file (JPEG, PNG, or WebP)";
+      return "Please upload a valid file (PDF, JPEG, PNG, or WebP)";
     }
     if (file.size > maxSize) {
-      return "File size must be less than 5MB";
+      return "File size must be less than 10MB";
     }
     return "";
   };
@@ -263,13 +276,32 @@ export default function EmployeeProfile() {
   // Handle file upload with validation
   const handleFileUpload = (file, fieldName) => {
     if (!file) {
-      // User cancelled file selection
-      if (fieldName === "panCard") {
-        setPanCardFile(null);
-      } else if (fieldName === "aadharCard") {
-        setAadharCardFile(null);
-      } else if (fieldName === "employeePhoto") {
-        setEmployeePhotoFile(null);
+      // User cancelled file selection - clear the file for this field
+      switch (fieldName) {
+        case "panCard":
+          setPanCardFile(null);
+          break;
+        case "employeePhoto":
+          setEmployeePhotoFile(null);
+          break;
+        case "aadhaarFront":
+          setAadhaarFrontFile(null);
+          break;
+        case "aadhaarBack":
+          setAadhaarBackFile(null);
+          break;
+        case "salarySlipMonth1":
+          setSalarySlipMonth1(null);
+          break;
+        case "salarySlipMonth2":
+          setSalarySlipMonth2(null);
+          break;
+        case "salarySlipMonth3":
+          setSalarySlipMonth3(null);
+          break;
+        case "bankProof":
+          setBankProofFile(null);
+          break;
       }
       setValidationErrors({ ...validationErrors, [fieldName]: "" });
       return;
@@ -278,12 +310,34 @@ export default function EmployeeProfile() {
     const error = validateFile(file, fieldName);
     setValidationErrors({ ...validationErrors, [fieldName]: error });
 
-    if (!error && fieldName === "panCard") {
-      setPanCardFile(file);
-    } else if (!error && fieldName === "aadharCard") {
-      setAadharCardFile(file);
-    } else if (!error && fieldName === "employeePhoto") {
-      setEmployeePhotoFile(file);
+    // Only set the file if there's no validation error
+    if (!error) {
+      switch (fieldName) {
+        case "panCard":
+          setPanCardFile(file);
+          break;
+        case "employeePhoto":
+          setEmployeePhotoFile(file);
+          break;
+        case "aadhaarFront":
+          setAadhaarFrontFile(file);
+          break;
+        case "aadhaarBack":
+          setAadhaarBackFile(file);
+          break;
+        case "salarySlipMonth1":
+          setSalarySlipMonth1(file);
+          break;
+        case "salarySlipMonth2":
+          setSalarySlipMonth2(file);
+          break;
+        case "salarySlipMonth3":
+          setSalarySlipMonth3(file);
+          break;
+        case "bankProof":
+          setBankProofFile(file);
+          break;
+      }
     }
   };
 
@@ -313,8 +367,9 @@ export default function EmployeeProfile() {
     errors.accountNumber = validateAccountNumber(kycFormData.accountNumber);
     errors.ifscCode = validateIFSC(kycFormData.ifscCode);
     errors.panCard = validateFile(panCardFile, "PAN Card");
-    errors.aadharCard = validateFile(aadharCardFile, "Aadhar Card");
     errors.employeePhoto = validateFile(employeePhotoFile, "Employee Photo");
+    errors.aadhaarFront = validateFile(aadhaarFrontFile, "Aadhaar Front");
+    errors.aadhaarBack = validateFile(aadhaarBackFile, "Aadhaar Back");
 
     setValidationErrors(errors);
 
@@ -389,7 +444,39 @@ export default function EmployeeProfile() {
 
     // Validate all fields before submission
     if (!validateAllFields()) {
-      toast.error("Please fix all validation errors before submitting");
+      // Get list of fields with errors for better error message
+      const errorFields = Object.entries(validationErrors)
+        .filter(([, error]) => error !== "")
+        .map(([field]) => {
+          // Convert field names to user-friendly labels
+          const fieldLabels = {
+            panNumber: "PAN Number",
+            aadharNumber: "Aadhar Number",
+            dob: "Date of Birth",
+            address: "Address",
+            phoneNumber: "Phone Number",
+            emergencyContactName: "Emergency Contact Name",
+            emergencyContactPhone: "Emergency Contact Phone",
+            emergencyContactRelation: "Emergency Contact Relation",
+            bankName: "Bank Name",
+            bankBranch: "Bank Branch",
+            accountNumber: "Account Number",
+            ifscCode: "IFSC Code",
+            panCard: "PAN Card Photo",
+            employeePhoto: "Employee Photo",
+            aadhaarFront: "Aadhaar Card - Front",
+            aadhaarBack: "Aadhaar Card - Back",
+          };
+          return fieldLabels[field] || field;
+        });
+
+      if (errorFields.length > 0) {
+        toast.error(
+          `Please fix validation errors in: ${errorFields.join(", ")}`
+        );
+      } else {
+        toast.error("Please fix all validation errors before submitting");
+      }
       return;
     }
 
@@ -397,7 +484,16 @@ export default function EmployeeProfile() {
     try {
       console.log("Starting KYC submission...");
       console.log("Form data:", kycFormData);
-      console.log("Files:", { panCardFile, aadharCardFile });
+      console.log("Files:", {
+        panCardFile,
+        employeePhotoFile,
+        aadhaarFrontFile,
+        aadhaarBackFile,
+        salarySlipMonth1,
+        salarySlipMonth2,
+        salarySlipMonth3,
+        bankProofFile,
+      });
 
       // Create FormData for file upload
       const formData = new FormData();
@@ -406,15 +502,23 @@ export default function EmployeeProfile() {
       formData.append("address", kycFormData.address);
       formData.append("phoneNumber", kycFormData.phoneNumber);
       formData.append("emergencyContactName", kycFormData.emergencyContactName);
-      formData.append("emergencyContactPhone", kycFormData.emergencyContactPhone);
-      formData.append("emergencyContactRelation", kycFormData.emergencyContactRelation);
-      formData.append("emergencyContactAddress", kycFormData.emergencyContactAddress || "");
+      formData.append(
+        "emergencyContactPhone",
+        kycFormData.emergencyContactPhone
+      );
+      formData.append(
+        "emergencyContactRelation",
+        kycFormData.emergencyContactRelation
+      );
+      formData.append(
+        "emergencyContactAddress",
+        kycFormData.emergencyContactAddress || ""
+      );
       formData.append("bankName", kycFormData.bankName);
       formData.append("bankBranch", kycFormData.bankBranch);
       formData.append("accountNumber", kycFormData.accountNumber);
       formData.append("ifscCode", kycFormData.ifscCode);
       formData.append("panCard", panCardFile);
-      formData.append("aadharCard", aadharCardFile);
       formData.append("selfie", employeePhotoFile);
 
       // Add required fields for backend
@@ -455,10 +559,12 @@ export default function EmployeeProfile() {
       console.log("Response ok:", response.ok);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: "Failed to submit KYC" }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: "Failed to submit KYC" }));
         console.error("KYC submission error response:", errorData);
         console.error("Response status:", response.status);
-        
+
         // Create error with full details
         const error = new Error(errorData.message || "Failed to submit KYC");
         error.status = response.status;
@@ -487,8 +593,13 @@ export default function EmployeeProfile() {
         ifscCode: "",
       });
       setPanCardFile(null);
-      setAadharCardFile(null);
       setEmployeePhotoFile(null);
+      setSalarySlipMonth1(null);
+      setSalarySlipMonth2(null);
+      setSalarySlipMonth3(null);
+      setBankProofFile(null);
+      setAadhaarFrontFile(null);
+      setAadhaarBackFile(null);
       setValidationErrors({});
 
       // Reload KYC status
@@ -497,21 +608,34 @@ export default function EmployeeProfile() {
       setKycData(kycInfo.data);
     } catch (error) {
       console.error("KYC submission error:", error);
-      
+
       // Show specific error message based on error response
-      if (error.message && error.message.includes('already pending review')) {
-        toast.error("Your KYC is already pending review. Please wait for admin approval.");
-      } else if (error.message && error.message.includes('already been approved')) {
-        toast.error("Your KYC has already been approved. No resubmission needed.");
-      } else if (error.message && error.message.includes('already submitted')) {
+      if (error.message && error.message.includes("already pending review")) {
+        toast.error(
+          "Your KYC is already pending review. Please wait for admin approval."
+        );
+      } else if (
+        error.message &&
+        error.message.includes("already been approved")
+      ) {
+        toast.error(
+          "Your KYC has already been approved. No resubmission needed."
+        );
+      } else if (error.message && error.message.includes("already submitted")) {
         // Check if the error data contains status information
-        if (error.errorData && error.errorData.status === 'rejected') {
-          toast.error("Please try resubmitting. If the issue persists, contact support.");
+        if (error.errorData && error.errorData.status === "rejected") {
+          toast.error(
+            "Please try resubmitting. If the issue persists, contact support."
+          );
         } else {
-          toast.error("KYC already submitted. If your KYC was rejected, you can resubmit it.");
+          toast.error(
+            "KYC already submitted. If your KYC was rejected, you can resubmit it."
+          );
         }
       } else {
-        toast.error(error.message || "Failed to submit KYC information. Please try again.");
+        toast.error(
+          error.message || "Failed to submit KYC information. Please try again."
+        );
       }
     } finally {
       setSubmittingKyc(false);
@@ -927,9 +1051,7 @@ export default function EmployeeProfile() {
                       e.target.value.replace(/\D/g, "")
                     )
                   }
-                  onBlur={(e) =>
-                    handleFieldBlur("phoneNumber", e.target.value)
-                  }
+                  onBlur={(e) => handleFieldBlur("phoneNumber", e.target.value)}
                   className={
                     validationErrors.phoneNumber ? "border-red-500" : ""
                   }
@@ -944,23 +1066,32 @@ export default function EmployeeProfile() {
 
               {/* Emergency Contact Section */}
               <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-semibold">Emergency Contact Details</h3>
-                
+                <h3 className="text-lg font-semibold">
+                  Emergency Contact Details
+                </h3>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="emergencyContactName">Emergency Contact Name *</Label>
+                    <Label htmlFor="emergencyContactName">
+                      Emergency Contact Name *
+                    </Label>
                     <Input
                       id="emergencyContactName"
                       placeholder="Enter emergency contact name"
                       value={kycFormData.emergencyContactName}
                       onChange={(e) =>
-                        handleFieldChange("emergencyContactName", e.target.value)
+                        handleFieldChange(
+                          "emergencyContactName",
+                          e.target.value
+                        )
                       }
                       onBlur={(e) =>
                         handleFieldBlur("emergencyContactName", e.target.value)
                       }
                       className={
-                        validationErrors.emergencyContactName ? "border-red-500" : ""
+                        validationErrors.emergencyContactName
+                          ? "border-red-500"
+                          : ""
                       }
                       required
                     />
@@ -971,7 +1102,9 @@ export default function EmployeeProfile() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="emergencyContactPhone">Emergency Contact Phone *</Label>
+                    <Label htmlFor="emergencyContactPhone">
+                      Emergency Contact Phone *
+                    </Label>
                     <Input
                       id="emergencyContactPhone"
                       placeholder="Enter phone number (10 digits)"
@@ -986,7 +1119,9 @@ export default function EmployeeProfile() {
                         handleFieldBlur("emergencyContactPhone", e.target.value)
                       }
                       className={
-                        validationErrors.emergencyContactPhone ? "border-red-500" : ""
+                        validationErrors.emergencyContactPhone
+                          ? "border-red-500"
+                          : ""
                       }
                       maxLength={10}
                       required
@@ -1007,13 +1142,21 @@ export default function EmployeeProfile() {
                       placeholder="e.g., Father, Mother, Spouse, Sibling"
                       value={kycFormData.emergencyContactRelation}
                       onChange={(e) =>
-                        handleFieldChange("emergencyContactRelation", e.target.value)
+                        handleFieldChange(
+                          "emergencyContactRelation",
+                          e.target.value
+                        )
                       }
                       onBlur={(e) =>
-                        handleFieldBlur("emergencyContactRelation", e.target.value)
+                        handleFieldBlur(
+                          "emergencyContactRelation",
+                          e.target.value
+                        )
                       }
                       className={
-                        validationErrors.emergencyContactRelation ? "border-red-500" : ""
+                        validationErrors.emergencyContactRelation
+                          ? "border-red-500"
+                          : ""
                       }
                       required
                     />
@@ -1024,19 +1167,29 @@ export default function EmployeeProfile() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="emergencyContactAddress">Emergency Contact Address</Label>
+                    <Label htmlFor="emergencyContactAddress">
+                      Emergency Contact Address
+                    </Label>
                     <Input
                       id="emergencyContactAddress"
                       placeholder="Enter emergency contact address (optional)"
                       value={kycFormData.emergencyContactAddress}
                       onChange={(e) =>
-                        handleFieldChange("emergencyContactAddress", e.target.value)
+                        handleFieldChange(
+                          "emergencyContactAddress",
+                          e.target.value
+                        )
                       }
                       onBlur={(e) =>
-                        handleFieldBlur("emergencyContactAddress", e.target.value)
+                        handleFieldBlur(
+                          "emergencyContactAddress",
+                          e.target.value
+                        )
                       }
                       className={
-                        validationErrors.emergencyContactAddress ? "border-red-500" : ""
+                        validationErrors.emergencyContactAddress
+                          ? "border-red-500"
+                          : ""
                       }
                     />
                     {validationErrors.emergencyContactAddress && (
@@ -1051,7 +1204,7 @@ export default function EmployeeProfile() {
               {/* Bank Account Details Section */}
               <div className="space-y-4 border-t pt-4">
                 <h3 className="text-lg font-semibold">Bank Account Details</h3>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="bankName">Bank Name *</Label>
@@ -1159,74 +1312,88 @@ export default function EmployeeProfile() {
                 </div>
               </div>
 
-              {/* File Upload Section */}
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-semibold">Document Upload</h3>
+              {/* Document Upload Sections */}
+              <div className="space-y-6 border-t pt-6">
+                <h3 className="text-lg font-semibold mb-4">Document Upload</h3>
 
-                {/* Employee Photo */}
-                <div className="space-y-2">
-                  <Label htmlFor="employeePhoto">Employee Photo *</Label>
-                  <div
-                    className={`border-2 border-dashed rounded-lg p-4 ${
-                      validationErrors.employeePhoto
-                        ? "border-red-500"
-                        : "border-gray-300"
-                    }`}>
-                    {employeePhotoFile ? (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <FileImage className="h-4 w-4" />
-                          <span className="text-sm">{employeePhotoFile.name}</span>
+                {/* Section 1: Employee Photo */}
+                <div className="space-y-4 border-b pb-4">
+                  <h4 className="text-md font-semibold text-gray-700">
+                    Employee Photo
+                  </h4>
+                  <div className="space-y-2">
+                    <Label htmlFor="employeePhoto">Employee Photo *</Label>
+                    <div
+                      className={`border-2 border-dashed rounded-lg p-4 ${
+                        validationErrors.employeePhoto
+                          ? "border-red-500"
+                          : "border-gray-300"
+                      }`}>
+                      {employeePhotoFile ? (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <FileImage className="h-4 w-4" />
+                            <span className="text-sm">
+                              {employeePhotoFile.name}
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEmployeePhotoFile(null);
+                              setValidationErrors({
+                                ...validationErrors,
+                                employeePhoto: "",
+                              });
+                            }}>
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEmployeePhotoFile(null);
-                            setValidationErrors({
-                              ...validationErrors,
-                              employeePhoto: "",
-                            });
-                          }}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-500">
-                          Click to upload employee photo
-                        </p>
-                        <Input
-                          id="employeePhoto"
-                          type="file"
-                          accept="image/jpeg,image/jpg,image/png,image/webp"
-                          onChange={(e) =>
-                            handleFileUpload(e.target.files[0], "employeePhoto")
-                          }
-                          className="hidden"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            document.getElementById("employeePhoto").click()
-                          }>
-                          Choose File
-                        </Button>
-                      </div>
+                      ) : (
+                        <div className="text-center">
+                          <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-500">
+                            Click to upload employee photo
+                          </p>
+                          <Input
+                            id="employeePhoto"
+                            type="file"
+                            accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
+                            onChange={(e) =>
+                              handleFileUpload(
+                                e.target.files[0],
+                                "employeePhoto"
+                              )
+                            }
+                            className="hidden"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              document.getElementById("employeePhoto").click()
+                            }>
+                            Choose File
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    {validationErrors.employeePhoto && (
+                      <p className="text-sm text-red-500">
+                        {validationErrors.employeePhoto}
+                      </p>
                     )}
                   </div>
-                  {validationErrors.employeePhoto && (
-                    <p className="text-sm text-red-500">
-                      {validationErrors.employeePhoto}
-                    </p>
-                  )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Section 2: PAN Card Photo */}
+                <div className="space-y-4 border-b pb-4">
+                  <h4 className="text-md font-semibold text-gray-700">
+                    PAN Card Photo
+                  </h4>
                   <div className="space-y-2">
                     <Label htmlFor="panCard">PAN Card Photo *</Label>
                     <div
@@ -1264,7 +1431,7 @@ export default function EmployeeProfile() {
                           <Input
                             id="panCard"
                             type="file"
-                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                            accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
                             onChange={(e) =>
                               handleFileUpload(e.target.files[0], "panCard")
                             }
@@ -1288,21 +1455,392 @@ export default function EmployeeProfile() {
                       </p>
                     )}
                   </div>
+                </div>
 
+                {/* Section 3: Aadhaar Card Photo (Front and Back) */}
+                <div className="space-y-4 border-b pb-4">
+                  <h4 className="text-md font-semibold text-gray-700">
+                    Aadhaar Card Photo
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="aadhaarFront">
+                        Aadhaar Card - Front *
+                      </Label>
+                      <div
+                        className={`border-2 border-dashed rounded-lg p-4 ${
+                          validationErrors.aadhaarFront
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}>
+                        {aadhaarFrontFile ? (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <FileImage className="h-4 w-4" />
+                              <span className="text-sm">
+                                {aadhaarFrontFile.name}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setAadhaarFrontFile(null);
+                                setValidationErrors({
+                                  ...validationErrors,
+                                  aadhaarFront: "",
+                                });
+                              }}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+                            <p className="text-xs text-gray-500 mb-2">
+                              Upload Aadhaar front
+                            </p>
+                            <Input
+                              id="aadhaarFront"
+                              type="file"
+                              accept=".pdf,image/jpeg,image/jpg,image/png"
+                              onChange={(e) =>
+                                handleFileUpload(
+                                  e.target.files[0],
+                                  "aadhaarFront"
+                                )
+                              }
+                              className="hidden"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                document.getElementById("aadhaarFront").click()
+                              }>
+                              Choose File
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      {validationErrors.aadhaarFront && (
+                        <p className="text-sm text-red-500">
+                          {validationErrors.aadhaarFront}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="aadhaarBack">Aadhaar Card - Back *</Label>
+                      <div
+                        className={`border-2 border-dashed rounded-lg p-4 ${
+                          validationErrors.aadhaarBack
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}>
+                        {aadhaarBackFile ? (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <FileImage className="h-4 w-4" />
+                              <span className="text-sm">
+                                {aadhaarBackFile.name}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setAadhaarBackFile(null);
+                                setValidationErrors({
+                                  ...validationErrors,
+                                  aadhaarBack: "",
+                                });
+                              }}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+                            <p className="text-xs text-gray-500 mb-2">
+                              Upload Aadhaar back
+                            </p>
+                            <Input
+                              id="aadhaarBack"
+                              type="file"
+                              accept=".pdf,image/jpeg,image/jpg,image/png"
+                              onChange={(e) =>
+                                handleFileUpload(
+                                  e.target.files[0],
+                                  "aadhaarBack"
+                                )
+                              }
+                              className="hidden"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                document.getElementById("aadhaarBack").click()
+                              }>
+                              Choose File
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      {validationErrors.aadhaarBack && (
+                        <p className="text-sm text-red-500">
+                          {validationErrors.aadhaarBack}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 4: 3 Months Salary Slips */}
+                <div className="space-y-4 border-b pb-4">
+                  <h4 className="text-md font-semibold text-gray-700">
+                    3 Months Salary Slips
+                  </h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="salarySlipMonth1">
+                        Salary Slip - Month 1
+                      </Label>
+                      <div
+                        className={`border-2 border-dashed rounded-lg p-4 ${
+                          validationErrors.salarySlipMonth1
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}>
+                        {salarySlipMonth1 ? (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <FileImage className="h-4 w-4" />
+                              <span className="text-sm">
+                                {salarySlipMonth1.name}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSalarySlipMonth1(null);
+                                setValidationErrors({
+                                  ...validationErrors,
+                                  salarySlipMonth1: "",
+                                });
+                              }}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+                            <p className="text-xs text-gray-500 mb-2">
+                              Upload salary slip
+                            </p>
+                            <Input
+                              id="salarySlipMonth1"
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              onChange={(e) =>
+                                handleFileUpload(
+                                  e.target.files[0],
+                                  "salarySlipMonth1"
+                                )
+                              }
+                              className="hidden"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                document
+                                  .getElementById("salarySlipMonth1")
+                                  .click()
+                              }>
+                              Choose File
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      {validationErrors.salarySlipMonth1 && (
+                        <p className="text-sm text-red-500">
+                          {validationErrors.salarySlipMonth1}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="salarySlipMonth2">
+                        Salary Slip - Month 2
+                      </Label>
+                      <div
+                        className={`border-2 border-dashed rounded-lg p-4 ${
+                          validationErrors.salarySlipMonth2
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}>
+                        {salarySlipMonth2 ? (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <FileImage className="h-4 w-4" />
+                              <span className="text-sm">
+                                {salarySlipMonth2.name}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSalarySlipMonth2(null);
+                                setValidationErrors({
+                                  ...validationErrors,
+                                  salarySlipMonth2: "",
+                                });
+                              }}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+                            <p className="text-xs text-gray-500 mb-2">
+                              Upload salary slip
+                            </p>
+                            <Input
+                              id="salarySlipMonth2"
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              onChange={(e) =>
+                                handleFileUpload(
+                                  e.target.files[0],
+                                  "salarySlipMonth2"
+                                )
+                              }
+                              className="hidden"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                document
+                                  .getElementById("salarySlipMonth2")
+                                  .click()
+                              }>
+                              Choose File
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      {validationErrors.salarySlipMonth2 && (
+                        <p className="text-sm text-red-500">
+                          {validationErrors.salarySlipMonth2}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="salarySlipMonth3">
+                        Salary Slip - Month 3
+                      </Label>
+                      <div
+                        className={`border-2 border-dashed rounded-lg p-4 ${
+                          validationErrors.salarySlipMonth3
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}>
+                        {salarySlipMonth3 ? (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <FileImage className="h-4 w-4" />
+                              <span className="text-sm">
+                                {salarySlipMonth3.name}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSalarySlipMonth3(null);
+                                setValidationErrors({
+                                  ...validationErrors,
+                                  salarySlipMonth3: "",
+                                });
+                              }}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+                            <p className="text-xs text-gray-500 mb-2">
+                              Upload salary slip
+                            </p>
+                            <Input
+                              id="salarySlipMonth3"
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              onChange={(e) =>
+                                handleFileUpload(
+                                  e.target.files[0],
+                                  "salarySlipMonth3"
+                                )
+                              }
+                              className="hidden"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                document
+                                  .getElementById("salarySlipMonth3")
+                                  .click()
+                              }>
+                              Choose File
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      {validationErrors.salarySlipMonth3 && (
+                        <p className="text-sm text-red-500">
+                          {validationErrors.salarySlipMonth3}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 5: Bank Proof */}
+                <div className="space-y-4 border-b pb-4">
+                  <h4 className="text-md font-semibold text-gray-700">
+                    Bank Proof (Cancelled Cheque/Passbook)
+                  </h4>
                   <div className="space-y-2">
-                    <Label htmlFor="aadharCard">Aadhar Card Photo *</Label>
+                    <Label htmlFor="bankProof">Bank Proof</Label>
                     <div
                       className={`border-2 border-dashed rounded-lg p-4 ${
-                        validationErrors.aadharCard
+                        validationErrors.bankProof
                           ? "border-red-500"
                           : "border-gray-300"
                       }`}>
-                      {aadharCardFile ? (
+                      {bankProofFile ? (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
                             <FileImage className="h-4 w-4" />
                             <span className="text-sm">
-                              {aadharCardFile.name}
+                              {bankProofFile.name}
                             </span>
                           </div>
                           <Button
@@ -1310,10 +1848,10 @@ export default function EmployeeProfile() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setAadharCardFile(null);
+                              setBankProofFile(null);
                               setValidationErrors({
                                 ...validationErrors,
-                                aadharCard: "",
+                                bankProof: "",
                               });
                             }}>
                             <X className="h-4 w-4" />
@@ -1323,14 +1861,14 @@ export default function EmployeeProfile() {
                         <div className="text-center">
                           <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                           <p className="text-sm text-gray-500">
-                            Click to upload Aadhar card photo
+                            Upload cancelled cheque or passbook (PDF or Image)
                           </p>
                           <Input
-                            id="aadharCard"
+                            id="bankProof"
                             type="file"
-                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                            accept=".pdf,.jpg,.jpeg,.png"
                             onChange={(e) =>
-                              handleFileUpload(e.target.files[0], "aadharCard")
+                              handleFileUpload(e.target.files[0], "bankProof")
                             }
                             className="hidden"
                           />
@@ -1339,16 +1877,16 @@ export default function EmployeeProfile() {
                             variant="outline"
                             size="sm"
                             onClick={() =>
-                              document.getElementById("aadharCard").click()
+                              document.getElementById("bankProof").click()
                             }>
                             Choose File
                           </Button>
                         </div>
                       )}
                     </div>
-                    {validationErrors.aadharCard && (
+                    {validationErrors.bankProof && (
                       <p className="text-sm text-red-500">
-                        {validationErrors.aadharCard}
+                        {validationErrors.bankProof}
                       </p>
                     )}
                   </div>

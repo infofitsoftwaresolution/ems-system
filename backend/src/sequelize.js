@@ -1,7 +1,8 @@
 import { Sequelize } from 'sequelize';
 
-// Use PostgreSQL if POSTGRES_HOST is set, otherwise use SQLite for development
-const usePostgreSQL = !!process.env.POSTGRES_HOST || process.env.DB_DIALECT === 'postgres';
+// Use SQLite if DB_DIALECT is explicitly set to 'sqlite', otherwise check for PostgreSQL
+// This allows SQLite to override PostgreSQL settings for local development
+const usePostgreSQL = process.env.DB_DIALECT !== 'sqlite' && (!!process.env.POSTGRES_HOST || process.env.DB_DIALECT === 'postgres');
 
 export const sequelize = usePostgreSQL
   ? new Sequelize(
