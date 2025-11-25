@@ -11,7 +11,7 @@ import { sequelize } from "./sequelize.js";
 import { Attendance } from "./models/Attendance.js";
 import { Op } from "sequelize";
 // import models so sequelize can sync tables
-import "./models/User.js";
+import { User } from "./models/User.js";
 import { Employee } from "./models/Employee.js";
 import "./models/Event.js";
 import "./models/Course.js";
@@ -19,6 +19,7 @@ import "./models/SiteSetting.js";
 import "./models/AccessLog.js";
 import "./models/NotificationSetting.js";
 import { setupKycAssociations } from "./models/Kyc.js";
+import { setupEventAssociations } from "./models/Event.js";
 import "./models/Attendance.js";
 import "./models/Leave.js";
 import "./models/Payslip.js";
@@ -58,6 +59,11 @@ const io = new Server(server, {
 
 // Make io available to routes
 app.set("io", io);
+
+// Export getIO function for use in routes
+export function getIO() {
+  return io;
+}
 
 // Socket.io connection handling
 io.on("connection", (socket) => {
@@ -234,6 +240,7 @@ async function start() {
     }
     // Setup model associations
     setupKycAssociations(Employee);
+    setupEventAssociations(User);
 
     // Run migration to add missing user profile fields
     try {
@@ -296,6 +303,32 @@ async function start() {
         "Employees table structure migration error:",
         migrationError.message
       );
+      // Continue even if migration fails - might already be applied
+    }
+
+    // Run migration to create events table
+    try {
+      const { createEventsTable } = await import(
+        "./migrations/createEventsTable.js"
+      );
+      await createEventsTable(
+        sequelize.getQueryInterface(),
+        sequelize.constructor
+      );
+      console.log("✅ Events table migration completed");
+
+      // Seed events if in development
+      if (process.env.NODE_ENV !== "production") {
+        try {
+          const { seedEvents } = await import("./seedEvents.js");
+          await seedEvents();
+        } catch (seedError) {
+          console.error("Events seed error:", seedError.message);
+          // Continue even if seed fails
+        }
+      }
+    } catch (migrationError) {
+      console.error("Events table migration error:", migrationError.message);
       // Continue even if migration fails - might already be applied
     }
 

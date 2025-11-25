@@ -488,30 +488,37 @@ class ApiService {
   // Event endpoints
   async getEvents(filters = {}) {
     const params = new URLSearchParams();
-    if (filters.type) params.append("type", filters.type);
     if (filters.start) params.append("start", filters.start);
     if (filters.end) params.append("end", filters.end);
 
     const queryString = params.toString();
-    return this.request(`/api/events${queryString ? `?${queryString}` : ""}`);
+    const response = await this.request(`/api/events${queryString ? `?${queryString}` : ""}`);
+    // Handle new response format: { success: true, data: [...] }
+    return response.success ? response.data : response;
   }
 
   async getEvent(id) {
-    return this.request(`/api/events/${id}`);
+    const response = await this.request(`/api/events/${id}`);
+    // Handle new response format: { success: true, data: {...} }
+    return response.success ? response.data : response;
   }
 
   async createEvent(eventData) {
-    return this.request("/api/events", {
+    const response = await this.request("/api/events", {
       method: "POST",
       body: JSON.stringify(eventData),
     });
+    // Handle new response format: { success: true, data: {...} }
+    return response.success ? response.data : response;
   }
 
   async updateEvent(id, eventData) {
-    return this.request(`/api/events/${id}`, {
+    const response = await this.request(`/api/events/${id}`, {
       method: "PUT",
       body: JSON.stringify(eventData),
     });
+    // Handle new response format: { success: true, data: {...} }
+    return response.success ? response.data : response;
   }
 
   async deleteEvent(id) {

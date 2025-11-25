@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./lib/auth-context.jsx";
 import { EnhancedDashboardLayout } from "./components/layout/enhanced-dashboard-layout.jsx";
-import EnhancedCalendar from "./page/EnhancedCalendar.jsx";
 import Dashboard from "./page/Dashboard.jsx";
 import EmployeeDashboard from "./page/EmployeeDashboard.jsx";
 import Employees from "./page/Employees.jsx";
@@ -85,7 +84,7 @@ const App = () => (
               />
               <Route path="/employees" element={<Employees />} />
               <Route path="/training" element={<Training />} />
-              <Route path="/calendar" element={<EnhancedCalendar />} />
+              <Route path="/calendar" element={<Calendar />} />
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/messages" element={<Communication />} />
               <Route path="/communication" element={<Communication />} />
