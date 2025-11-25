@@ -125,8 +125,10 @@ app.use(
           "'self'",
           "ws:",
           "wss:",
+          "https:",
           "http://localhost:*",
           "http://13.233.73.43:*",
+          "https://app.rsamriddhi.com",
         ],
       },
     },
@@ -156,16 +158,23 @@ app.use(morgan("dev"));
 
 // Serve static files from uploads directory
 // Use UPLOAD_PATH environment variable if set, otherwise use relative path
-const uploadPath = process.env.UPLOAD_PATH || path.join(process.cwd(), "uploads");
+const uploadPath =
+  process.env.UPLOAD_PATH || path.join(process.cwd(), "uploads");
 console.log("📁 Serving static files from:", uploadPath);
-app.use("/uploads", express.static(uploadPath, {
-  setHeaders: (res, path) => {
-    // Set CORS headers for static files
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-    res.setHeader("Access-Control-Expose-Headers", "Content-Length, Content-Type");
-  }
-}));
+app.use(
+  "/uploads",
+  express.static(uploadPath, {
+    setHeaders: (res, path) => {
+      // Set CORS headers for static files
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.setHeader(
+        "Access-Control-Expose-Headers",
+        "Content-Length, Content-Type"
+      );
+    },
+  })
+);
 
 app.use("/api/health", healthRouter);
 

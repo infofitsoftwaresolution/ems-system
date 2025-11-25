@@ -11,20 +11,35 @@ const getSocketUrl = () => {
   }
   
   const apiUrl = import.meta.env.VITE_API_URL;
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
   
-  // If VITE_API_URL is an absolute URL (starts with http:// or https://)
+  // Detect production: not localhost, not 127.0.0.1, and not a local IP
+  const isLocalhost = hostname === 'localhost' || 
+                      hostname === '127.0.0.1' || 
+                      hostname.startsWith('192.168.') ||
+                      hostname.startsWith('10.') ||
+                      hostname.endsWith('.local');
+  const isProduction = !isLocalhost;
+  
+  // In production, ALWAYS use the same origin (Socket.IO is served from the same server via nginx)
+  if (isProduction) {
+    const origin = window.location.origin;
+    console.log('🔌 Production detected, using origin:', origin);
+    return origin;
+  }
+  
+  // Development: If VITE_API_URL is an absolute URL (starts with http:// or https://)
   if (apiUrl && (apiUrl.startsWith('http://') || apiUrl.startsWith('https://'))) {
     return apiUrl.replace(/\/api\/?$/, ''); // Remove /api suffix if present
   }
   
-  // If VITE_API_URL is a relative path (like /api), use current origin
+  // Development: If VITE_API_URL is a relative path (like /api), use current origin
   if (apiUrl && apiUrl.startsWith('/')) {
-    // In production, use the same origin (window.location.origin)
-    // Socket.IO connects to the same server, so we use the origin
     return window.location.origin;
   }
   
-  // Fallback to localhost for development
+  // Development fallback to localhost
   return "http://localhost:3001";
 };
 
@@ -79,9 +94,12 @@ export function useSocket(onMessage, onChannelMessage, onNotification) {
       
       // Get Socket URL at runtime (not at module load time)
       const socketUrl = getSocketUrl();
-      console.log("🔌 Connecting to Socket.IO at:", socketUrl);
-      console.log("🔌 VITE_API_URL:", import.meta.env.VITE_API_URL);
-      console.log("🔌 window.location.origin:", typeof window !== 'undefined' ? window.location.origin : 'N/A');
+      console.log("🔌 Socket.IO Connection Details:");
+      console.log("  - Socket URL:", socketUrl);
+      console.log("  - VITE_API_URL:", import.meta.env.VITE_API_URL);
+      console.log("  - PROD mode:", import.meta.env.PROD);
+      console.log("  - window.location.origin:", typeof window !== 'undefined' ? window.location.origin : 'N/A');
+      console.log("  - window.location.hostname:", typeof window !== 'undefined' ? window.location.hostname : 'N/A');
       globalSocket = io(socketUrl, socketOptions);
       socketRef.current = globalSocket;
 
