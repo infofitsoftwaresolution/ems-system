@@ -263,6 +263,20 @@ async function start() {
       // Continue even if migration fails - might already be applied
     }
 
+    // Run migration to update employees table structure (emp_id, mobile_number, location, designation, status)
+    try {
+      const { updateEmployeesTableStructure } = await import(
+        "./migrations/updateEmployeesTableStructure.js"
+      );
+      await updateEmployeesTableStructure();
+    } catch (migrationError) {
+      console.error(
+        "Employees table structure migration error:",
+        migrationError.message
+      );
+      // Continue even if migration fails - might already be applied
+    }
+
     // Sync database schema - use force: false to avoid migration issues with SQLite
     // SQLite's alter: true is problematic, so we'll use alter: false by default
     // If schema changes are needed, use migrations or delete database.sqlite and restart

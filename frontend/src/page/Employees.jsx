@@ -84,8 +84,12 @@ export default function Employees() {
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [showAddEmployeeDialog, setShowAddEmployeeDialog] = useState(false);
   const [newEmployee, setNewEmployee] = useState({
+    emp_id: "", // Optional - will auto-generate if empty
     name: "",
     email: "",
+    mobile_number: "",
+    location: "",
+    designation: "",
     department: "",
     position: "",
     role: "",
@@ -95,8 +99,12 @@ export default function Employees() {
   
   // Validation errors state
   const [validationErrors, setValidationErrors] = useState({
+    emp_id: "",
     name: "",
     email: "",
+    mobile_number: "",
+    location: "",
+    designation: "",
     department: "",
     role: "",
     position: "",
@@ -125,11 +133,18 @@ export default function Employees() {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiService.getEmployees();
-      setEmployees(data);
+      const response = await apiService.getEmployees();
+      // Handle new API response format: { success: true, data: [...], count: ... }
+      const employeesData = Array.isArray(response) 
+        ? response 
+        : (response?.data && Array.isArray(response.data)) 
+        ? response.data 
+        : [];
+      setEmployees(employeesData);
     } catch (err) {
       setError("Failed to load employees");
       console.error("Error loading employees:", err);
+      setEmployees([]); // Ensure employees is always an array
     } finally {
       setLoading(false);
     }
@@ -220,9 +235,28 @@ export default function Employees() {
     if (!sortConfig) return 0;
 
     const { key, direction } = sortConfig;
+    let aValue, bValue;
 
-    if (a[key] < b[key]) return direction === "asc" ? -1 : 1;
-    if (a[key] > b[key]) return direction === "asc" ? 1 : -1;
+    // Handle special cases for sorting
+    if (key === "emp_id") {
+      // Sort by emp_id, fallback to employeeId
+      aValue = a.emp_id || a.employeeId || "";
+      bValue = b.emp_id || b.employeeId || "";
+    } else {
+      aValue = a[key] || "";
+      bValue = b[key] || "";
+    }
+
+    // Handle numeric sorting for emp_id (e.g., RST1001, RST1002)
+    if (key === "emp_id") {
+      const aNum = parseInt(aValue.replace(/\D/g, "")) || 0;
+      const bNum = parseInt(bValue.replace(/\D/g, "")) || 0;
+      return direction === "asc" ? aNum - bNum : bNum - aNum;
+    }
+
+    // String comparison for other fields
+    if (aValue < bValue) return direction === "asc" ? -1 : 1;
+    if (aValue > bValue) return direction === "asc" ? 1 : -1;
     return 0;
   });
 
@@ -293,13 +327,17 @@ export default function Employees() {
   const handleEditClick = (employee) => {
     setEditingEmployee({
       id: employee.id,
+      emp_id: employee.emp_id || employee.employeeId || "",
       name: employee.name,
       email: employee.email,
+      mobile_number: employee.mobile_number || "",
+      location: employee.location || employee.department || "",
+      designation: employee.designation || employee.position || "",
       department: employee.department,
       position: employee.position || "",
       role: employee.role || "",
       joinDate: employee.hireDate || "",
-      isActive: employee.status === "active",
+      isActive: employee.status === "active" || employee.status === "Working",
     });
     setShowEditDialog(true);
   };
@@ -313,13 +351,17 @@ export default function Employees() {
     setIsUpdating(true);
     try {
       const employeeData = {
+        emp_id: editingEmployee.emp_id || "",
         name: editingEmployee.name,
         email: editingEmployee.email,
+        mobile_number: editingEmployee.mobile_number || "",
+        location: editingEmployee.location || "",
+        designation: editingEmployee.designation || "",
         position: editingEmployee.position,
         department: editingEmployee.department,
         role: editingEmployee.role,
         hireDate: editingEmployee.joinDate,
-        status: editingEmployee.isActive ? "active" : "inactive",
+        status: editingEmployee.isActive ? "Working" : "Not Working",
       };
 
       const updatedEmployee = await apiService.updateEmployee(
@@ -514,26 +556,37 @@ export default function Employees() {
     setIsAddingEmployee(true);
     try {
       const employeeData = {
+        emp_id: newEmployee.emp_id?.trim() || "", // Empty string will trigger auto-generation
         name: newEmployee.name,
         email: newEmployee.email,
+        mobile_number: newEmployee.mobile_number || "",
+        location: newEmployee.location || "",
+        designation: newEmployee.designation || "",
         position: newEmployee.position,
         department: newEmployee.department, // Send the department ID, backend will handle mapping
         role: newEmployee.role, // Send the role ID, backend will handle mapping
         hireDate: newEmployee.joinDate,
-        status: newEmployee.isActive ? "active" : "inactive",
+        status: newEmployee.isActive ? "Working" : "Not Working",
       };
 
       console.log("Submitting employee data:", employeeData);
-      const createdEmployee = await apiService.createEmployee(employeeData);
-      console.log("Employee created successfully:", createdEmployee);
+      const response = await apiService.createEmployee(employeeData);
+      console.log("Employee created successfully:", response);
 
+      // Extract employee data from response (handle both old and new API response formats)
+      const createdEmployee = response?.data || response;
+      
       // Add the new employee to the list
       setEmployees([...employees, createdEmployee]);
 
       // Reset form and validation errors
       setNewEmployee({
+        emp_id: "",
         name: "",
         email: "",
+        mobile_number: "",
+        location: "",
+        designation: "",
         department: "",
         position: "",
         role: "",
@@ -541,8 +594,12 @@ export default function Employees() {
         isActive: true,
       });
       setValidationErrors({
+        emp_id: "",
         name: "",
         email: "",
+        mobile_number: "",
+        location: "",
+        designation: "",
         department: "",
         role: "",
         position: "",
@@ -659,6 +716,22 @@ export default function Employees() {
                   }}>
                   <div className="grid grid-cols-2 gap-4 py-4">
                     <div className="space-y-2">
+                      <Label htmlFor="emp_id">Employee ID</Label>
+                      <Input
+                        id="emp_id"
+                        placeholder="Leave empty for auto-generation (e.g., RST1001)"
+                        value={newEmployee.emp_id}
+                        onChange={(e) => handleFieldChange("emp_id", e.target.value)}
+                        className={validationErrors.emp_id ? "border-red-500" : ""}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Optional: Leave empty to auto-generate (RST1001, RST1002...)
+                      </p>
+                      {validationErrors.emp_id && (
+                        <p className="text-sm text-red-500">{validationErrors.emp_id}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="name">Full Name *</Label>
                       <Input
                         id="name"
@@ -726,7 +799,47 @@ export default function Employees() {
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="position">Position</Label>
+                      <Label htmlFor="mobile_number">Mobile Number</Label>
+                      <Input
+                        id="mobile_number"
+                        type="tel"
+                        placeholder="9910955040"
+                        value={newEmployee.mobile_number}
+                        onChange={(e) => handleFieldChange("mobile_number", e.target.value)}
+                        className={validationErrors.mobile_number ? "border-red-500" : ""}
+                      />
+                      {validationErrors.mobile_number && (
+                        <p className="text-sm text-red-500">{validationErrors.mobile_number}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="location">Location</Label>
+                      <Input
+                        id="location"
+                        placeholder="Noida"
+                        value={newEmployee.location}
+                        onChange={(e) => handleFieldChange("location", e.target.value)}
+                        className={validationErrors.location ? "border-red-500" : ""}
+                      />
+                      {validationErrors.location && (
+                        <p className="text-sm text-red-500">{validationErrors.location}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="designation">Designation</Label>
+                      <Input
+                        id="designation"
+                        placeholder="Software Developer"
+                        value={newEmployee.designation}
+                        onChange={(e) => handleFieldChange("designation", e.target.value)}
+                        className={validationErrors.designation ? "border-red-500" : ""}
+                      />
+                      {validationErrors.designation && (
+                        <p className="text-sm text-red-500">{validationErrors.designation}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="position">Position (Legacy)</Label>
                       <Input
                         id="position"
                         placeholder="Software Engineer"
@@ -808,8 +921,12 @@ export default function Employees() {
                       variant="outline"
                       onClick={() => {
                         setNewEmployee({
+                          emp_id: "",
                           name: "",
                           email: "",
+                          mobile_number: "",
+                          location: "",
+                          designation: "",
                           department: "",
                           position: "",
                           role: "",
@@ -817,8 +934,12 @@ export default function Employees() {
                           isActive: true,
                         });
                         setValidationErrors({
+                          emp_id: "",
                           name: "",
                           email: "",
+                          mobile_number: "",
+                          location: "",
+                          designation: "",
                           department: "",
                           role: "",
                           position: "",
@@ -853,6 +974,23 @@ export default function Employees() {
                     }}>
                     <div className="grid grid-cols-2 gap-4 py-4">
                       <div className="space-y-2">
+                        <Label htmlFor="edit-emp_id">Employee ID</Label>
+                        <Input
+                          id="edit-emp_id"
+                          placeholder="RST1001"
+                          value={editingEmployee.emp_id || ""}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              emp_id: e.target.value,
+                            })
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Employee ID (must be unique)
+                        </p>
+                      </div>
+                      <div className="space-y-2">
                         <Label htmlFor="edit-name">Full Name *</Label>
                         <Input
                           id="edit-name"
@@ -881,6 +1019,49 @@ export default function Employees() {
                             })
                           }
                           required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-mobile_number">Mobile Number</Label>
+                        <Input
+                          id="edit-mobile_number"
+                          type="tel"
+                          placeholder="9910955040"
+                          value={editingEmployee.mobile_number || ""}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              mobile_number: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-location">Location</Label>
+                        <Input
+                          id="edit-location"
+                          placeholder="Noida"
+                          value={editingEmployee.location || ""}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              location: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-designation">Designation</Label>
+                        <Input
+                          id="edit-designation"
+                          placeholder="Software Developer"
+                          value={editingEmployee.designation || ""}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              designation: e.target.value,
+                            })
+                          }
                         />
                       </div>
                       <div className="space-y-2">
@@ -1222,11 +1403,25 @@ export default function Employees() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">No</TableHead>
+                  <TableHead
+                    onClick={() => handleSort("emp_id")}
+                    className="cursor-pointer hover:text-primary">
+                    <div className="flex items-center gap-1">
+                      Emp Id
+                      {sortConfig?.key === "emp_id" &&
+                        (sortConfig.direction === "asc" ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        ))}
+                    </div>
+                  </TableHead>
                   <TableHead
                     onClick={() => handleSort("name")}
                     className="cursor-pointer hover:text-primary">
                     <div className="flex items-center gap-1">
-                      Name
+                      Name of Employee
                       {sortConfig?.key === "name" &&
                         (sortConfig.direction === "asc" ? (
                           <ChevronUp className="h-4 w-4" />
@@ -1235,33 +1430,21 @@ export default function Employees() {
                         ))}
                     </div>
                   </TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Department
-                  </TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Position
-                  </TableHead>
-                  <TableHead
-                    onClick={() => handleSort("hireDate")}
-                    className="cursor-pointer hover:text-primary hidden md:table-cell">
-                    <div className="flex items-center gap-1">
-                      Start Date
-                      {sortConfig?.key === "hireDate" &&
-                        (sortConfig.direction === "asc" ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        ))}
-                    </div>
-                  </TableHead>
+                  <TableHead className="hidden md:table-cell">Mobile Number</TableHead>
+                  <TableHead>Mail Id</TableHead>
+                  <TableHead className="hidden md:table-cell">Location</TableHead>
+                  <TableHead className="hidden md:table-cell">Designation</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedEmployees.map((employee) => (
+                {sortedEmployees.map((employee, index) => (
                   <TableRow key={employee.id}>
+                    <TableCell className="w-12">{index + 1}</TableCell>
+                    <TableCell className="font-medium">
+                      {employee.emp_id || employee.employeeId || "N/A"}
+                    </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <Avatar className="h-8 w-8">
@@ -1271,36 +1454,38 @@ export default function Employees() {
                           />
                           <AvatarFallback>
                             {employee.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
+                              ? employee.name
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                              : "N/A"}
                           </AvatarFallback>
                         </Avatar>
                         <div>{employee.name}</div>
                       </div>
                     </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {employee.mobile_number || "N/A"}
+                    </TableCell>
                     <TableCell>{employee.email}</TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {getDepartmentName(employee.department)}
+                      {employee.location || employee.department || "N/A"}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {employee.position || "N/A"}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {employee.hireDate
-                        ? new Date(employee.hireDate).toLocaleDateString()
-                        : "N/A"}
+                      {employee.designation || employee.position || "N/A"}
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant={
-                          employee.status === "active"
+                          employee.status === "active" || employee.status === "Working"
                             ? "default"
                             : employee.status === "onLeave"
                             ? "outline"
                             : "secondary"
                         }>
-                        {employee.status}
+                        {employee.status === "active" ? "Working" : 
+                         employee.status === "inactive" ? "Not Working" : 
+                         employee.status || "N/A"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">

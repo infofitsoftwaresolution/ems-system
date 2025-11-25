@@ -42,7 +42,13 @@ export default function EmployeePayslip() {
     try {
       setLoading(true);
       // Find employee by email
-      const employees = await apiService.getEmployees();
+      const employeesResponse = await apiService.getEmployees();
+      // Handle new API response format: { success: true, data: [...], count: ... }
+      const employees = Array.isArray(employeesResponse) 
+        ? employeesResponse 
+        : (employeesResponse?.data && Array.isArray(employeesResponse.data)) 
+        ? employeesResponse.data 
+        : [];
       const employee = employees.find((emp) => emp.email === user.email);
 
       if (!employee) {

@@ -132,15 +132,52 @@ export default function Dashboard() {
           ]);
 
         // Extract values from Promise.allSettled results
-        const employeesResult =
-          employeesData.status === "fulfilled" ? employeesData.value : [];
-        const attendanceResult =
-          attendanceData.status === "fulfilled" ? attendanceData.value : [];
-        const kycResult = kycData.status === "fulfilled" ? kycData.value : [];
+        // Handle new API response format: { success: true, data: [...], count: ... }
+        const employeesRaw =
+          employeesData.status === "fulfilled" ? employeesData.value : null;
+        let employeesResult = [];
+        
+        if (Array.isArray(employeesRaw)) {
+          // Direct array response (legacy format)
+          employeesResult = employeesRaw;
+        } else if (employeesRaw && typeof employeesRaw === 'object') {
+          // Handle new API response format: { success: true, data: [...], count: ... }
+          if (employeesRaw.data && Array.isArray(employeesRaw.data)) {
+            employeesResult = employeesRaw.data;
+          } else if (employeesRaw.success && employeesRaw.data && Array.isArray(employeesRaw.data)) {
+            employeesResult = employeesRaw.data;
+          } else {
+            // Fallback: if data is not an array, use empty array
+            console.warn('Employees data is not in expected format:', employeesRaw);
+            employeesResult = [];
+          }
+        }
+        
+        // Ensure employeesResult is always an array
+        if (!Array.isArray(employeesResult)) {
+          console.warn('Employees result is not an array, defaulting to empty array:', employeesResult);
+          employeesResult = [];
+        }
+        
+        const attendanceRaw =
+          attendanceData.status === "fulfilled" ? attendanceData.value : null;
+        const attendanceResult = Array.isArray(attendanceRaw)
+          ? attendanceRaw
+          : attendanceRaw?.data && Array.isArray(attendanceRaw.data)
+          ? attendanceRaw.data
+          : [];
+        
+        const kycRaw = kycData.status === "fulfilled" ? kycData.value : null;
+        const kycResult = Array.isArray(kycRaw)
+          ? kycRaw
+          : kycRaw?.data && Array.isArray(kycRaw.data)
+          ? kycRaw.data
+          : [];
 
-        setEmployees(employeesResult);
-        setAttendance(attendanceResult);
-        setKycData(kycResult);
+        // Ensure all state values are arrays before setting
+        setEmployees(Array.isArray(employeesResult) ? employeesResult : []);
+        setAttendance(Array.isArray(attendanceResult) ? attendanceResult : []);
+        setKycData(Array.isArray(kycResult) ? kycResult : []);
         // Events are now handled by React Query - see useQuery hook above
 
         // Calculate real stats
@@ -148,7 +185,7 @@ export default function Dashboard() {
           ? employeesResult.length
           : 0;
         const activeEmployees = Array.isArray(employeesResult)
-          ? employeesResult.filter((emp) => emp.status === "active").length
+          ? employeesResult.filter((emp) => emp.status === "active" || emp.status === "Working").length
           : 0;
         const departmentsCount = Array.isArray(employeesResult)
           ? new Set(employeesResult.map((emp) => emp.department)).size
@@ -228,17 +265,20 @@ export default function Dashboard() {
     const reportData = {
       generatedAt: new Date().toISOString(),
       stats: stats,
-      totalEmployees: employees.length,
-      activeEmployees: employees.filter((emp) => emp.status === "active")
-        .length,
+      totalEmployees: Array.isArray(employees) ? employees.length : 0,
+      activeEmployees: Array.isArray(employees)
+        ? employees.filter((emp) => emp.status === "active" || emp.status === "Working").length
+        : 0,
       departments: departmentData,
-      recentEmployees: employees.slice(0, 10).map((emp) => ({
-        name: emp.name,
-        email: emp.email,
-        department: emp.department,
-        status: emp.status,
-        hireDate: emp.hireDate,
-      })),
+      recentEmployees: Array.isArray(employees) && employees.length > 0
+        ? (employees || []).slice(0, 10).map((emp) => ({
+            name: emp.name,
+            email: emp.email,
+            department: emp.department || emp.location,
+            status: emp.status,
+            hireDate: emp.hireDate,
+          }))
+        : [],
       attendance: {
         today: attendance.filter((att) => {
           const attDate = new Date(att.date);
@@ -582,7 +622,8 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent className="flex-1 overflow-y-auto max-h-[400px]">
                 <div className="space-y-4">
-                  {employees.slice(0, 5).map((employee) => (
+                  {Array.isArray(employees) && employees.length > 0 ? (
+                    (employees || []).slice(0, 5).map((employee) => (
                     <div key={employee.id} className="flex items-center gap-4">
                       <Avatar>
                         <AvatarImage
@@ -608,13 +649,13 @@ export default function Dashboard() {
                       <div className="flex flex-col items-end gap-1">
                         <span
                           className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
-                            employee.status === "active"
+                            employee.status === "active" || employee.status === "Working"
                               ? "bg-primary/20 text-primary"
                               : employee.status === "onLeave"
                               ? "bg-yellow-100 text-yellow-700"
                               : "bg-red-100 text-red-700"
                           }`}>
-                          {employee.status}
+                          {employee.status === "Working" ? "Active" : employee.status === "Not Working" ? "Inactive" : employee.status}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {employee.department === "d1"
@@ -629,7 +670,12 @@ export default function Dashboard() {
                         </span>
                       </div>
                     </div>
-                  ))}
+                    ))
+                  ) : (
+                    <div className="text-center text-sm text-muted-foreground py-8">
+                      No employees found
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
