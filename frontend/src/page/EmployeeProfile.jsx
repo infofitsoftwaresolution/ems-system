@@ -518,8 +518,25 @@ export default function EmployeeProfile() {
       formData.append("bankBranch", kycFormData.bankBranch);
       formData.append("accountNumber", kycFormData.accountNumber);
       formData.append("ifscCode", kycFormData.ifscCode);
-      formData.append("panCard", panCardFile);
-      formData.append("selfie", employeePhotoFile);
+
+      // Append all document files
+      if (panCardFile) formData.append("panCard", panCardFile);
+      if (employeePhotoFile) formData.append("selfie", employeePhotoFile);
+      if (aadhaarFrontFile) formData.append("aadhaar_front", aadhaarFrontFile);
+      if (aadhaarBackFile) formData.append("aadhaar_back", aadhaarBackFile);
+      if (salarySlipMonth1)
+        formData.append("salary_slip_month_1", salarySlipMonth1);
+      if (salarySlipMonth2)
+        formData.append("salary_slip_month_2", salarySlipMonth2);
+      if (salarySlipMonth3)
+        formData.append("salary_slip_month_3", salarySlipMonth3);
+      if (bankProofFile) formData.append("bank_proof", bankProofFile);
+
+      // Handle education documents (if multiple files are supported)
+      // Note: If you have an array of education documents, append each one
+      // For now, assuming single file upload for education documents
+      // If you have educationDocumentsFile state, add it here:
+      // if (educationDocumentsFile) formData.append("education_documents", educationDocumentsFile);
 
       // Add required fields for backend
       formData.append("dob", kycFormData.dob);

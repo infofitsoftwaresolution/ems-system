@@ -87,7 +87,16 @@ router.post('/', upload.fields([
   { name: 'selfie', maxCount: 1 },
   { name: 'panCard', maxCount: 1 },
   { name: 'aadharCard', maxCount: 1 },
-  { name: 'additionalDocs', maxCount: 5 } // Allow multiple additional documents
+  { name: 'additionalDocs', maxCount: 5 }, // Allow multiple additional documents
+  // New KYC document fields
+  { name: 'employeePhoto', maxCount: 1 },
+  { name: 'aadhaar_front', maxCount: 1 },
+  { name: 'aadhaar_back', maxCount: 1 },
+  { name: 'salary_slip_month_1', maxCount: 1 },
+  { name: 'salary_slip_month_2', maxCount: 1 },
+  { name: 'salary_slip_month_3', maxCount: 1 },
+  { name: 'bank_proof', maxCount: 1 },
+  { name: 'education_documents', maxCount: 10 } // Allow multiple education documents
 ]), async (req, res) => {
   try {
     const body = req.body;
@@ -153,12 +162,16 @@ router.post('/', upload.fields([
     // Create documents array with all uploaded files
     const documents = [];
     
+    console.log('📁 Processing uploaded files. Available file fields:', Object.keys(files));
+    
+    // Legacy document fields
     if (files.docFront && files.docFront[0]) {
       documents.push({
         type: 'Document Front',
         path: `/uploads/kyc/${path.basename(files.docFront[0].path)}`,
         originalName: files.docFront[0].originalname
       });
+      console.log('✅ Added Document Front:', files.docFront[0].originalname);
     }
     
     if (files.docBack && files.docBack[0]) {
@@ -167,6 +180,7 @@ router.post('/', upload.fields([
         path: `/uploads/kyc/${path.basename(files.docBack[0].path)}`,
         originalName: files.docBack[0].originalname
       });
+      console.log('✅ Added Document Back:', files.docBack[0].originalname);
     }
     
     if (files.selfie && files.selfie[0]) {
@@ -175,6 +189,7 @@ router.post('/', upload.fields([
         path: `/uploads/kyc/${path.basename(files.selfie[0].path)}`,
         originalName: files.selfie[0].originalname
       });
+      console.log('✅ Added Selfie:', files.selfie[0].originalname);
     }
     
     if (files.panCard && files.panCard[0]) {
@@ -183,6 +198,7 @@ router.post('/', upload.fields([
         path: `/uploads/kyc/${path.basename(files.panCard[0].path)}`,
         originalName: files.panCard[0].originalname
       });
+      console.log('✅ Added PAN Card:', files.panCard[0].originalname);
     }
     
     if (files.aadharCard && files.aadharCard[0]) {
@@ -191,18 +207,98 @@ router.post('/', upload.fields([
         path: `/uploads/kyc/${path.basename(files.aadharCard[0].path)}`,
         originalName: files.aadharCard[0].originalname
       });
+      console.log('✅ Added Aadhar Card:', files.aadharCard[0].originalname);
     }
     
-    // Handle additional documents
-    if (files.additionalDocs) {
+    // New KYC document fields
+    if (files.employeePhoto && files.employeePhoto[0]) {
+      documents.push({
+        type: 'Employee Photo',
+        path: `/uploads/kyc/${path.basename(files.employeePhoto[0].path)}`,
+        originalName: files.employeePhoto[0].originalname
+      });
+      console.log('✅ Added Employee Photo:', files.employeePhoto[0].originalname);
+    }
+    
+    if (files.aadhaar_front && files.aadhaar_front[0]) {
+      documents.push({
+        type: 'Aadhaar Card - Front',
+        path: `/uploads/kyc/${path.basename(files.aadhaar_front[0].path)}`,
+        originalName: files.aadhaar_front[0].originalname
+      });
+      console.log('✅ Added Aadhaar Front:', files.aadhaar_front[0].originalname);
+    }
+    
+    if (files.aadhaar_back && files.aadhaar_back[0]) {
+      documents.push({
+        type: 'Aadhaar Card - Back',
+        path: `/uploads/kyc/${path.basename(files.aadhaar_back[0].path)}`,
+        originalName: files.aadhaar_back[0].originalname
+      });
+      console.log('✅ Added Aadhaar Back:', files.aadhaar_back[0].originalname);
+    }
+    
+    if (files.salary_slip_month_1 && files.salary_slip_month_1[0]) {
+      documents.push({
+        type: 'Salary Slip - Month 1',
+        path: `/uploads/kyc/${path.basename(files.salary_slip_month_1[0].path)}`,
+        originalName: files.salary_slip_month_1[0].originalname
+      });
+      console.log('✅ Added Salary Slip Month 1:', files.salary_slip_month_1[0].originalname);
+    }
+    
+    if (files.salary_slip_month_2 && files.salary_slip_month_2[0]) {
+      documents.push({
+        type: 'Salary Slip - Month 2',
+        path: `/uploads/kyc/${path.basename(files.salary_slip_month_2[0].path)}`,
+        originalName: files.salary_slip_month_2[0].originalname
+      });
+      console.log('✅ Added Salary Slip Month 2:', files.salary_slip_month_2[0].originalname);
+    }
+    
+    if (files.salary_slip_month_3 && files.salary_slip_month_3[0]) {
+      documents.push({
+        type: 'Salary Slip - Month 3',
+        path: `/uploads/kyc/${path.basename(files.salary_slip_month_3[0].path)}`,
+        originalName: files.salary_slip_month_3[0].originalname
+      });
+      console.log('✅ Added Salary Slip Month 3:', files.salary_slip_month_3[0].originalname);
+    }
+    
+    if (files.bank_proof && files.bank_proof[0]) {
+      documents.push({
+        type: 'Bank Proof (Cancelled Cheque/Passbook)',
+        path: `/uploads/kyc/${path.basename(files.bank_proof[0].path)}`,
+        originalName: files.bank_proof[0].originalname
+      });
+      console.log('✅ Added Bank Proof:', files.bank_proof[0].originalname);
+    }
+    
+    // Handle education documents (multiple files)
+    if (files.education_documents && Array.isArray(files.education_documents)) {
+      files.education_documents.forEach((file, index) => {
+        documents.push({
+          type: `Education Document ${index + 1}`,
+          path: `/uploads/kyc/${path.basename(file.path)}`,
+          originalName: file.originalname
+        });
+        console.log(`✅ Added Education Document ${index + 1}:`, file.originalname);
+      });
+    }
+    
+    // Handle additional documents (legacy support)
+    if (files.additionalDocs && Array.isArray(files.additionalDocs)) {
       files.additionalDocs.forEach((file, index) => {
         documents.push({
           type: `Additional Document ${index + 1}`,
           path: `/uploads/kyc/${path.basename(file.path)}`,
           originalName: file.originalname
         });
+        console.log(`✅ Added Additional Document ${index + 1}:`, file.originalname);
       });
     }
+    
+    console.log(`📦 Total documents processed: ${documents.length}`, documents.map(d => d.type));
 
     // Validate and correct employeeId before creating payload
     let finalEmployeeId = body.employeeId;
@@ -451,8 +547,38 @@ router.get('/', authenticateToken, async (req, res) => {
     const formattedList = list.map(item => {
       const data = item.toJSON();
       try {
-        data.documents = data.documents ? JSON.parse(data.documents) : [];
+        if (data.documents) {
+          const parsed = JSON.parse(data.documents);
+          console.log(`📋 Parsing documents for ${data.fullName}:`, {
+            isArray: Array.isArray(parsed),
+            hasDocuments: parsed.documents && Array.isArray(parsed.documents),
+            documentCount: parsed.documents ? parsed.documents.length : (Array.isArray(parsed) ? parsed.length : 0),
+            documentTypes: parsed.documents ? parsed.documents.map(d => d.type) : (Array.isArray(parsed) ? parsed.map(d => d.type) : [])
+          });
+          
+          // Handle both formats: direct array or nested object with documents property
+          if (Array.isArray(parsed)) {
+            data.documents = parsed;
+            console.log(`✅ Using direct array format for ${data.fullName}, ${parsed.length} documents`);
+          } else if (parsed.documents && Array.isArray(parsed.documents)) {
+            // Extract documents array from nested structure
+            data.documents = parsed.documents;
+            // Also preserve other data if needed
+            if (parsed.personalInfo) data.personalInfo = parsed.personalInfo;
+            if (parsed.emergencyContact) data.emergencyContact = parsed.emergencyContact;
+            if (parsed.bankAccount) data.bankAccount = parsed.bankAccount;
+            console.log(`✅ Extracted documents array from nested structure for ${data.fullName}, ${parsed.documents.length} documents`);
+          } else {
+            console.warn(`⚠️ Unexpected documents format for ${data.fullName}:`, typeof parsed);
+            data.documents = [];
+          }
+        } else {
+          console.warn(`⚠️ No documents field for ${data.fullName}`);
+          data.documents = [];
+        }
       } catch (e) {
+        console.error(`❌ Error parsing documents JSON for ${data.fullName}:`, e);
+        console.error('Raw documents string:', data.documents?.substring(0, 200));
         data.documents = [];
       }
       return data;
@@ -473,8 +599,38 @@ router.get('/:id', authenticateToken, requireRole(['admin', 'manager', 'hr']), a
     
     const data = item.toJSON();
     try {
-      data.documents = data.documents ? JSON.parse(data.documents) : [];
+      if (data.documents) {
+        const parsed = JSON.parse(data.documents);
+        console.log(`📋 Parsing documents for KYC ID ${data.id} (${data.fullName}):`, {
+          isArray: Array.isArray(parsed),
+          hasDocuments: parsed.documents && Array.isArray(parsed.documents),
+          documentCount: parsed.documents ? parsed.documents.length : (Array.isArray(parsed) ? parsed.length : 0),
+          documentTypes: parsed.documents ? parsed.documents.map(d => d.type) : (Array.isArray(parsed) ? parsed.map(d => d.type) : [])
+        });
+        
+        // Handle both formats: direct array or nested object with documents property
+        if (Array.isArray(parsed)) {
+          data.documents = parsed;
+          console.log(`✅ Using direct array format, ${parsed.length} documents`);
+        } else if (parsed.documents && Array.isArray(parsed.documents)) {
+          // Extract documents array from nested structure
+          data.documents = parsed.documents;
+          // Also preserve other data if needed
+          if (parsed.personalInfo) data.personalInfo = parsed.personalInfo;
+          if (parsed.emergencyContact) data.emergencyContact = parsed.emergencyContact;
+          if (parsed.bankAccount) data.bankAccount = parsed.bankAccount;
+          console.log(`✅ Extracted documents array from nested structure, ${parsed.documents.length} documents`);
+        } else {
+          console.warn(`⚠️ Unexpected documents format:`, typeof parsed);
+          data.documents = [];
+        }
+      } else {
+        console.warn(`⚠️ No documents field for KYC ID ${data.id}`);
+        data.documents = [];
+      }
     } catch (e) {
+      console.error(`❌ Error parsing documents JSON for KYC ID ${data.id}:`, e);
+      console.error('Raw documents string:', data.documents?.substring(0, 200));
       data.documents = [];
     }
     
