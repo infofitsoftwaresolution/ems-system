@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import cron from "node-cron";
+import path from "path";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { sequelize } from "./sequelize.js";
@@ -152,7 +153,19 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(morgan("dev"));
-app.use("/uploads", express.static("uploads"));
+
+// Serve static files from uploads directory
+// Use UPLOAD_PATH environment variable if set, otherwise use relative path
+const uploadPath = process.env.UPLOAD_PATH || path.join(process.cwd(), "uploads");
+console.log("📁 Serving static files from:", uploadPath);
+app.use("/uploads", express.static(uploadPath, {
+  setHeaders: (res, path) => {
+    // Set CORS headers for static files
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Length, Content-Type");
+  }
+}));
 
 app.use("/api/health", healthRouter);
 

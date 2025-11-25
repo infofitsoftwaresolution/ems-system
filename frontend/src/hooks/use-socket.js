@@ -2,8 +2,27 @@ import { useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./use-auth";
 
-// Get backend URL - use explicit localhost:3001 for development
-const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+// Get backend URL - handle both absolute and relative URLs
+const getSocketUrl = () => {
+  const apiUrl = import.meta.env.VITE_API_URL;
+  
+  // If VITE_API_URL is an absolute URL (starts with http:// or https://)
+  if (apiUrl && (apiUrl.startsWith('http://') || apiUrl.startsWith('https://'))) {
+    return apiUrl.replace(/\/api\/?$/, ''); // Remove /api suffix if present
+  }
+  
+  // If VITE_API_URL is a relative path (like /api), use current origin
+  if (apiUrl && apiUrl.startsWith('/')) {
+    // In production, use the same origin (window.location.origin)
+    // Socket.IO connects to the same server, so we use the origin
+    return window.location.origin;
+  }
+  
+  // Fallback to localhost for development
+  return "http://localhost:3001";
+};
+
+const SOCKET_URL = getSocketUrl();
 
 // Singleton socket instance to prevent multiple connections
 let globalSocket = null;
@@ -38,7 +57,7 @@ export function useSocket(onMessage, onChannelMessage, onNotification) {
     if (!globalSocket || !globalSocket.connected) {
       // Initialize socket connection
       // Use polling first, then upgrade to websocket if available
-      globalSocket = io(SOCKET_URL, {
+      const socketOptions = {
         transports: ["polling", "websocket"],
         reconnection: true,
         reconnectionDelay: 1000,
@@ -48,7 +67,14 @@ export function useSocket(onMessage, onChannelMessage, onNotification) {
         forceNew: false,
         upgrade: true,
         rememberUpgrade: true,
-      });
+      };
+      
+      // In production, if using same origin, Socket.IO should work without explicit path
+      // But if backend is on a different port/path, we might need to specify path
+      // For now, let Socket.IO auto-detect the path
+      
+      console.log("🔌 Connecting to Socket.IO at:", SOCKET_URL);
+      globalSocket = io(SOCKET_URL, socketOptions);
       socketRef.current = globalSocket;
 
       // Connection event - basic test
