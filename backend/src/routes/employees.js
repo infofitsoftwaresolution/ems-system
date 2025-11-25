@@ -12,6 +12,7 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import fs from 'fs';
 import { sendNewEmployeeEmail } from '../services/emailService.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -87,14 +88,26 @@ const convertToCSV = (employees) => {
   return csvContent;
 };
 
-// GET /api/employees - Get all employees
+// GET /api/employees - Get all employees (including soft-deleted)
 router.get('/', async (req, res) => {
   try {
+    // Optional query parameter to filter active/inactive employees
+    const { filter } = req.query; // 'active', 'inactive', or undefined (all)
+    
+    let whereClause = {};
+    if (filter === 'active') {
+      whereClause.is_active = true;
+    } else if (filter === 'inactive') {
+      whereClause.is_active = false;
+    }
+    // If no filter, return all employees (both active and soft-deleted)
+    
     const employees = await Employee.findAll({ 
+      where: whereClause,
       order: [['id', 'ASC']],
       attributes: [
         'id', 'emp_id', 'name', 'email', 'mobile_number', 
-        'location', 'designation', 'status',
+        'location', 'designation', 'status', 'is_active',
         // Legacy fields for backward compatibility
         'employeeId', 'department', 'position', 'role', 'hireDate', 'salary', 'kycStatus'
       ]
@@ -115,10 +128,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/employees/:id - Get single employee
+// GET /api/employees/:id - Get single employee (including soft-deleted)
 router.get('/:id', async (req, res) => {
   try {
     const emp = await Employee.findByPk(req.params.id);
+    
     if (!emp) {
       return res.status(404).json({ 
         success: false,
@@ -197,6 +211,7 @@ router.post('/', async (req, res) => {
       location: req.body.location || null,
       designation: req.body.designation || null,
       status: req.body.status === 'Not Working' ? 'Not Working' : 'Working',
+      is_active: true, // New employees are always active
       // Legacy fields for backward compatibility
       employeeId: empId,
       department: req.body.location || req.body.department || null,
@@ -388,131 +403,183 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/employees/:id - Delete employee
-router.delete('/:id', async (req, res) => {
+// DELETE /api/employees/:id - Delete employee (Admin: hard delete, HR: soft delete)
+router.delete('/:id', authenticateToken, requireRole(['admin', 'hr']), async (req, res) => {
   try {
-    const emp = await Employee.findByPk(req.params.id);
+    const userRole = req.user.role; // Get user role from token
+    const isAdmin = userRole === 'admin';
+    const isHR = userRole === 'hr';
+
+    const emp = await Employee.findOne({
+      where: {
+        id: req.params.id,
+        ...(isHR ? { is_active: true } : {}) // HR can only delete active employees
+      }
+    });
+    
     if (!emp) {
       return res.status(404).json({ 
         success: false,
-        message: 'Employee not found' 
+        message: 'Employee not found or already deleted' 
       });
     }
 
-    console.log(`Starting comprehensive deletion for employee: ${emp.name} (${emp.email})`);
+    if (isAdmin) {
+      // ADMIN: Hard delete (permanent deletion)
+      console.log(`Starting hard delete (permanent) for employee: ${emp.name} (${emp.email})`);
 
-    // Track deletion counts
-    const deletionSummary = {
-      kycRecords: 0,
-      attendanceRecords: 0,
-      leaveRecords: 0,
-      payslipRecords: 0,
-      accessLogs: 0,
-      userAccount: false
-    };
+      // Track deletion counts
+      const deletionSummary = {
+        kycRecords: 0,
+        attendanceRecords: 0,
+        leaveRecords: 0,
+        payslipRecords: 0,
+        accessLogs: 0,
+        userAccount: false
+      };
 
-    // 1. Delete associated KYC records and files
-    const kycRecords = await Kyc.findAll({ 
-      where: { 
-        [Op.or]: [
-          { employeeId: emp.emp_id || emp.employeeId },
-          { fullName: emp.name }
-        ]
-      } 
-    });
+      // 1. Delete associated KYC records and files
+      const kycRecords = await Kyc.findAll({ 
+        where: { 
+          [Op.or]: [
+            { employeeId: emp.emp_id || emp.employeeId },
+            { fullName: emp.name }
+          ]
+        } 
+      });
 
-    for (const kycRecord of kycRecords) {
-      if (kycRecord.documents && kycRecord.documents.length > 0) {
-        for (const doc of kycRecord.documents) {
-          if (doc.path) {
-            const filePath = path.join(process.cwd(), doc.path);
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
+      for (const kycRecord of kycRecords) {
+        if (kycRecord.documents && kycRecord.documents.length > 0) {
+          for (const doc of kycRecord.documents) {
+            if (doc.path) {
+              const filePath = path.join(process.cwd(), doc.path);
+              if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+              }
             }
           }
         }
+        await kycRecord.destroy();
+        deletionSummary.kycRecords++;
       }
-      await kycRecord.destroy();
-      deletionSummary.kycRecords++;
-    }
 
-    // 2. Delete associated attendance records
-    const attendanceRecords = await Attendance.findAll({ 
-      where: { email: emp.email.toLowerCase() } 
-    });
-
-    for (const attendanceRecord of attendanceRecords) {
-      await attendanceRecord.destroy();
-      deletionSummary.attendanceRecords++;
-    }
-
-    // 3. Delete associated leave records
-    const leaveRecords = await Leave.findAll({ 
-      where: { email: emp.email.toLowerCase() } 
-    });
-
-    for (const leaveRecord of leaveRecords) {
-      if (leaveRecord.attachmentUrl) {
-        const filePath = path.join(process.cwd(), leaveRecord.attachmentUrl);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      }
-      await leaveRecord.destroy();
-      deletionSummary.leaveRecords++;
-    }
-
-    // 4. Delete associated payslip records
-    try {
-      const payslipRecords = await Payslip.findAll({ 
-        where: { 
-          [Op.or]: [
-            { employeeId: emp.id },
-            { employeeEmail: emp.email.toLowerCase() }
-          ]
-        }
+      // 2. Delete associated attendance records
+      const attendanceRecords = await Attendance.findAll({ 
+        where: { email: emp.email.toLowerCase() } 
       });
 
-      for (const payslipRecord of payslipRecords) {
-        await payslipRecord.destroy();
-        deletionSummary.payslipRecords++;
+      for (const attendanceRecord of attendanceRecords) {
+        await attendanceRecord.destroy();
+        deletionSummary.attendanceRecords++;
       }
-    } catch (payslipError) {
-      console.error('Error deleting payslip records:', payslipError.message);
-    }
 
-    // 5. Delete associated access logs
-    const accessLogs = await AccessLog.findAll({ 
-      where: { email: emp.email.toLowerCase() } 
-    });
+      // 3. Delete associated leave records
+      const leaveRecords = await Leave.findAll({ 
+        where: { email: emp.email.toLowerCase() } 
+      });
 
-    for (const accessLog of accessLogs) {
-      await accessLog.destroy();
-      deletionSummary.accessLogs++;
-    }
-
-    // 6. Delete the corresponding user account
-    const user = await User.findOne({ where: { email: emp.email } });
-    if (user) {
-      await user.destroy();
-      deletionSummary.userAccount = true;
-    }
-
-    // 7. Finally delete the employee record
-    await emp.destroy();
-
-    res.json({ 
-      success: true,
-      message: 'Employee and all associated data deleted successfully',
-      data: {
-        deletedEmployee: {
-          name: emp.name,
-          email: emp.email,
-          emp_id: emp.emp_id || emp.employeeId
-        },
-        deletionSummary
+      for (const leaveRecord of leaveRecords) {
+        if (leaveRecord.attachmentUrl) {
+          const filePath = path.join(process.cwd(), leaveRecord.attachmentUrl);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        }
+        await leaveRecord.destroy();
+        deletionSummary.leaveRecords++;
       }
-    });
+
+      // 4. Delete associated payslip records
+      try {
+        const payslipRecords = await Payslip.findAll({ 
+          where: { 
+            [Op.or]: [
+              { employeeId: emp.id },
+              { employeeEmail: emp.email.toLowerCase() }
+            ]
+          }
+        });
+
+        for (const payslipRecord of payslipRecords) {
+          await payslipRecord.destroy();
+          deletionSummary.payslipRecords++;
+        }
+      } catch (payslipError) {
+        console.error('Error deleting payslip records:', payslipError.message);
+      }
+
+      // 5. Delete associated access logs
+      const accessLogs = await AccessLog.findAll({ 
+        where: { email: emp.email.toLowerCase() } 
+      });
+
+      for (const accessLog of accessLogs) {
+        await accessLog.destroy();
+        deletionSummary.accessLogs++;
+      }
+
+      // 6. Delete the corresponding user account
+      const user = await User.findOne({ where: { email: emp.email } });
+      if (user) {
+        await user.destroy();
+        deletionSummary.userAccount = true;
+      }
+
+      // 7. Finally delete the employee record permanently
+      await emp.destroy();
+
+      res.json({ 
+        success: true,
+        message: 'Employee permanently deleted successfully',
+        data: {
+          deletedEmployee: {
+            name: emp.name,
+            email: emp.email,
+            emp_id: emp.emp_id || emp.employeeId
+          },
+          deletionSummary,
+          deletionType: 'permanent'
+        }
+      });
+    } else if (isHR) {
+      // HR: Soft delete only
+      console.log(`Starting soft delete for employee: ${emp.name} (${emp.email})`);
+
+      // Perform soft delete: set is_active = false and status = "Not Working"
+      await emp.update({
+        is_active: false,
+        status: 'Not Working'
+      });
+
+      // Also deactivate the corresponding user account
+      const user = await User.findOne({ where: { email: emp.email } });
+      if (user) {
+        await user.update({ active: false });
+        console.log(`Deactivated user account for: ${emp.email}`);
+      }
+
+      res.json({ 
+        success: true,
+        message: 'Employee soft deleted successfully',
+        data: {
+          deletedEmployee: {
+            id: emp.id,
+            name: emp.name,
+            email: emp.email,
+            emp_id: emp.emp_id || emp.employeeId,
+            is_active: false,
+            status: 'Not Working'
+          },
+          deletionType: 'soft'
+        }
+      });
+    } else {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions. Only Admin and HR can delete employees.',
+        error: 'FORBIDDEN'
+      });
+    }
   } catch (error) {
     console.error('Error deleting employee:', error);
     res.status(500).json({ 
@@ -523,13 +590,13 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// GET /api/employees/export/csv - Export all employees as CSV
-router.get('/export/csv', async (req, res) => {
+// GET /api/employees/export/csv - Export all active employees as CSV
+router.get('/export/csv', authenticateToken, requireRole(['admin', 'hr']), async (req, res) => {
   try {
-    // Check if user is admin or HR (you may want to add proper auth middleware)
-    // For now, we'll allow it - add auth middleware as needed
-    
     const employees = await Employee.findAll({ 
+      where: {
+        is_active: true // Only export active employees
+      },
       order: [['id', 'ASC']],
       attributes: [
         'id', 'emp_id', 'name', 'email', 'mobile_number', 
@@ -553,10 +620,16 @@ router.get('/export/csv', async (req, res) => {
   }
 });
 
-// GET /api/employees/:id/export/csv - Export single employee as CSV
-router.get('/:id/export/csv', async (req, res) => {
+// GET /api/employees/:id/export/csv - Export single active employee as CSV
+router.get('/:id/export/csv', authenticateToken, requireRole(['admin', 'hr']), async (req, res) => {
   try {
-    const emp = await Employee.findByPk(req.params.id);
+    const emp = await Employee.findOne({
+      where: {
+        id: req.params.id,
+        is_active: true // Only export if active
+      }
+    });
+    
     if (!emp) {
       return res.status(404).json({ 
         success: false,

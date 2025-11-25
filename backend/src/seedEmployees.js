@@ -118,6 +118,7 @@ async function seedEmployees() {
         // Create employee
         await Employee.create({
           ...employeeData,
+          is_active: true, // All seeded employees are active
           // Legacy fields for backward compatibility
           employeeId: employeeData.emp_id,
           department: employeeData.location,

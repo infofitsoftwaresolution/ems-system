@@ -226,6 +226,27 @@ export async function updateEmployeesTableStructure() {
       console.log('⚠️ Could not migrate department to location:', migrateError.message);
     }
     
+    // Add is_active column if it doesn't exist
+    if (!tableDescription.is_active) {
+      console.log('➕ Adding is_active column...');
+      await queryInterface.addColumn('employees', 'is_active', {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        allowNull: false
+      });
+      console.log('✅ Added is_active column');
+      
+      // Set all existing employees as active
+      await sequelize.query(`
+        UPDATE employees 
+        SET is_active = true 
+        WHERE is_active IS NULL
+      `);
+      console.log('✅ Set all existing employees as active');
+    } else {
+      console.log('✓ is_active column already exists');
+    }
+    
     // Update status values: Convert 'active' to 'Working', 'inactive' to 'Not Working'
     try {
       const [statusResults] = await sequelize.query(`
