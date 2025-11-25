@@ -57,6 +57,7 @@ import {
 import { apiService } from "@/lib/api";
 import { departments, roles } from "@/lib/data";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -69,6 +70,11 @@ import {
 // Type imports removed - types are now JSDoc comments in types/index.js
 
 export default function Employees() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const isHR = user?.role === "hr";
+  const canDelete = isAdmin || isHR; // Only Admin and HR can delete
+
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -84,19 +90,27 @@ export default function Employees() {
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [showAddEmployeeDialog, setShowAddEmployeeDialog] = useState(false);
   const [newEmployee, setNewEmployee] = useState({
+    emp_id: "", // Optional - will auto-generate if empty
     name: "",
     email: "",
+    mobile_number: "",
+    location: "",
+    designation: "",
     department: "",
     position: "",
     role: "",
     joinDate: "",
     isActive: true,
   });
-  
+
   // Validation errors state
   const [validationErrors, setValidationErrors] = useState({
+    emp_id: "",
     name: "",
     email: "",
+    mobile_number: "",
+    location: "",
+    designation: "",
     department: "",
     role: "",
     position: "",
@@ -125,11 +139,18 @@ export default function Employees() {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiService.getEmployees();
-      setEmployees(data);
+      const response = await apiService.getEmployees();
+      // Handle new API response format: { success: true, data: [...], count: ... }
+      const employeesData = Array.isArray(response)
+        ? response
+        : response?.data && Array.isArray(response.data)
+        ? response.data
+        : [];
+      setEmployees(employeesData);
     } catch (err) {
       setError("Failed to load employees");
       console.error("Error loading employees:", err);
+      setEmployees([]); // Ensure employees is always an array
     } finally {
       setLoading(false);
     }
@@ -200,16 +221,25 @@ export default function Employees() {
       selectedDepartment === null ||
       employee.department === selectedDepartment ||
       employee.department === getDepartmentName(selectedDepartment) ||
-      getDepartmentName(employee.department) === getDepartmentName(selectedDepartment);
+      getDepartmentName(employee.department) ===
+        getDepartmentName(selectedDepartment);
 
     const matchesStatus =
-      selectedStatus === null || employee.status === selectedStatus;
+      selectedStatus === null ||
+      employee.status === selectedStatus ||
+      (selectedStatus === "active" &&
+        (employee.status === "active" || employee.status === "Working")) ||
+      (selectedStatus === "inactive" &&
+        (employee.status === "inactive" || employee.status === "Not Working"));
 
-    // Tab filtering
+    // Tab filtering - handle both old format (active/inactive) and new format (Working/Not Working)
     const matchesTab =
       activeTab === "all" ||
-      (activeTab === "active" && employee.status === "active") ||
-      (activeTab === "inactive" && employee.status === "inactive") ||
+      (activeTab === "active" &&
+        (employee.status === "active" || employee.status === "Working")) ||
+      (activeTab === "inactive" &&
+        (employee.status === "inactive" ||
+          employee.status === "Not Working")) ||
       (activeTab === "onLeave" && employee.status === "onLeave");
 
     return matchesSearch && matchesDepartment && matchesStatus && matchesTab;
@@ -220,9 +250,28 @@ export default function Employees() {
     if (!sortConfig) return 0;
 
     const { key, direction } = sortConfig;
+    let aValue, bValue;
 
-    if (a[key] < b[key]) return direction === "asc" ? -1 : 1;
-    if (a[key] > b[key]) return direction === "asc" ? 1 : -1;
+    // Handle special cases for sorting
+    if (key === "emp_id") {
+      // Sort by emp_id, fallback to employeeId
+      aValue = a.emp_id || a.employeeId || "";
+      bValue = b.emp_id || b.employeeId || "";
+    } else {
+      aValue = a[key] || "";
+      bValue = b[key] || "";
+    }
+
+    // Handle numeric sorting for emp_id (e.g., RST1001, RST1002)
+    if (key === "emp_id") {
+      const aNum = parseInt(aValue.replace(/\D/g, "")) || 0;
+      const bNum = parseInt(bValue.replace(/\D/g, "")) || 0;
+      return direction === "asc" ? aNum - bNum : bNum - aNum;
+    }
+
+    // String comparison for other fields
+    if (aValue < bValue) return direction === "asc" ? -1 : 1;
+    if (aValue > bValue) return direction === "asc" ? 1 : -1;
     return 0;
   });
 
@@ -293,13 +342,17 @@ export default function Employees() {
   const handleEditClick = (employee) => {
     setEditingEmployee({
       id: employee.id,
+      emp_id: employee.emp_id || employee.employeeId || "",
       name: employee.name,
       email: employee.email,
+      mobile_number: employee.mobile_number || "",
+      location: employee.location || employee.department || "",
+      designation: employee.designation || employee.position || "",
       department: employee.department,
       position: employee.position || "",
       role: employee.role || "",
       joinDate: employee.hireDate || "",
-      isActive: employee.status === "active",
+      isActive: employee.status === "active" || employee.status === "Working",
     });
     setShowEditDialog(true);
   };
@@ -313,13 +366,17 @@ export default function Employees() {
     setIsUpdating(true);
     try {
       const employeeData = {
+        emp_id: editingEmployee.emp_id || "",
         name: editingEmployee.name,
         email: editingEmployee.email,
+        mobile_number: editingEmployee.mobile_number || "",
+        location: editingEmployee.location || "",
+        designation: editingEmployee.designation || "",
         position: editingEmployee.position,
         department: editingEmployee.department,
         role: editingEmployee.role,
         hireDate: editingEmployee.joinDate,
-        status: editingEmployee.isActive ? "active" : "inactive",
+        status: editingEmployee.isActive ? "Working" : "Not Working",
       };
 
       const updatedEmployee = await apiService.updateEmployee(
@@ -464,15 +521,15 @@ export default function Employees() {
     if (date) {
       const selectedDate = new Date(date);
       const today = new Date();
-      
+
       // Check if date is too far in the past (e.g., more than 50 years)
       const fiftyYearsAgo = new Date();
       fiftyYearsAgo.setFullYear(today.getFullYear() - 50);
-      
+
       if (selectedDate < fiftyYearsAgo) {
         return "Start date cannot be more than 50 years ago";
       }
-      
+
       // Allow future dates for new employees (e.g., scheduled start dates)
     }
     return "";
@@ -496,7 +553,7 @@ export default function Employees() {
   // Handle field validation on change
   const handleFieldChange = (field, value) => {
     setNewEmployee({ ...newEmployee, [field]: value });
-    
+
     // Clear error for this field when user starts typing
     if (validationErrors[field]) {
       setValidationErrors({ ...validationErrors, [field]: "" });
@@ -514,26 +571,37 @@ export default function Employees() {
     setIsAddingEmployee(true);
     try {
       const employeeData = {
+        emp_id: newEmployee.emp_id?.trim() || "", // Empty string will trigger auto-generation
         name: newEmployee.name,
         email: newEmployee.email,
+        mobile_number: newEmployee.mobile_number || "",
+        location: newEmployee.location || "",
+        designation: newEmployee.designation || "",
         position: newEmployee.position,
         department: newEmployee.department, // Send the department ID, backend will handle mapping
         role: newEmployee.role, // Send the role ID, backend will handle mapping
         hireDate: newEmployee.joinDate,
-        status: newEmployee.isActive ? "active" : "inactive",
+        status: newEmployee.isActive ? "Working" : "Not Working",
       };
 
       console.log("Submitting employee data:", employeeData);
-      const createdEmployee = await apiService.createEmployee(employeeData);
-      console.log("Employee created successfully:", createdEmployee);
+      const response = await apiService.createEmployee(employeeData);
+      console.log("Employee created successfully:", response);
+
+      // Extract employee data from response (handle both old and new API response formats)
+      const createdEmployee = response?.data || response;
 
       // Add the new employee to the list
       setEmployees([...employees, createdEmployee]);
 
       // Reset form and validation errors
       setNewEmployee({
+        emp_id: "",
         name: "",
         email: "",
+        mobile_number: "",
+        location: "",
+        designation: "",
         department: "",
         position: "",
         role: "",
@@ -541,8 +609,12 @@ export default function Employees() {
         isActive: true,
       });
       setValidationErrors({
+        emp_id: "",
         name: "",
         email: "",
+        mobile_number: "",
+        location: "",
+        designation: "",
         department: "",
         role: "",
         position: "",
@@ -629,9 +701,9 @@ export default function Employees() {
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <TabsList>
             <TabsTrigger value="all">All Employees</TabsTrigger>
-            <TabsTrigger value="active">Active</TabsTrigger>
+            <TabsTrigger value="active">Working</TabsTrigger>
             <TabsTrigger value="onLeave">On Leave</TabsTrigger>
-            <TabsTrigger value="inactive">Inactive</TabsTrigger>
+            <TabsTrigger value="inactive">Not Working</TabsTrigger>
           </TabsList>
           <div className="flex gap-2">
             <Dialog
@@ -659,12 +731,37 @@ export default function Employees() {
                   }}>
                   <div className="grid grid-cols-2 gap-4 py-4">
                     <div className="space-y-2">
+                      <Label htmlFor="emp_id">Employee ID</Label>
+                      <Input
+                        id="emp_id"
+                        placeholder="Leave empty for auto-generation (e.g., RST1001)"
+                        value={newEmployee.emp_id}
+                        onChange={(e) =>
+                          handleFieldChange("emp_id", e.target.value)
+                        }
+                        className={
+                          validationErrors.emp_id ? "border-red-500" : ""
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Optional: Leave empty to auto-generate (RST1001,
+                        RST1002...)
+                      </p>
+                      {validationErrors.emp_id && (
+                        <p className="text-sm text-red-500">
+                          {validationErrors.emp_id}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="name">Full Name *</Label>
                       <Input
                         id="name"
                         placeholder="John Doe"
                         value={newEmployee.name}
-                        onChange={(e) => handleFieldChange("name", e.target.value)}
+                        onChange={(e) =>
+                          handleFieldChange("name", e.target.value)
+                        }
                         onBlur={() => {
                           setValidationErrors({
                             ...validationErrors,
@@ -672,10 +769,14 @@ export default function Employees() {
                           });
                         }}
                         required
-                        className={validationErrors.name ? "border-red-500" : ""}
+                        className={
+                          validationErrors.name ? "border-red-500" : ""
+                        }
                       />
                       {validationErrors.name && (
-                        <p className="text-sm text-red-500">{validationErrors.name}</p>
+                        <p className="text-sm text-red-500">
+                          {validationErrors.name}
+                        </p>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -685,7 +786,9 @@ export default function Employees() {
                         type="email"
                         placeholder="john.doe@company.com"
                         value={newEmployee.email}
-                        onChange={(e) => handleFieldChange("email", e.target.value)}
+                        onChange={(e) =>
+                          handleFieldChange("email", e.target.value)
+                        }
                         onBlur={() => {
                           setValidationErrors({
                             ...validationErrors,
@@ -693,10 +796,14 @@ export default function Employees() {
                           });
                         }}
                         required
-                        className={validationErrors.email ? "border-red-500" : ""}
+                        className={
+                          validationErrors.email ? "border-red-500" : ""
+                        }
                       />
                       {validationErrors.email && (
-                        <p className="text-sm text-red-500">{validationErrors.email}</p>
+                        <p className="text-sm text-red-500">
+                          {validationErrors.email}
+                        </p>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -710,7 +817,10 @@ export default function Employees() {
                             department: validateDepartment(value),
                           });
                         }}>
-                        <SelectTrigger className={validationErrors.department ? "border-red-500" : ""}>
+                        <SelectTrigger
+                          className={
+                            validationErrors.department ? "border-red-500" : ""
+                          }>
                           <SelectValue placeholder="Select department" />
                         </SelectTrigger>
                         <SelectContent>
@@ -722,26 +832,92 @@ export default function Employees() {
                         </SelectContent>
                       </Select>
                       {validationErrors.department && (
-                        <p className="text-sm text-red-500">{validationErrors.department}</p>
+                        <p className="text-sm text-red-500">
+                          {validationErrors.department}
+                        </p>
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="position">Position</Label>
+                      <Label htmlFor="mobile_number">Mobile Number</Label>
+                      <Input
+                        id="mobile_number"
+                        type="tel"
+                        placeholder="9910955040"
+                        value={newEmployee.mobile_number}
+                        onChange={(e) =>
+                          handleFieldChange("mobile_number", e.target.value)
+                        }
+                        className={
+                          validationErrors.mobile_number ? "border-red-500" : ""
+                        }
+                      />
+                      {validationErrors.mobile_number && (
+                        <p className="text-sm text-red-500">
+                          {validationErrors.mobile_number}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="location">Location</Label>
+                      <Input
+                        id="location"
+                        placeholder="Noida"
+                        value={newEmployee.location}
+                        onChange={(e) =>
+                          handleFieldChange("location", e.target.value)
+                        }
+                        className={
+                          validationErrors.location ? "border-red-500" : ""
+                        }
+                      />
+                      {validationErrors.location && (
+                        <p className="text-sm text-red-500">
+                          {validationErrors.location}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="designation">Designation</Label>
+                      <Input
+                        id="designation"
+                        placeholder="Software Developer"
+                        value={newEmployee.designation}
+                        onChange={(e) =>
+                          handleFieldChange("designation", e.target.value)
+                        }
+                        className={
+                          validationErrors.designation ? "border-red-500" : ""
+                        }
+                      />
+                      {validationErrors.designation && (
+                        <p className="text-sm text-red-500">
+                          {validationErrors.designation}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="position">Position (Legacy)</Label>
                       <Input
                         id="position"
                         placeholder="Software Engineer"
                         value={newEmployee.position}
-                        onChange={(e) => handleFieldChange("position", e.target.value)}
+                        onChange={(e) =>
+                          handleFieldChange("position", e.target.value)
+                        }
                         onBlur={() => {
                           setValidationErrors({
                             ...validationErrors,
                             position: validatePosition(newEmployee.position),
                           });
                         }}
-                        className={validationErrors.position ? "border-red-500" : ""}
+                        className={
+                          validationErrors.position ? "border-red-500" : ""
+                        }
                       />
                       {validationErrors.position && (
-                        <p className="text-sm text-red-500">{validationErrors.position}</p>
+                        <p className="text-sm text-red-500">
+                          {validationErrors.position}
+                        </p>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -755,7 +931,10 @@ export default function Employees() {
                             role: validateRole(value),
                           });
                         }}>
-                        <SelectTrigger className={validationErrors.role ? "border-red-500" : ""}>
+                        <SelectTrigger
+                          className={
+                            validationErrors.role ? "border-red-500" : ""
+                          }>
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                         <SelectContent>
@@ -767,7 +946,9 @@ export default function Employees() {
                         </SelectContent>
                       </Select>
                       {validationErrors.role && (
-                        <p className="text-sm text-red-500">{validationErrors.role}</p>
+                        <p className="text-sm text-red-500">
+                          {validationErrors.role}
+                        </p>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -776,17 +957,23 @@ export default function Employees() {
                         id="join-date"
                         type="date"
                         value={newEmployee.joinDate}
-                        onChange={(e) => handleFieldChange("joinDate", e.target.value)}
+                        onChange={(e) =>
+                          handleFieldChange("joinDate", e.target.value)
+                        }
                         onBlur={() => {
                           setValidationErrors({
                             ...validationErrors,
                             joinDate: validateJoinDate(newEmployee.joinDate),
                           });
                         }}
-                        className={validationErrors.joinDate ? "border-red-500" : ""}
+                        className={
+                          validationErrors.joinDate ? "border-red-500" : ""
+                        }
                       />
                       {validationErrors.joinDate && (
-                        <p className="text-sm text-red-500">{validationErrors.joinDate}</p>
+                        <p className="text-sm text-red-500">
+                          {validationErrors.joinDate}
+                        </p>
                       )}
                     </div>
                     <div className="col-span-2 flex items-center space-x-2">
@@ -808,8 +995,12 @@ export default function Employees() {
                       variant="outline"
                       onClick={() => {
                         setNewEmployee({
+                          emp_id: "",
                           name: "",
                           email: "",
+                          mobile_number: "",
+                          location: "",
+                          designation: "",
                           department: "",
                           position: "",
                           role: "",
@@ -817,8 +1008,12 @@ export default function Employees() {
                           isActive: true,
                         });
                         setValidationErrors({
+                          emp_id: "",
                           name: "",
                           email: "",
+                          mobile_number: "",
+                          location: "",
+                          designation: "",
                           department: "",
                           role: "",
                           position: "",
@@ -853,6 +1048,23 @@ export default function Employees() {
                     }}>
                     <div className="grid grid-cols-2 gap-4 py-4">
                       <div className="space-y-2">
+                        <Label htmlFor="edit-emp_id">Employee ID</Label>
+                        <Input
+                          id="edit-emp_id"
+                          placeholder="RST1001"
+                          value={editingEmployee.emp_id || ""}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              emp_id: e.target.value,
+                            })
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Employee ID (must be unique)
+                        </p>
+                      </div>
+                      <div className="space-y-2">
                         <Label htmlFor="edit-name">Full Name *</Label>
                         <Input
                           id="edit-name"
@@ -881,6 +1093,51 @@ export default function Employees() {
                             })
                           }
                           required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-mobile_number">
+                          Mobile Number
+                        </Label>
+                        <Input
+                          id="edit-mobile_number"
+                          type="tel"
+                          placeholder="9910955040"
+                          value={editingEmployee.mobile_number || ""}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              mobile_number: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-location">Location</Label>
+                        <Input
+                          id="edit-location"
+                          placeholder="Noida"
+                          value={editingEmployee.location || ""}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              location: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-designation">Designation</Label>
+                        <Input
+                          id="edit-designation"
+                          placeholder="Software Developer"
+                          value={editingEmployee.designation || ""}
+                          onChange={(e) =>
+                            setEditingEmployee({
+                              ...editingEmployee,
+                              designation: e.target.value,
+                            })
+                          }
                         />
                       </div>
                       <div className="space-y-2">
@@ -994,29 +1251,68 @@ export default function Employees() {
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                  <DialogTitle className="text-red-600">
-                    Delete Employee
+                  <DialogTitle
+                    className={isAdmin ? "text-red-600" : "text-orange-600"}>
+                    {isAdmin
+                      ? "Permanently Delete Employee"
+                      : "Soft Delete Employee"}
                   </DialogTitle>
                   <DialogDescription>
-                    This action cannot be undone. This will permanently delete
-                    the employee and all associated data.
+                    {isAdmin ? (
+                      <>
+                        <strong className="text-red-600">
+                          Warning: This action cannot be undone.
+                        </strong>
+                        <br />
+                        This will <strong>permanently delete</strong> the
+                        employee and all associated data.
+                      </>
+                    ) : (
+                      <>
+                        This will <strong>soft delete</strong> the employee. The
+                        employee will be marked as inactive and hidden from
+                        listings, but data will be preserved.
+                        <br />
+                        <span className="text-sm text-muted-foreground mt-2 block">
+                          Note: Only Admin can permanently delete employees.
+                        </span>
+                      </>
+                    )}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-red-800 mb-2">
-                      The following data will be deleted:
-                    </h4>
-                    <ul className="text-sm text-red-700 space-y-1">
-                      <li>• Employee record and profile information</li>
-                      <li>• User account and login credentials</li>
-                      <li>• All KYC documents and verification records</li>
-                      <li>• All attendance records and location data</li>
-                      <li>• All leave applications and approvals</li>
-                      <li>• All payslip records and salary history</li>
-                      <li>• All access logs and activity history</li>
-                    </ul>
-                  </div>
+                  {isAdmin ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <h4 className="font-semibold text-red-800 mb-2">
+                        The following data will be permanently deleted:
+                      </h4>
+                      <ul className="text-sm text-red-700 space-y-1">
+                        <li>• Employee record and profile information</li>
+                        <li>• User account and login credentials</li>
+                        <li>• All KYC documents and verification records</li>
+                        <li>• All attendance records and location data</li>
+                        <li>• All leave applications and approvals</li>
+                        <li>• All payslip records and salary history</li>
+                        <li>• All access logs and activity history</li>
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                      <h4 className="font-semibold text-orange-800 mb-2">
+                        Soft Delete Actions:
+                      </h4>
+                      <ul className="text-sm text-orange-700 space-y-1">
+                        <li>
+                          • Employee will be marked as inactive (is_active =
+                          false)
+                        </li>
+                        <li>• Status will be set to "Not Working"</li>
+                        <li>• User account will be deactivated</li>
+                        <li>• Employee will be hidden from active listings</li>
+                        <li>• All data will be preserved for audit purposes</li>
+                      </ul>
+                    </div>
+                  )}
                   <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-600">
                       <strong>Employee:</strong> {deleteEmployeeName}
@@ -1033,10 +1329,21 @@ export default function Employees() {
                   </Button>
                   <Button
                     type="button"
-                    variant="destructive"
+                    variant={isAdmin ? "destructive" : "default"}
+                    className={
+                      isAdmin
+                        ? ""
+                        : "bg-orange-600 hover:bg-orange-700 text-white"
+                    }
                     onClick={handleDeleteConfirm}
                     disabled={isDeleting}>
-                    {isDeleting ? "Deleting..." : "Delete Employee"}
+                    {isDeleting
+                      ? isAdmin
+                        ? "Deleting..."
+                        : "Soft Deleting..."
+                      : isAdmin
+                      ? "Permanently Delete"
+                      : "Soft Delete"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -1194,14 +1501,14 @@ export default function Employees() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() => setSelectedStatus("active")}>
-                      Active
+                      Working
                       {selectedStatus === "active" && (
                         <CheckCircle className="ml-2 h-4 w-4" />
                       )}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => setSelectedStatus("inactive")}>
-                      Inactive
+                      Not Working
                       {selectedStatus === "inactive" && (
                         <CheckCircle className="ml-2 h-4 w-4" />
                       )}
@@ -1222,11 +1529,25 @@ export default function Employees() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">No</TableHead>
+                  <TableHead
+                    onClick={() => handleSort("emp_id")}
+                    className="cursor-pointer hover:text-primary">
+                    <div className="flex items-center gap-1">
+                      Emp Id
+                      {sortConfig?.key === "emp_id" &&
+                        (sortConfig.direction === "asc" ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        ))}
+                    </div>
+                  </TableHead>
                   <TableHead
                     onClick={() => handleSort("name")}
                     className="cursor-pointer hover:text-primary">
                     <div className="flex items-center gap-1">
-                      Name
+                      Name of Employee
                       {sortConfig?.key === "name" &&
                         (sortConfig.direction === "asc" ? (
                           <ChevronUp className="h-4 w-4" />
@@ -1235,33 +1556,27 @@ export default function Employees() {
                         ))}
                     </div>
                   </TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead className="hidden md:table-cell">
-                    Department
+                    Mobile Number
+                  </TableHead>
+                  <TableHead>Mail Id</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Location
                   </TableHead>
                   <TableHead className="hidden md:table-cell">
-                    Position
-                  </TableHead>
-                  <TableHead
-                    onClick={() => handleSort("hireDate")}
-                    className="cursor-pointer hover:text-primary hidden md:table-cell">
-                    <div className="flex items-center gap-1">
-                      Start Date
-                      {sortConfig?.key === "hireDate" &&
-                        (sortConfig.direction === "asc" ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        ))}
-                    </div>
+                    Designation
                   </TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedEmployees.map((employee) => (
+                {sortedEmployees.map((employee, index) => (
                   <TableRow key={employee.id}>
+                    <TableCell className="w-12">{index + 1}</TableCell>
+                    <TableCell className="font-medium">
+                      {employee.emp_id || employee.employeeId || "N/A"}
+                    </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <Avatar className="h-8 w-8">
@@ -1271,36 +1586,51 @@ export default function Employees() {
                           />
                           <AvatarFallback>
                             {employee.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
+                              ? employee.name
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                              : "N/A"}
                           </AvatarFallback>
                         </Avatar>
                         <div>{employee.name}</div>
                       </div>
                     </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {employee.mobile_number || "N/A"}
+                    </TableCell>
                     <TableCell>{employee.email}</TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {getDepartmentName(employee.department)}
+                      {employee.location || employee.department || "N/A"}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {employee.position || "N/A"}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {employee.hireDate
-                        ? new Date(employee.hireDate).toLocaleDateString()
-                        : "N/A"}
+                      {employee.designation || employee.position || "N/A"}
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant={
+                          employee.status === "Working" ||
                           employee.status === "active"
                             ? "default"
                             : employee.status === "onLeave"
                             ? "outline"
                             : "secondary"
+                        }
+                        className={
+                          employee.is_active === false
+                            ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/30"
+                            : employee.status === "Not Working" ||
+                              employee.status === "inactive"
+                            ? "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700"
+                            : ""
                         }>
-                        {employee.status}
+                        {employee.status === "active" ||
+                        employee.status === "Working"
+                          ? "Working"
+                          : employee.status === "inactive" ||
+                            employee.status === "Not Working"
+                          ? "Not Working"
+                          : employee.status || "N/A"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -1322,12 +1652,21 @@ export default function Employees() {
                             onClick={() => handleEmailClick(employee)}>
                             <MailIcon className="h-4 w-4" /> Email
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600 gap-2"
-                            onClick={() => handleDeleteClick(employee)}>
-                            <Trash2 className="h-4 w-4" /> Delete
-                          </DropdownMenuItem>
+                          {canDelete && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className={
+                                  isAdmin
+                                    ? "text-red-600 gap-2"
+                                    : "text-orange-600 gap-2"
+                                }
+                                onClick={() => handleDeleteClick(employee)}>
+                                <Trash2 className="h-4 w-4" />
+                                {isAdmin ? "Permanently Delete" : "Soft Delete"}
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

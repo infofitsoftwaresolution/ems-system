@@ -111,6 +111,62 @@ class ApiService {
     });
   }
 
+  // Export employees as CSV
+  async exportEmployeesCSV() {
+    const url = `${this.baseURL}/api/employees/export/csv`;
+    const token = this.getAuthToken();
+    
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Authorization": token ? `Bearer ${token}` : "",
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "Export failed" }));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = "employees.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  // Export single employee as CSV
+  async exportEmployeeCSV(id) {
+    const url = `${this.baseURL}/api/employees/${id}/export/csv`;
+    const token = this.getAuthToken();
+    
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Authorization": token ? `Bearer ${token}` : "",
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "Export failed" }));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `employee_${id}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
   // User endpoints
   async getUsers() {
     return this.request("/api/users");

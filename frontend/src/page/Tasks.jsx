@@ -116,15 +116,22 @@ export default function Tasks() {
     const loadData = async () => {
       try {
         setIsInitialLoading(true);
-        const [tasksData, employeesData] = await Promise.all([
+        const [tasksData, employeesResponse] = await Promise.all([
           apiService.getTasks(),
           apiService.getEmployees()
         ]);
         setTasks(tasksData);
+        // Handle new API response format: { success: true, data: [...], count: ... }
+        const employeesData = Array.isArray(employeesResponse) 
+          ? employeesResponse 
+          : (employeesResponse?.data && Array.isArray(employeesResponse.data)) 
+          ? employeesResponse.data 
+          : [];
         setEmployees(employeesData);
       } catch (error) {
         console.error("Error loading tasks:", error);
         toast.error("Failed to load tasks");
+        setEmployees([]); // Ensure employees is always an array
       } finally {
         setIsInitialLoading(false);
       }

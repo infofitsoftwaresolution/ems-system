@@ -63,7 +63,13 @@ export default function PayslipManagement() {
   const fetchEmployees = async () => {
     try {
       const response = await apiService.getEmployees();
-      setEmployees(response);
+      // Handle new API response format: { success: true, data: [...], count: ... }
+      const employeesData = Array.isArray(response) 
+        ? response 
+        : (response?.data && Array.isArray(response.data)) 
+        ? response.data 
+        : [];
+      setEmployees(employeesData);
     } catch (error) {
       console.error("Error fetching employees:", error);
       toast.error("Failed to fetch employees");
