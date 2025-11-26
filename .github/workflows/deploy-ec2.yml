@@ -179,12 +179,12 @@ jobs:
           fi
           
           # Create necessary directories
-          mkdir -p backend/uploads backend/logs backend/uploads/kyc
+          mkdir -p backend/uploads/avatars backend/uploads/kyc backend/uploads/employee_kyc backend/logs
           mkdir -p ssl-certs
           # Ensure uploads directory has correct permissions
-          chmod -R 755 backend/uploads || true
-          # Create kyc subdirectory if it doesn't exist
-          mkdir -p backend/uploads/kyc || true
+          chmod -R 755 backend/uploads backend/logs || true
+          # Create subdirectories if they don't exist
+          mkdir -p backend/uploads/kyc backend/uploads/avatars backend/uploads/employee_kyc || true
           
           # Setup environment file with RDS configuration (preserve existing if it has custom values)
           echo "⚙️ Setting up environment configuration..."
@@ -329,6 +329,11 @@ jobs:
           # Pull latest images (force pull to ensure latest)
           echo "📦 Pulling latest Docker images (forcing pull)..."
           docker-compose -f docker-compose.production.yml pull --ignore-pull-failures || true
+          
+          # Create uploads directory if it doesn't exist
+          echo "📁 Creating uploads directory structure..."
+          mkdir -p backend/uploads/avatars backend/uploads/kyc backend/uploads/employee_kyc backend/logs
+          chmod -R 755 backend/uploads backend/logs || true
           
           # Start new containers
           echo "🚀 Starting new containers..."
