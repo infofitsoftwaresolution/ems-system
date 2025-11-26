@@ -471,54 +471,100 @@ router.delete('/:id', authenticateToken, requireRole(['admin', 'hr']), async (re
       };
 
       // 1. Delete associated KYC records and files
-      const kycRecords = await Kyc.findAll({ 
-        where: { 
-          [Op.or]: [
-            { employeeId: emp.emp_id || emp.employeeId },
-            { fullName: emp.name }
-          ]
-        } 
-      });
+      try {
+        const kycRecords = await Kyc.findAll({ 
+          where: { 
+            [Op.or]: [
+              { employeeId: emp.emp_id || emp.employeeId },
+              { fullName: emp.name }
+            ]
+          } 
+        });
 
-      for (const kycRecord of kycRecords) {
-        if (kycRecord.documents && kycRecord.documents.length > 0) {
-          for (const doc of kycRecord.documents) {
-            if (doc.path) {
-              const filePath = path.join(process.cwd(), doc.path);
-              if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
+        for (const kycRecord of kycRecords) {
+          // Parse documents JSON string if it exists
+          let documents = [];
+          try {
+            if (kycRecord.documents) {
+              const parsed = JSON.parse(kycRecord.documents);
+              // Handle both formats: direct array or nested object with documents property
+              if (Array.isArray(parsed)) {
+                documents = parsed;
+              } else if (parsed.documents && Array.isArray(parsed.documents)) {
+                documents = parsed.documents;
+              }
+            }
+          } catch (parseError) {
+            console.error('Error parsing KYC documents for deletion:', parseError);
+            // Continue with deletion even if parsing fails
+          }
+          
+          // Delete associated files
+          if (documents && documents.length > 0) {
+            for (const doc of documents) {
+              if (doc.path) {
+                const filePath = path.join(process.cwd(), doc.path);
+                if (fs.existsSync(filePath)) {
+                  try {
+                    fs.unlinkSync(filePath);
+                    console.log(`Deleted KYC file: ${filePath}`);
+                  } catch (fileError) {
+                    console.error(`Error deleting file ${filePath}:`, fileError.message);
+                    // Continue with deletion even if file deletion fails
+                  }
+                }
               }
             }
           }
+          
+          // Delete the KYC record
+          await kycRecord.destroy();
+          deletionSummary.kycRecords++;
         }
-        await kycRecord.destroy();
-        deletionSummary.kycRecords++;
+      } catch (kycError) {
+        console.error('Error deleting KYC records:', kycError);
+        // Continue with employee deletion even if KYC deletion fails
       }
 
       // 2. Delete associated attendance records
-      const attendanceRecords = await Attendance.findAll({ 
-        where: { email: emp.email.toLowerCase() } 
-      });
+      try {
+        const attendanceRecords = await Attendance.findAll({ 
+          where: { email: emp.email.toLowerCase() } 
+        });
 
-      for (const attendanceRecord of attendanceRecords) {
-        await attendanceRecord.destroy();
-        deletionSummary.attendanceRecords++;
+        for (const attendanceRecord of attendanceRecords) {
+          await attendanceRecord.destroy();
+          deletionSummary.attendanceRecords++;
+        }
+      } catch (attendanceError) {
+        console.error('Error deleting attendance records:', attendanceError);
+        // Continue with employee deletion even if attendance deletion fails
       }
 
       // 3. Delete associated leave records
-      const leaveRecords = await Leave.findAll({ 
-        where: { email: emp.email.toLowerCase() } 
-      });
+      try {
+        const leaveRecords = await Leave.findAll({ 
+          where: { email: emp.email.toLowerCase() } 
+        });
 
-      for (const leaveRecord of leaveRecords) {
-        if (leaveRecord.attachmentUrl) {
-          const filePath = path.join(process.cwd(), leaveRecord.attachmentUrl);
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        for (const leaveRecord of leaveRecords) {
+          if (leaveRecord.attachmentUrl) {
+            const filePath = path.join(process.cwd(), leaveRecord.attachmentUrl);
+            if (fs.existsSync(filePath)) {
+              try {
+                fs.unlinkSync(filePath);
+              } catch (fileError) {
+                console.error(`Error deleting leave attachment ${filePath}:`, fileError.message);
+                // Continue with deletion even if file deletion fails
+              }
+            }
           }
+          await leaveRecord.destroy();
+          deletionSummary.leaveRecords++;
         }
-        await leaveRecord.destroy();
-        deletionSummary.leaveRecords++;
+      } catch (leaveError) {
+        console.error('Error deleting leave records:', leaveError);
+        // Continue with employee deletion even if leave deletion fails
       }
 
       // 4. Delete associated payslip records
@@ -541,20 +587,30 @@ router.delete('/:id', authenticateToken, requireRole(['admin', 'hr']), async (re
       }
 
       // 5. Delete associated access logs
-      const accessLogs = await AccessLog.findAll({ 
-        where: { email: emp.email.toLowerCase() } 
-      });
+      try {
+        const accessLogs = await AccessLog.findAll({ 
+          where: { email: emp.email.toLowerCase() } 
+        });
 
-      for (const accessLog of accessLogs) {
-        await accessLog.destroy();
-        deletionSummary.accessLogs++;
+        for (const accessLog of accessLogs) {
+          await accessLog.destroy();
+          deletionSummary.accessLogs++;
+        }
+      } catch (accessLogError) {
+        console.error('Error deleting access logs:', accessLogError);
+        // Continue with employee deletion even if access log deletion fails
       }
 
       // 6. Delete the corresponding user account
-      const user = await User.findOne({ where: { email: emp.email } });
-      if (user) {
-        await user.destroy();
-        deletionSummary.userAccount = true;
+      try {
+        const user = await User.findOne({ where: { email: emp.email } });
+        if (user) {
+          await user.destroy();
+          deletionSummary.userAccount = true;
+        }
+      } catch (userError) {
+        console.error('Error deleting user account:', userError);
+        // Continue with employee deletion even if user deletion fails
       }
 
       // 7. Finally delete the employee record permanently
