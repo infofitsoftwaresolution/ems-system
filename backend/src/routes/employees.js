@@ -113,10 +113,41 @@ router.get('/', async (req, res) => {
       ]
     });
     
+    // Get all employee emails to fetch avatars
+    const employeeEmails = employees.map(emp => emp.email);
+    
+    // Fetch avatars from User table for all employees
+    const users = await User.findAll({
+      where: {
+        email: {
+          [Op.in]: employeeEmails
+        }
+      },
+      attributes: ['email', 'avatar']
+    });
+    
+    // Create a map of email -> avatar for quick lookup
+    const avatarMap = {};
+    users.forEach(user => {
+      if (user.avatar) {
+        avatarMap[user.email] = user.avatar;
+      }
+    });
+    
+    // Map employees and add avatar from User table
+    const employeesWithAvatar = employees.map(emp => {
+      const empData = emp.toJSON();
+      // Add avatar from User table if available
+      if (avatarMap[empData.email]) {
+        empData.avatar = avatarMap[empData.email];
+      }
+      return empData;
+    });
+    
     res.json({
       success: true,
-      data: employees,
-      count: employees.length
+      data: employeesWithAvatar,
+      count: employeesWithAvatar.length
     });
   } catch (error) {
     console.error('Error fetching employees:', error);

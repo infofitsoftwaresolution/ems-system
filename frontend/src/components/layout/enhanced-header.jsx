@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useSocket } from "@/hooks/use-socket";
 import { Badge } from "@/components/ui/badge";
 import { apiService } from "@/lib/api";
+import { getAvatarUrl } from "@/lib/imageUtils";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -376,7 +377,16 @@ export function EnhancedHeader({ toggleSidebar }) {
                 size="icon"
                 className="relative rounded-full">
                 <Avatar className="h-9 w-9 ring-2 ring-primary/10 ring-offset-2 ring-offset-background">
-                  <AvatarImage src={user?.avatar} alt={user?.name} />
+                  <AvatarImage 
+                    key={user?.avatar || 'no-avatar'}
+                    src={getAvatarUrl(user?.avatar)} 
+                    alt={user?.name} 
+                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      console.error("Header avatar failed to load:", getAvatarUrl(user?.avatar));
+                      e.target.style.display = 'none';
+                    }}
+                  />
                   <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
                     {user?.name
                       .split(" ")
@@ -389,7 +399,16 @@ export function EnhancedHeader({ toggleSidebar }) {
             <DropdownMenuContent align="end" className="w-56">
               <div className="flex flex-col items-center p-4 border-b">
                 <Avatar className="h-16 w-16 mb-2">
-                  <AvatarImage src={user?.avatar} alt={user?.name} />
+                  <AvatarImage 
+                    key={user?.avatar || 'no-avatar'}
+                    src={getAvatarUrl(user?.avatar)} 
+                    alt={user?.name} 
+                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      console.error("Profile card avatar failed to load:", getAvatarUrl(user?.avatar));
+                      e.target.style.display = 'none';
+                    }}
+                  />
                   <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-lg">
                     {user?.name
                       .split(" ")

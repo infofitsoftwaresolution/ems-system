@@ -88,9 +88,16 @@ router.get('/me/profile', authenticateToken, async (req, res) => {
 });
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../../uploads/avatars');
+// Use same path as server.js for consistency
+const uploadsDir = process.env.UPLOAD_PATH 
+  ? path.join(process.env.UPLOAD_PATH, 'avatars')
+  : path.join(process.cwd(), 'uploads', 'avatars');
+  
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('Created uploads directory:', uploadsDir);
+} else {
+  console.log('Uploads directory exists:', uploadsDir);
 }
 
 // Configure multer for file uploads
@@ -183,6 +190,19 @@ router.put('/:email', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
+    // Prevent email changes unless user is admin
+    if (updateData.email && updateData.email !== email && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only administrators can change email addresses' });
+    }
+    
+    // If email is being changed, check if new email already exists
+    if (updateData.email && updateData.email !== email) {
+      const existingUser = await User.findOne({ where: { email: updateData.email } });
+      if (existingUser && existingUser.id !== user.id) {
+        return res.status(400).json({ message: 'Email address already in use' });
+      }
+    }
+    
     // Handle JSON fields
     if (updateData.notificationSettings && typeof updateData.notificationSettings === 'object') {
       updateData.notificationSettings = JSON.stringify(updateData.notificationSettings);
@@ -217,12 +237,34 @@ router.put('/:email', authenticateToken, async (req, res) => {
   }
 });
 
-// Upload avatar
-router.post('/upload-avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+// Upload avatar - handle multer errors separately
+router.post('/upload-avatar', authenticateToken, (req, res, next) => {
+  upload.single('avatar')(req, res, (err) => {
+    if (err) {
+      console.error('Multer error:', err);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ message: 'File size too large. Maximum size is 5MB.' });
+      }
+      if (err.message.includes('Only image files')) {
+        return res.status(400).json({ message: err.message });
+      }
+      return res.status(400).json({ message: 'File upload error', error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+      console.error('No file in request');
+      return res.status(400).json({ message: 'No file uploaded. Please select an image file.' });
     }
+    
+    console.log('File uploaded:', {
+      originalname: req.file.originalname,
+      filename: req.file.filename,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
     
     // Get user ID from token
     const userId = req.user.sub || req.user.id;
@@ -235,10 +277,26 @@ router.post('/upload-avatar', authenticateToken, upload.single('avatar'), async 
       return res.status(404).json({ message: 'User not found' });
     }
     
+    // Delete old avatar if it exists
+    if (user.avatar) {
+      const oldFilePath = path.join(__dirname, '../../', user.avatar);
+      try {
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+          console.log('Deleted old avatar:', oldFilePath);
+        }
+      } catch (fileError) {
+        console.error('Error deleting old avatar:', fileError);
+        // Continue even if old file deletion fails
+      }
+    }
+    
     // Construct the avatar URL (relative path)
     const avatarUrl = `/uploads/avatars/${req.file.filename}`;
     
     await user.update({ avatar: avatarUrl });
+    
+    console.log('Avatar updated successfully for user:', user.email);
     
     res.json({ 
       success: true, 

@@ -24,6 +24,14 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { toast as sonnerToast } from "sonner";
 import {
@@ -44,9 +52,14 @@ import {
   Smartphone,
   Globe,
   AlertCircle,
+  Monitor,
+  LogOut,
+  X,
+  Copy,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiService } from "@/lib/api";
+import { getAvatarUrl } from "@/lib/imageUtils";
 
 // Comprehensive timezone list
 const TIMEZONES = [
@@ -85,11 +98,17 @@ const TIMEZONES = [
 ];
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState({});
   const fileInputRef = useRef(null);
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar || null);
+  const [avatarKey, setAvatarKey] = useState(0); // Force re-render of image
+  const [sessions, setSessions] = useState([]);
+  const [twoFactorStatus, setTwoFactorStatus] = useState({ enabled: false, isSetup: false });
+  const [twoFactorSetup, setTwoFactorSetup] = useState(null); // { qrCodeUrl, secret, backupCodes }
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [twoFactorToken, setTwoFactorToken] = useState("");
 
   // Profile settings state
   const [profile, setProfile] = useState({
@@ -148,7 +167,12 @@ export default function Settings() {
           language: profileData.language || "english",
           timezone: profileData.timezone || "america-los_angeles",
         });
-        setAvatarUrl(profileData.avatar || null);
+        if (profileData.avatar) {
+          setAvatarUrl(profileData.avatar);
+          setAvatarKey(prev => prev + 1); // Force refresh
+        } else {
+          setAvatarUrl(null);
+        }
 
         // Load notification settings
         if (
@@ -185,6 +209,12 @@ export default function Settings() {
             loginAlerts: profileData.securitySettings.loginAlerts ?? true,
           });
         }
+
+        // Load active sessions
+        await loadSessions();
+
+        // Load 2FA status
+        await loadTwoFactorStatus();
       } catch (error) {
         console.error("Error loading profile:", error);
         sonnerToast.error("Failed to load profile data");
@@ -197,16 +227,50 @@ export default function Settings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.email]);
 
+  // Load active sessions
+  const loadSessions = async () => {
+    try {
+      const response = await apiService.getMySessions();
+      if (response.success) {
+        setSessions(response.sessions || []);
+      }
+    } catch (error) {
+      console.error("Error loading sessions:", error);
+    }
+  };
+
+  // Load 2FA status
+  const loadTwoFactorStatus = async () => {
+    try {
+      const response = await apiService.getTwoFactorStatus();
+      if (response.success) {
+        setTwoFactorStatus({
+          enabled: response.twoFactorEnabled || false,
+          isSetup: response.isSetup || false,
+        });
+        setSecuritySettings((prev) => ({
+          ...prev,
+          twoFactor: response.twoFactorEnabled || false,
+        }));
+      }
+    } catch (error) {
+      console.error("Error loading 2FA status:", error);
+    }
+  };
+
   // Handle avatar upload
   const handleAvatarChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      sonnerToast.error("Please select an image file");
+    // Validate file type
+    const validImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validImageTypes.includes(file.type)) {
+      sonnerToast.error("Please select a valid image file (JPEG, PNG, GIF, or WebP)");
       return;
     }
 
+    // Validate file size (5MB limit)
     if (file.size > 5 * 1024 * 1024) {
       sonnerToast.error("Image size must be less than 5MB");
       return;
@@ -215,8 +279,33 @@ export default function Settings() {
     setLoading({ ...loading, avatar: true });
     try {
       const result = await apiService.uploadAvatar(file);
-      setAvatarUrl(result.avatar);
-      sonnerToast.success("Avatar uploaded successfully");
+      if (result.success && result.avatar) {
+        // Update avatar URL and force image refresh
+        const newAvatarUrl = result.avatar;
+        setAvatarUrl(newAvatarUrl);
+        setAvatarKey(prev => prev + 1); // Force re-render
+        
+        // Update user context to refresh avatar in header/profile
+        if (user && refreshUser) {
+          try {
+            // Refresh user data in auth context to update avatar everywhere
+            await refreshUser();
+            
+            // Also reload profile data for local state
+            const profileData = await apiService.getUserProfile();
+            if (profileData.avatar) {
+              setAvatarUrl(profileData.avatar);
+              setAvatarKey(prev => prev + 1);
+            }
+          } catch (profileError) {
+            console.error("Error refreshing user data:", profileError);
+            // Continue with the uploaded avatar URL
+          }
+        }
+        sonnerToast.success("Avatar uploaded successfully");
+      } else {
+        throw new Error(result.message || "Upload failed");
+      }
     } catch (error) {
       console.error("Error uploading avatar:", error);
       sonnerToast.error(error.message || "Failed to upload avatar");
@@ -234,6 +323,13 @@ export default function Settings() {
     try {
       await apiService.removeAvatar();
       setAvatarUrl(null);
+      setAvatarKey(prev => prev + 1); // Force refresh
+      
+      // Refresh user context to update avatar in header/profile
+      if (refreshUser) {
+        await refreshUser();
+      }
+      
       sonnerToast.success("Avatar removed successfully");
     } catch (error) {
       console.error("Error removing avatar:", error);
@@ -362,20 +458,154 @@ export default function Settings() {
     }
   };
 
-  // Toggle two-factor auth
-  const handleToggleTwoFactor = () => {
-    if (!securitySettings.twoFactor) {
-      // In a real app, this would show a QR code or send a verification code
-      toast({
-        title: "Two-factor authentication",
-        description: "Please verify your phone number to enable 2FA.",
-      });
+  // Setup two-factor auth
+  const handleSetupTwoFactor = async () => {
+    setLoading({ ...loading, twoFactor: true });
+    try {
+      const response = await apiService.setupTwoFactor();
+      if (response.success) {
+        setTwoFactorSetup({
+          qrCodeUrl: response.qrCodeUrl,
+          secret: response.secret,
+          backupCodes: response.backupCodes,
+        });
+        setShow2FASetup(true);
+      }
+    } catch (error) {
+      console.error("Error setting up 2FA:", error);
+      sonnerToast.error(error.message || "Failed to setup 2FA");
+    } finally {
+      setLoading({ ...loading, twoFactor: false });
+    }
+  };
+
+  // Verify and enable 2FA
+  const handleVerifyTwoFactor = async () => {
+    if (!twoFactorToken || twoFactorToken.length !== 6) {
+      sonnerToast.error("Please enter a valid 6-digit code");
+      return;
     }
 
-    setSecuritySettings({
-      ...securitySettings,
-      twoFactor: !securitySettings.twoFactor,
-    });
+    setLoading({ ...loading, twoFactor: true });
+    try {
+      const response = await apiService.verifyTwoFactor(
+        twoFactorToken,
+        twoFactorSetup?.backupCodes
+      );
+      if (response.success) {
+        setTwoFactorStatus({ enabled: true, isSetup: true });
+        setSecuritySettings({ ...securitySettings, twoFactor: true });
+        setShow2FASetup(false);
+        setTwoFactorToken("");
+        setTwoFactorSetup(null);
+        sonnerToast.success("Two-factor authentication enabled successfully");
+      }
+    } catch (error) {
+      console.error("Error verifying 2FA:", error);
+      sonnerToast.error(error.message || "Invalid verification code");
+    } finally {
+      setLoading({ ...loading, twoFactor: false });
+    }
+  };
+
+  // Disable two-factor auth
+  const handleDisableTwoFactor = async () => {
+    setLoading({ ...loading, twoFactor: true });
+    try {
+      const response = await apiService.disableTwoFactor();
+      if (response.success) {
+        setTwoFactorStatus({ enabled: false, isSetup: false });
+        setSecuritySettings({ ...securitySettings, twoFactor: false });
+        sonnerToast.success("Two-factor authentication disabled");
+      }
+    } catch (error) {
+      console.error("Error disabling 2FA:", error);
+      sonnerToast.error(error.message || "Failed to disable 2FA");
+    } finally {
+      setLoading({ ...loading, twoFactor: false });
+    }
+  };
+
+  // Revoke session
+  const handleRevokeSession = async (sessionId) => {
+    setLoading({ ...loading, [`session-${sessionId}`]: true });
+    try {
+      const response = await apiService.revokeSession(sessionId);
+      if (response.success) {
+        await loadSessions();
+        sonnerToast.success("Session revoked successfully");
+      }
+    } catch (error) {
+      console.error("Error revoking session:", error);
+      sonnerToast.error(error.message || "Failed to revoke session");
+    } finally {
+      setLoading({ ...loading, [`session-${sessionId}`]: false });
+    }
+  };
+
+  // Revoke all other sessions
+  const handleRevokeAllOtherSessions = async () => {
+    setLoading({ ...loading, revokeAll: true });
+    try {
+      const response = await apiService.revokeAllOtherSessions();
+      if (response.success) {
+        await loadSessions();
+        sonnerToast.success("All other sessions revoked successfully");
+      }
+    } catch (error) {
+      console.error("Error revoking sessions:", error);
+      sonnerToast.error(error.message || "Failed to revoke sessions");
+    } finally {
+      setLoading({ ...loading, revokeAll: false });
+    }
+  };
+
+  // Reset security settings
+  const handleResetSecuritySettings = async () => {
+    if (!confirm("Are you sure you want to reset all security settings to defaults?")) {
+      return;
+    }
+
+    setLoading({ ...loading, resetSecurity: true });
+    try {
+      await apiService.resetSecuritySettings();
+      setSecuritySettings({
+        twoFactor: false,
+        sessionTimeout: "30",
+        rememberDevices: true,
+        loginAlerts: true,
+      });
+      await loadTwoFactorStatus();
+      sonnerToast.success("Security settings reset to defaults");
+    } catch (error) {
+      console.error("Error resetting security settings:", error);
+      sonnerToast.error(error.message || "Failed to reset security settings");
+    } finally {
+      setLoading({ ...loading, resetSecurity: false });
+    }
+  };
+
+  // Copy backup codes
+  const handleCopyBackupCodes = () => {
+    if (twoFactorSetup?.backupCodes) {
+      const codesText = twoFactorSetup.backupCodes.join("\n");
+      navigator.clipboard.writeText(codesText);
+      sonnerToast.success("Backup codes copied to clipboard");
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return "Unknown";
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
+
+  // Get device icon
+  const getDeviceIcon = (deviceInfo) => {
+    if (deviceInfo?.device === "Mobile") return <Smartphone className="h-4 w-4" />;
+    if (deviceInfo?.device === "Tablet") return <Smartphone className="h-4 w-4" />;
+    return <Monitor className="h-4 w-4" />;
   };
 
   return (
@@ -423,16 +653,27 @@ export default function Settings() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <Avatar className="h-20 w-20">
                   <AvatarImage
-                    src={
-                      avatarUrl
-                        ? `${
-                            import.meta.env.VITE_API_URL ||
-                            "http://localhost:3001"
-                          }${avatarUrl}`
-                        : null
-                    }
+                    key={avatarKey}
+                    src={getAvatarUrl(avatarUrl, avatarKey > 0 ? Date.now() : null)}
+                    alt={profile.name || "User avatar"}
+                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      console.error("Avatar image failed to load:", {
+                        avatarUrl,
+                        fullUrl: getAvatarUrl(avatarUrl),
+                        error: e
+                      });
+                      // Hide broken image and show fallback
+                      e.target.style.display = 'none';
+                    }}
+                    onLoad={() => {
+                      console.log("Avatar image loaded successfully:", {
+                        avatarUrl,
+                        fullUrl: getAvatarUrl(avatarUrl)
+                      });
+                    }}
                   />
-                  <AvatarFallback className="text-lg">
+                  <AvatarFallback className="text-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
                     {profile.name
                       ?.split(" ")
                       .map((n) => n[0])
@@ -500,7 +741,14 @@ export default function Settings() {
                       onChange={(e) =>
                         setProfile({ ...profile, email: e.target.value })
                       }
+                      disabled={user?.role !== "admin"}
+                      className={user?.role !== "admin" ? "bg-muted" : ""}
                     />
+                    {user?.role !== "admin" && (
+                      <p className="text-xs text-muted-foreground">
+                        Email cannot be changed. Contact an administrator.
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -916,20 +1164,52 @@ export default function Settings() {
                       <Label className="text-base">
                         Two-Factor Authentication
                       </Label>
-                      <Badge
-                        variant="outline"
-                        className="text-amber-600 bg-amber-50 border-amber-200">
-                        Recommended
-                      </Badge>
+                      {twoFactorStatus.enabled && (
+                        <Badge className="bg-green-600">Enabled</Badge>
+                      )}
+                      {!twoFactorStatus.enabled && (
+                        <Badge
+                          variant="outline"
+                          className="text-amber-600 bg-amber-50 border-amber-200">
+                          Recommended
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Add an extra layer of security to your account
+                      {twoFactorStatus.enabled
+                        ? "2FA is enabled on your account"
+                        : "Add an extra layer of security to your account"}
                     </p>
                   </div>
-                  <Switch
-                    checked={securitySettings.twoFactor}
-                    onCheckedChange={handleToggleTwoFactor}
-                  />
+                  <div className="flex items-center gap-2">
+                    {twoFactorStatus.enabled ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDisableTwoFactor}
+                        disabled={loading.twoFactor}>
+                        {loading.twoFactor ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <X className="h-4 w-4 mr-2" />
+                        )}
+                        Disable
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSetupTwoFactor}
+                        disabled={loading.twoFactor}>
+                        {loading.twoFactor ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Shield className="h-4 w-4 mr-2" />
+                        )}
+                        Setup
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 <Separator />
@@ -1008,30 +1288,90 @@ export default function Settings() {
 
                 <Separator />
 
-                <Alert
-                  className="bg-amber-50 text-amber-900 border-amber-200"
-                  showCloseButton={true}>
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <AlertTitle className="text-amber-800">
-                    Active Sessions
-                  </AlertTitle>
-                  <AlertDescription className="text-amber-700">
-                    You currently have 2 active sessions on different devices.
-                    <Button
-                      variant="link"
-                      className="text-amber-600 p-0 h-auto ml-1">
-                      Manage sessions{" "}
-                      <ChevronRight className="h-3 w-3 ml-0.5" />
-                    </Button>
-                  </AlertDescription>
-                </Alert>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-base">Active Sessions</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Manage your active login sessions
+                      </p>
+                    </div>
+                    {sessions.length > 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRevokeAllOtherSessions}
+                        disabled={loading.revokeAll}>
+                        {loading.revokeAll ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <LogOut className="h-4 w-4 mr-2" />
+                        )}
+                        Revoke All Others
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {sessions.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No active sessions
+                      </p>
+                    ) : (
+                      sessions.map((session) => (
+                        <div
+                          key={session.id}
+                          className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            {getDeviceIcon(session.deviceInfo)}
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium">
+                                  {session.deviceInfo?.browser || "Unknown Browser"} on{" "}
+                                  {session.deviceInfo?.os || "Unknown OS"}
+                                </p>
+                                {session.isCurrent && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Current
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {session.ipAddress} • Last active:{" "}
+                                {formatDate(session.lastActivity)}
+                              </p>
+                            </div>
+                          </div>
+                          {!session.isCurrent && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRevokeSession(session.id)}
+                              disabled={loading[`session-${session.id}`]}>
+                              {loading[`session-${session.id}`] ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <X className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
               <Button
                 variant="outline"
-                className="flex items-center gap-1 text-destructive">
-                <AlertTriangle className="h-4 w-4" />
+                className="flex items-center gap-1 text-destructive"
+                onClick={handleResetSecuritySettings}
+                disabled={loading.resetSecurity}>
+                {loading.resetSecurity ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                )}
                 Reset Security Settings
               </Button>
               <Button
@@ -1048,6 +1388,92 @@ export default function Settings() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 2FA Setup Dialog */}
+      <Dialog open={show2FASetup} onOpenChange={setShow2FASetup}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Setup Two-Factor Authentication</DialogTitle>
+            <DialogDescription>
+              Scan the QR code with your authenticator app and enter the verification code
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {twoFactorSetup?.qrCodeUrl && (
+              <div className="flex flex-col items-center space-y-4">
+                <div className="p-4 bg-white rounded-lg border">
+                  <img
+                    src={twoFactorSetup.qrCodeUrl}
+                    alt="2FA QR Code"
+                    className="w-64 h-64"
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  Use an authenticator app like Google Authenticator, Authy, or Microsoft Authenticator
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="2fa-token">Verification Code</Label>
+              <Input
+                id="2fa-token"
+                type="text"
+                placeholder="000000"
+                maxLength={6}
+                value={twoFactorToken}
+                onChange={(e) => setTwoFactorToken(e.target.value.replace(/\D/g, ""))}
+              />
+            </div>
+            {twoFactorSetup?.backupCodes && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Backup Codes</Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyBackupCodes}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy
+                  </Button>
+                </div>
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Save these codes in a safe place. You can use them to access your account if you lose your device.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                    {twoFactorSetup.backupCodes.map((code, idx) => (
+                      <div key={idx} className="p-2 bg-background rounded">
+                        {code}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShow2FASetup(false);
+                setTwoFactorToken("");
+                setTwoFactorSetup(null);
+              }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleVerifyTwoFactor}
+              disabled={loading.twoFactor || twoFactorToken.length !== 6}>
+              {loading.twoFactor ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="mr-2 h-4 w-4" />
+              )}
+              Verify & Enable
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

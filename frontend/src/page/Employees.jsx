@@ -58,6 +58,7 @@ import { apiService } from "@/lib/api";
 import { departments, roles } from "@/lib/data";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { getAvatarUrl } from "@/lib/imageUtils";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -1581,15 +1582,22 @@ export default function Employees() {
                       <div className="flex items-center gap-2">
                         <Avatar className="h-8 w-8">
                           <AvatarImage
-                            src={employee.avatar}
+                            key={employee.avatar || `no-avatar-${employee.id}`}
+                            src={getAvatarUrl(employee.avatar)}
                             alt={employee.name}
+                            crossOrigin="anonymous"
+                            onError={(e) => {
+                              // Hide broken image and show fallback
+                              e.target.style.display = 'none';
+                            }}
                           />
-                          <AvatarFallback>
+                          <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs">
                             {employee.name
                               ? employee.name
                                   .split(" ")
                                   .map((n) => n[0])
                                   .join("")
+                                  .toUpperCase()
                               : "N/A"}
                           </AvatarFallback>
                         </Avatar>

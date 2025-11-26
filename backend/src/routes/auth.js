@@ -3,8 +3,43 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
 import { Employee } from '../models/Employee.js';
+import { UserSession } from '../models/UserSession.js';
 
 const router = Router();
+
+// Helper function to parse user agent and get device info
+function getDeviceInfo(req) {
+  const userAgent = req.headers['user-agent'] || '';
+  const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+  
+  // Simple device detection
+  let browser = 'Unknown';
+  let os = 'Unknown';
+  let device = 'Desktop';
+  
+  if (userAgent.includes('Chrome')) browser = 'Chrome';
+  else if (userAgent.includes('Firefox')) browser = 'Firefox';
+  else if (userAgent.includes('Safari')) browser = 'Safari';
+  else if (userAgent.includes('Edge')) browser = 'Edge';
+  
+  if (userAgent.includes('Windows')) os = 'Windows';
+  else if (userAgent.includes('Mac')) os = 'macOS';
+  else if (userAgent.includes('Linux')) os = 'Linux';
+  else if (userAgent.includes('Android')) {
+    os = 'Android';
+    device = 'Mobile';
+  } else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+    os = 'iOS';
+    device = userAgent.includes('iPad') ? 'Tablet' : 'Mobile';
+  }
+  
+  return {
+    browser,
+    os,
+    device,
+    ip: ipAddress
+  };
+}
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -32,6 +67,27 @@ router.post('/login', async (req, res) => {
   const token = jwt.sign({ sub: user.id, role: user.role }, process.env.JWT_SECRET || 'dev-secret', {
     expiresIn: '2h'
   });
+  
+  // Create session record
+  try {
+    const deviceInfo = getDeviceInfo(req);
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 2); // 2 hours from now
+    
+    await UserSession.create({
+      userId: user.id,
+      token,
+      deviceInfo: JSON.stringify(deviceInfo),
+      userAgent: req.headers['user-agent'] || '',
+      ipAddress: deviceInfo.ip,
+      lastActivity: new Date(),
+      expiresAt
+    });
+  } catch (sessionError) {
+    console.error('Error creating session:', sessionError);
+    // Don't fail login if session creation fails
+  }
+  
   res.json({
     token,
     user: {
@@ -130,7 +186,7 @@ router.get('/verify', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
     
     const user = await User.findByPk(decoded.sub, {
-      attributes: ['id', 'name', 'email', 'role', 'active', 'mustChangePassword']
+      attributes: ['id', 'name', 'email', 'role', 'active', 'mustChangePassword', 'avatar']
     });
 
     if (!user || !user.active) {
@@ -147,7 +203,8 @@ router.get('/verify', async (req, res) => {
       email: user.email,
       role: user.role,
       mustChangePassword: user.mustChangePassword,
-      kycStatus: kycStatus
+      kycStatus: kycStatus,
+      avatar: user.avatar
     });
   } catch (error) {
     res.status(401).json({ message: 'Invalid token' });

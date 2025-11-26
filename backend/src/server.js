@@ -13,6 +13,7 @@ import { Op } from "sequelize";
 // import models so sequelize can sync tables
 import { User } from "./models/User.js";
 import { Employee } from "./models/Employee.js";
+import "./models/UserSession.js";
 import "./models/Event.js";
 import "./models/Course.js";
 import "./models/SiteSetting.js";
@@ -39,6 +40,9 @@ import tasksRouter from "./routes/tasks.js";
 import eventsRouter from "./routes/events.js";
 import messagesRouter from "./routes/messages.js";
 import notificationsRouter from "./routes/notifications.js";
+import sessionsRouter from "./routes/sessions.js";
+import twoFactorRouter from "./routes/twoFactor.js";
+import { updateSessionActivity } from "./middleware/sessionActivity.js";
 
 const app = express();
 const server = createServer(app);
@@ -162,22 +166,75 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(morgan("dev"));
 
+// Update session activity for authenticated requests
+app.use(updateSessionActivity);
+
 // Serve static files from uploads directory
 // Use UPLOAD_PATH environment variable if set, otherwise use relative path
 const uploadPath =
   process.env.UPLOAD_PATH || path.join(process.cwd(), "uploads");
 console.log("📁 Serving static files from:", uploadPath);
+// CORS middleware for static files (uploads)
+app.use("/uploads", (req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:4173",
+    "http://13.233.73.43:80",
+    "http://13.233.73.43:3001",
+    "http://13.233.73.43",
+    "http://13.233.73.43.nip.io",
+    "https://app.rsamriddhi.com",
+  ];
+  
+  // For images with crossOrigin="anonymous", we need to set specific origin or *
+  // But we cannot use * with credentials, so we'll use specific origin when available
+  if (process.env.NODE_ENV !== "production") {
+    // Development: allow the requesting origin or all origins
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    } else {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+  } else {
+    // Production: check if origin is allowed
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    } else {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+  }
+  
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader(
+    "Access-Control-Expose-Headers",
+    "Content-Length, Content-Type, Last-Modified, ETag"
+  );
+  // Don't set credentials for anonymous cross-origin requests (images)
+  // res.setHeader("Access-Control-Allow-Credentials", "true");
+  
+  // Handle preflight requests
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+  
+  next();
+});
+
+// Serve static files from uploads directory
 app.use(
   "/uploads",
   express.static(uploadPath, {
-    setHeaders: (res, path) => {
-      // Set CORS headers for static files
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-      res.setHeader(
-        "Access-Control-Expose-Headers",
-        "Content-Length, Content-Type"
-      );
+    setHeaders: (res, filePath) => {
+      // Set cache headers for images
+      if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg') || 
+          filePath.endsWith('.png') || filePath.endsWith('.gif') || 
+          filePath.endsWith('.webp')) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
     },
   })
 );
@@ -196,6 +253,8 @@ app.use("/api/tasks", tasksRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/messages", messagesRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/sessions", sessionsRouter);
+app.use("/api/two-factor", twoFactorRouter);
 
 const PORT = process.env.PORT || 3001;
 
@@ -363,6 +422,30 @@ async function start() {
       console.log("✅ Task ID migration for notifications completed");
     } catch (migrationError) {
       console.error("Task ID migration error:", migrationError.message);
+      // Continue even if migration fails - might already be applied
+    }
+
+    // Run migration to create user_sessions table
+    try {
+      const { createUserSessionsTable } = await import(
+        "./migrations/createUserSessionsTable.js"
+      );
+      await createUserSessionsTable();
+      console.log("✅ User sessions table migration completed");
+    } catch (migrationError) {
+      console.error("User sessions migration error:", migrationError.message);
+      // Continue even if migration fails - might already be applied
+    }
+
+    // Run migration to add two-factor authentication fields
+    try {
+      const { addTwoFactorAuthFields } = await import(
+        "./migrations/addTwoFactorAuthFields.js"
+      );
+      await addTwoFactorAuthFields();
+      console.log("✅ Two-factor authentication fields migration completed");
+    } catch (migrationError) {
+      console.error("2FA fields migration error:", migrationError.message);
       // Continue even if migration fails - might already be applied
     }
 

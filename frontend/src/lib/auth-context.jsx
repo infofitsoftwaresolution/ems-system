@@ -198,6 +198,31 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Refresh user data from server
+  const refreshUser = async () => {
+    try {
+      const userData = await apiService.verifyToken();
+      console.log('User data refreshed:', userData);
+      setUser(userData);
+      
+      // Update localStorage
+      if (userData) {
+        localStorage.setItem('userContext', JSON.stringify(userData));
+        if (userData.id) {
+          localStorage.setItem('currentUserId', userData.id);
+        }
+        if (userData.email) {
+          localStorage.setItem('currentUserEmail', userData.email);
+        }
+      }
+      
+      return userData;
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+      return null;
+    }
+  };
+
   // Logout function
   const logout = () => {
     setUser(null);
@@ -217,6 +242,7 @@ export function AuthProvider({ children }) {
         login,
         logout,
         updatePassword,
+        refreshUser,
         requiresPasswordChange,
         isAuthenticated: !!user,
       }}>

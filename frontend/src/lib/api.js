@@ -215,24 +215,40 @@ class ApiService {
     formData.append("avatar", file);
 
     const token = this.getAuthToken();
-    const headers = {
-      Authorization: `Bearer ${token}`,
-    };
-
-    const response = await fetch(`${this.baseURL}/api/users/upload-avatar`, {
-      method: "POST",
-      headers,
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({ message: "Upload failed" }));
-      throw new Error(errorData.message || `HTTP ${response.status}`);
+    
+    // For FormData, don't set Content-Type - browser will set it automatically with boundary
+    const headers = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
     }
 
-    return await response.json();
+    try {
+      const response = await fetch(`${this.baseURL}/api/users/upload-avatar`, {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: `Upload failed with status ${response.status}` }));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Avatar upload error:", error);
+      // Check if it's a network error
+      if (
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("ERR_CONNECTION_REFUSED") ||
+        error.name === "TypeError"
+      ) {
+        throw new Error("Backend server is not running. Please start the backend server.");
+      }
+      throw error;
+    }
   }
 
   async removeAvatar() {
@@ -654,6 +670,75 @@ class ApiService {
 
   async getChannelMessages(channelId) {
     return this.request(`/api/messages/channel/${encodeURIComponent(channelId)}`);
+  }
+
+  // Session management endpoints
+  async getMySessions() {
+    return this.request("/api/sessions/me");
+  }
+
+  async revokeSession(sessionId) {
+    return this.request(`/api/sessions/${sessionId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async revokeAllOtherSessions() {
+    return this.request("/api/sessions/me/others", {
+      method: "DELETE",
+    });
+  }
+
+  async revokeAllSessions() {
+    return this.request("/api/sessions/me/all", {
+      method: "DELETE",
+    });
+  }
+
+  // Two-factor authentication endpoints
+  async setupTwoFactor() {
+    return this.request("/api/two-factor/setup", {
+      method: "POST",
+    });
+  }
+
+  async verifyTwoFactor(token, backupCodes) {
+    return this.request("/api/two-factor/verify", {
+      method: "POST",
+      body: JSON.stringify({ token, backupCodes }),
+    });
+  }
+
+  async disableTwoFactor() {
+    return this.request("/api/two-factor/disable", {
+      method: "POST",
+    });
+  }
+
+  async getTwoFactorStatus() {
+    return this.request("/api/two-factor/status");
+  }
+
+  async verifyBackupCode(email, backupCode) {
+    return this.request("/api/two-factor/verify-backup", {
+      method: "POST",
+      body: JSON.stringify({ email, backupCode }),
+    });
+  }
+
+  // Reset security settings
+  async resetSecuritySettings() {
+    return this.request(`/api/users/${this.getCurrentUserEmail()}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        securitySettings: {
+          twoFactor: false,
+          sessionTimeout: "30",
+          rememberDevices: true,
+          loginAlerts: true,
+        },
+      }),
+    });
   }
 }
 

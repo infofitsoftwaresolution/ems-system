@@ -18,7 +18,10 @@ User.init(
     language: { type: DataTypes.STRING, defaultValue: 'english' },
     timezone: { type: DataTypes.STRING, defaultValue: 'america-los_angeles' },
     notificationSettings: { type: DataTypes.TEXT, allowNull: true }, // JSON string
-    securitySettings: { type: DataTypes.TEXT, allowNull: true } // JSON string
+    securitySettings: { type: DataTypes.TEXT, allowNull: true }, // JSON string
+    twoFactorSecret: { type: DataTypes.STRING, allowNull: true },
+    twoFactorEnabled: { type: DataTypes.BOOLEAN, defaultValue: false },
+    twoFactorBackupCodes: { type: DataTypes.TEXT, allowNull: true } // JSON array of backup codes
   },
   { sequelize, modelName: 'User', tableName: 'users' }
 );

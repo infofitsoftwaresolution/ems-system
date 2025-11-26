@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
+import { getAvatarUrl } from "@/lib/imageUtils";
 import { Badge } from "@/components/ui/badge";
 import { notifications } from "@/lib/data";
 
@@ -128,7 +129,16 @@ export function Header({ toggleSidebar }) {
               size="icon"
               className="relative rounded-full">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.avatar} alt={user?.name} />
+                <AvatarImage 
+                  key={user?.avatar || 'no-avatar'}
+                  src={getAvatarUrl(user?.avatar)} 
+                  alt={user?.name}
+                  crossOrigin="anonymous"
+                  onError={(e) => {
+                    console.error("Header avatar failed to load:", getAvatarUrl(user?.avatar));
+                    e.target.style.display = 'none';
+                  }}
+                />
                 <AvatarFallback>
                   {user?.name
                     .split(" ")
