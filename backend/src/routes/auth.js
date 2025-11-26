@@ -107,13 +107,27 @@ router.post('/update-password', async (req, res) => {
   try {
     const { email, currentPassword, newPassword, forceChange } = req.body;
     
+    console.log('Password update request received:', { 
+      email: email ? 'provided' : 'missing', 
+      hasNewPassword: !!newPassword, 
+      forceChange: !!forceChange 
+    });
+    
     if (!email || !newPassword) {
-      return res.status(400).json({ message: 'Email and new password are required' });
+      console.error('Missing required fields:', { email: !!email, newPassword: !!newPassword });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email and new password are required' 
+      });
     }
     
     const user = await User.findOne({ where: { email, active: true } });
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      console.error('User not found or inactive:', email);
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
     
     // Check if this is a forced password change (mustChangePassword = true)
@@ -123,7 +137,11 @@ router.post('/update-password', async (req, res) => {
       // For forced password changes, verify token instead of current password
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'Authentication token required for forced password change' });
+        console.error('Missing or invalid authorization header for forced password change');
+        return res.status(401).json({ 
+          success: false,
+          message: 'Authentication token required for forced password change' 
+        });
       }
       
       const token = authHeader.substring(7);
@@ -131,34 +149,55 @@ router.post('/update-password', async (req, res) => {
       try {
         decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
       } catch (err) {
-        return res.status(401).json({ message: 'Invalid or expired token' });
+        console.error('Token verification failed:', err.message);
+        return res.status(401).json({ 
+          success: false,
+          message: 'Invalid or expired token' 
+        });
       }
       
       // Verify the token belongs to the user
       if (decoded.sub !== user.id) {
-        return res.status(403).json({ message: 'Token does not match user' });
+        console.error('Token user ID mismatch:', { tokenUserId: decoded.sub, userEmail: user.email });
+        return res.status(403).json({ 
+          success: false,
+          message: 'Token does not match user' 
+        });
       }
       
       // Verify user actually needs to change password
-      if (!user.mustChangePassword) {
-        return res.status(400).json({ message: 'Password change is not required for this user' });
+      if (!user.mustChangePassword && !forceChange) {
+        console.warn('Password change not required for user:', email);
+        return res.status(400).json({ 
+          success: false,
+          message: 'Password change is not required for this user' 
+        });
       }
     } else {
       // Regular password change requires current password
       if (!currentPassword) {
-        return res.status(400).json({ message: 'Current password is required' });
+        return res.status(400).json({ 
+          success: false,
+          message: 'Current password is required' 
+        });
       }
       
       // Verify current password
       const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
       if (!isCurrentPasswordValid) {
-        return res.status(401).json({ message: 'Current password is incorrect' });
+        return res.status(401).json({ 
+          success: false,
+          message: 'Current password is incorrect' 
+        });
       }
     }
     
     // Validate new password
     if (newPassword.length < 8) {
-      return res.status(400).json({ message: 'New password must be at least 8 characters long' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'New password must be at least 8 characters long' 
+      });
     }
     
     // Hash and update password
@@ -167,10 +206,15 @@ router.post('/update-password', async (req, res) => {
     user.mustChangePassword = false;
     await user.save();
     
+    console.log('Password updated successfully for user:', email);
     res.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
     console.error('Error updating password:', error);
-    res.status(500).json({ message: 'Error updating password', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error updating password', 
+      error: error.message 
+    });
   }
 });
 

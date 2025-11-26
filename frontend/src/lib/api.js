@@ -258,15 +258,33 @@ class ApiService {
   }
 
   getCurrentUserEmail() {
-    // Try to get from localStorage or auth context
+    // Try to get from localStorage - check multiple possible keys
     try {
+      // First, try currentUserEmail (set by auth context)
+      const currentUserEmail = localStorage.getItem("currentUserEmail");
+      if (currentUserEmail) {
+        return currentUserEmail;
+      }
+      
+      // Second, try userContext (set by auth context)
+      const userContextStr = localStorage.getItem("userContext");
+      if (userContextStr) {
+        const user = JSON.parse(userContextStr);
+        if (user && user.email) {
+          return user.email;
+        }
+      }
+      
+      // Third, try user (legacy key)
       const userStr = localStorage.getItem("user");
       if (userStr) {
         const user = JSON.parse(userStr);
-        return user.email;
+        if (user && user.email) {
+          return user.email;
+        }
       }
-    } catch {
-      // Ignore
+    } catch (error) {
+      console.error("Error getting current user email:", error);
     }
     return null;
   }
