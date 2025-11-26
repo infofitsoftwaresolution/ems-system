@@ -52,14 +52,26 @@ const server = createServer(app);
 // Socket.IO must be initialized before Express middleware to avoid conflicts
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:4173",
+      "http://13.233.73.43:80",
+      "http://13.233.73.43:3001",
+      "http://13.233.73.43",
+      "http://13.233.73.43.nip.io",
+      "https://app.rsamriddhi.com",
+      "http://app.rsamriddhi.com",
+    ],
     methods: ["GET", "POST"],
-    credentials: false,
+    credentials: true,
   },
   transports: ["polling", "websocket"],
   allowEIO3: true,
   pingTimeout: 60000,
   pingInterval: 25000,
+  path: "/socket.io/",
 });
 
 // Make io available to routes
@@ -158,6 +170,8 @@ app.use(
       "http://13.233.73.43:3001",
       "http://13.233.73.43",
       "http://13.233.73.43.nip.io",
+      "https://app.rsamriddhi.com",
+      "http://app.rsamriddhi.com",
     ],
     credentials: true,
   })

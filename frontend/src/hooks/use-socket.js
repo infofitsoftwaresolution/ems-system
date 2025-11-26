@@ -100,7 +100,15 @@ export function useSocket(onMessage, onChannelMessage, onNotification) {
       console.log("  - PROD mode:", import.meta.env.PROD);
       console.log("  - window.location.origin:", typeof window !== 'undefined' ? window.location.origin : 'N/A');
       console.log("  - window.location.hostname:", typeof window !== 'undefined' ? window.location.hostname : 'N/A');
-      globalSocket = io(socketUrl, socketOptions);
+      
+      // Socket.IO connection options with explicit path for production
+      const finalSocketOptions = {
+        ...socketOptions,
+        path: "/socket.io/",
+        withCredentials: true,
+      };
+      
+      globalSocket = io(socketUrl, finalSocketOptions);
       socketRef.current = globalSocket;
 
       // Connection event - basic test
