@@ -353,7 +353,7 @@ export default function Employees() {
       position: employee.position || "",
       role: employee.role || "",
       joinDate: employee.hireDate || "",
-      isActive: employee.status === "active" || employee.status === "Working",
+      isActive: (employee.is_active !== false && employee.can_access_system !== false) || employee.status === "active" || employee.status === "Working",
     });
     setShowEditDialog(true);
   };
