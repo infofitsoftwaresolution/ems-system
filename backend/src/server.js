@@ -316,20 +316,37 @@ async function start() {
         sequelize.constructor
       );
       console.log("✅ Events table migration completed");
-
-      // Seed events if in development
-      if (process.env.NODE_ENV !== "production") {
-        try {
-          const { seedEvents } = await import("./seedEvents.js");
-          await seedEvents();
-        } catch (seedError) {
-          console.error("Events seed error:", seedError.message);
-          // Continue even if seed fails
-        }
-      }
     } catch (migrationError) {
       console.error("Events table migration error:", migrationError.message);
       // Continue even if migration fails - might already be applied
+    }
+
+    // Run migration to add event_id to notifications table
+    try {
+      const { addEventIdToNotifications } = await import(
+        "./migrations/addEventIdToNotifications.js"
+      );
+      await addEventIdToNotifications(
+        sequelize.getQueryInterface(),
+        sequelize.constructor
+      );
+      console.log("✅ Event ID migration for notifications completed");
+    } catch (migrationError) {
+      console.error("Event ID migration error:", migrationError.message);
+      // Continue even if migration fails - might already be applied
+    }
+
+    // Seed events and notifications if in development
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        const { seedEventsAndNotifications } = await import(
+          "./seeders/seedEventsAndNotifications.js"
+        );
+        await seedEventsAndNotifications();
+      } catch (seedError) {
+        console.error("Events and notifications seed error:", seedError.message);
+        // Continue even if seed fails
+      }
     }
 
     // Sync database schema - use force: false to avoid migration issues with SQLite

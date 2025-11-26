@@ -24,6 +24,17 @@ Notification.init(
       allowNull: false,
       field: "user_email",
     },
+    eventId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "event_id",
+      references: {
+        model: "events",
+        key: "id",
+      },
+      onUpdate: "CASCADE",
+      onDelete: "SET NULL",
+    },
     title: {
       type: DataTypes.STRING,
       allowNull: false,
