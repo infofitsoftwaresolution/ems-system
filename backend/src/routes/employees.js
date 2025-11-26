@@ -283,6 +283,7 @@ router.post('/', async (req, res) => {
         fullName: emp.name,
         email: emp.email,
         tempEmployeeId: emp.emp_id,
+        employeeId: emp.emp_id, // Also include as employeeId for consistency
         tempPassword: tempPassword
       };
       await sendNewEmployeeEmail(emailData);

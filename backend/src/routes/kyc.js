@@ -729,6 +729,7 @@ router.post('/:id/review', authenticateToken, requireRole(['admin', 'manager', '
             fullName: employee.name,
             email: employee.email,
             permanentEmployeeId: permanentEmployeeId,
+            employeeId: permanentEmployeeId, // Also include as employeeId for consistency
             password: userPassword
           };
           

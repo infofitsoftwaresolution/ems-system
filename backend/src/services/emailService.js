@@ -114,7 +114,7 @@ const emailTemplates = {
         
         <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <h3 style="color: #2c3e50; margin-top: 0;">Your Temporary Credentials:</h3>
-          <p><strong>Temporary Employee ID:</strong> ${employeeData.tempEmployeeId}</p>
+          <p><strong>Employee ID:</strong> ${employeeData.tempEmployeeId || employeeData.employeeId || 'N/A'}</p>
           <p><strong>Temporary Password:</strong> ${employeeData.tempPassword}</p>
           <p><strong>Login URL:</strong> <a href="${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'https://app.rsamriddhi.com'}/login">${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'https://app.rsamriddhi.com'}/login</a></p>
         </div>
@@ -146,7 +146,7 @@ const emailTemplates = {
         
         <div style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
           <h3 style="color: #155724; margin-top: 0;">Your Permanent Credentials:</h3>
-          <p><strong>Permanent Employee ID:</strong> ${employeeData.permanentEmployeeId}</p>
+          <p><strong>Employee ID:</strong> ${employeeData.permanentEmployeeId || employeeData.employeeId || 'N/A'}</p>
           <p><strong>Password:</strong> ${employeeData.password}</p>
           <p><strong>Login URL:</strong> <a href="${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'https://app.rsamriddhi.com'}/login">${process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'https://app.rsamriddhi.com'}/login</a></p>
         </div>
@@ -175,6 +175,11 @@ const emailTemplates = {
         <h2 style="color: #ffc107;">⚠️ KYC Verification Reminder</h2>
         <p>Dear ${employeeData.fullName},</p>
         <p>This is a friendly reminder to complete your KYC verification.</p>
+        
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #2c3e50; margin-top: 0;">Your Employee Information:</h3>
+          <p><strong>Employee ID:</strong> ${employeeData.employeeId || employeeData.tempEmployeeId || 'N/A'}</p>
+        </div>
         
         <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
           <h3 style="color: #856404; margin-top: 0;">Required Documents:</h3>
