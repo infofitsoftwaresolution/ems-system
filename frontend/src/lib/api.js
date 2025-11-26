@@ -451,6 +451,10 @@ class ApiService {
   }
 
   // Task endpoints
+  async getMyTasks() {
+    return this.request("/api/tasks/feed/my-tasks");
+  }
+
   async getTasks(filters = {}) {
     const params = new URLSearchParams();
     if (filters.status) params.append("status", filters.status);
@@ -458,7 +462,9 @@ class ApiService {
     if (filters.assigneeId) params.append("assigneeId", filters.assigneeId);
 
     const queryString = params.toString();
-    return this.request(`/api/tasks${queryString ? `?${queryString}` : ""}`);
+    const response = await this.request(`/api/tasks${queryString ? `?${queryString}` : ""}`);
+    // Handle new response format: { success: true, data: [...] }
+    return response.success ? response.data : response;
   }
 
   async getTask(id) {
@@ -466,17 +472,38 @@ class ApiService {
   }
 
   async createTask(taskData) {
-    return this.request("/api/tasks", {
+    const response = await this.request("/api/tasks", {
       method: "POST",
       body: JSON.stringify(taskData),
     });
+    // Handle new response format: { success: true, data: {...} }
+    return response.success ? response.data : response;
   }
 
   async updateTask(id, taskData) {
-    return this.request(`/api/tasks/${id}`, {
+    const response = await this.request(`/api/tasks/${id}`, {
       method: "PUT",
       body: JSON.stringify(taskData),
     });
+    // Handle new response format: { success: true, data: {...} }
+    return response.success ? response.data : response;
+  }
+
+  async updateTaskStatus(id, status) {
+    const response = await this.request(`/api/tasks/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    });
+    // Handle new response format: { success: true, data: {...} }
+    return response.success ? response.data : response;
+  }
+
+  async markTaskAsComplete(id) {
+    const response = await this.request(`/api/tasks/${id}/complete`, {
+      method: "PUT",
+    });
+    // Handle new response format: { success: true, data: {...} }
+    return response.success ? response.data : response;
   }
 
   async deleteTask(id) {

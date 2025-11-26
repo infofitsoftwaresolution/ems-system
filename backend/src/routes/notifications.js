@@ -38,7 +38,7 @@ router.get("/", authenticateToken, async (req, res) => {
       return res.status(401).json({ message: "User not found" });
     }
 
-    const { limit = 50, offset = 0, unreadOnly = false, eventId } = req.query;
+    const { limit = 50, offset = 0, unreadOnly = false, eventId, taskId } = req.query;
 
     const whereClause = {
       userId: user.id,
@@ -51,6 +51,11 @@ router.get("/", authenticateToken, async (req, res) => {
     // Filter by event_id if provided
     if (eventId) {
       whereClause.eventId = parseInt(eventId);
+    }
+
+    // Filter by task_id if provided
+    if (taskId) {
+      whereClause.taskId = parseInt(taskId);
     }
 
     // Order by: unread first, then by creation date (newest first)
