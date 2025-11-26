@@ -544,11 +544,9 @@ router.get("/", authenticateToken, async (req, res) => {
       if (!isAdminOrManagerOrHR) {
         if (!req.user?.sub) {
           console.log("❌ No user ID in token");
-          return res
-            .status(403)
-            .json({
-              message: "Insufficient permissions. Authentication required.",
-            });
+          return res.status(403).json({
+            message: "Insufficient permissions. Authentication required.",
+          });
         }
 
         console.log(
@@ -582,12 +580,10 @@ router.get("/", authenticateToken, async (req, res) => {
             "Requested:",
             email
           );
-          return res
-            .status(403)
-            .json({
-              message:
-                "Insufficient permissions. You can only check your own KYC status.",
-            });
+          return res.status(403).json({
+            message:
+              "Insufficient permissions. You can only check your own KYC status.",
+          });
         }
 
         console.log("✅ Permission granted - user checking own KYC status");
@@ -694,12 +690,10 @@ router.get("/", authenticateToken, async (req, res) => {
       req.user?.role !== "manager" &&
       req.user?.role !== "hr"
     ) {
-      return res
-        .status(403)
-        .json({
-          message:
-            "Insufficient permissions. Admin, manager, or HR role required to list all KYC requests.",
-        });
+      return res.status(403).json({
+        message:
+          "Insufficient permissions. Admin, manager, or HR role required to list all KYC requests.",
+      });
     }
 
     const list = await Kyc.findAll({
@@ -723,68 +717,111 @@ router.get("/", authenticateToken, async (req, res) => {
       ],
     });
 
-    // Parse documents JSON for each request
-    const formattedList = list.map((item) => {
-      const data = item.toJSON();
-      try {
-        if (data.documents) {
-          const parsed = JSON.parse(data.documents);
-          console.log(`📋 Parsing documents for ${data.fullName}:`, {
-            isArray: Array.isArray(parsed),
-            hasDocuments: parsed.documents && Array.isArray(parsed.documents),
-            documentCount: parsed.documents
-              ? parsed.documents.length
-              : Array.isArray(parsed)
-              ? parsed.length
-              : 0,
-            documentTypes: parsed.documents
-              ? parsed.documents.map((d) => d.type)
-              : Array.isArray(parsed)
-              ? parsed.map((d) => d.type)
-              : [],
-          });
+    // Parse documents JSON for each request and update employee ID with current RST format
+    const formattedList = await Promise.all(
+      list.map(async (item) => {
+        const data = item.toJSON();
 
-          // Handle both formats: direct array or nested object with documents property
-          if (Array.isArray(parsed)) {
-            data.documents = parsed;
+        // Try to find employee by employeeId (from KYC record) or by name
+        let employee = null;
+
+        // First, try to find by employeeId (match with emp_id or employeeId in Employee table)
+        if (data.employeeId) {
+          employee = await Employee.findOne({
+            where: {
+              [Op.or]: [
+                { emp_id: data.employeeId },
+                { employeeId: data.employeeId },
+              ],
+            },
+            attributes: ["id", "emp_id", "employeeId", "email", "name"],
+          });
+        }
+
+        // If not found by ID, try to find by name
+        if (!employee && data.fullName) {
+          employee = await Employee.findOne({
+            where: {
+              name: {
+                [Op.iLike]: data.fullName,
+              },
+            },
+            attributes: ["id", "emp_id", "employeeId", "email", "name"],
+          });
+        }
+
+        // If employee found, use their current emp_id (RST format)
+        if (employee && (employee.emp_id || employee.employeeId)) {
+          // Prefer emp_id (RST format) over employeeId
+          const newEmployeeId = employee.emp_id || employee.employeeId;
+          if (newEmployeeId !== data.employeeId) {
             console.log(
-              `✅ Using direct array format for ${data.fullName}, ${parsed.length} documents`
+              `✅ Updated employee ID for ${data.fullName}: ${data.employeeId} → ${newEmployeeId}`
             );
-          } else if (parsed.documents && Array.isArray(parsed.documents)) {
-            // Extract documents array from nested structure
-            data.documents = parsed.documents;
-            // Also preserve other data if needed
-            if (parsed.personalInfo) data.personalInfo = parsed.personalInfo;
-            if (parsed.emergencyContact)
-              data.emergencyContact = parsed.emergencyContact;
-            if (parsed.bankAccount) data.bankAccount = parsed.bankAccount;
-            console.log(
-              `✅ Extracted documents array from nested structure for ${data.fullName}, ${parsed.documents.length} documents`
-            );
+          }
+          data.employeeId = newEmployeeId;
+        }
+
+        try {
+          if (data.documents) {
+            const parsed = JSON.parse(data.documents);
+            console.log(`📋 Parsing documents for ${data.fullName}:`, {
+              isArray: Array.isArray(parsed),
+              hasDocuments: parsed.documents && Array.isArray(parsed.documents),
+              documentCount: parsed.documents
+                ? parsed.documents.length
+                : Array.isArray(parsed)
+                ? parsed.length
+                : 0,
+              documentTypes: parsed.documents
+                ? parsed.documents.map((d) => d.type)
+                : Array.isArray(parsed)
+                ? parsed.map((d) => d.type)
+                : [],
+            });
+
+            // Handle both formats: direct array or nested object with documents property
+            if (Array.isArray(parsed)) {
+              data.documents = parsed;
+              console.log(
+                `✅ Using direct array format for ${data.fullName}, ${parsed.length} documents`
+              );
+            } else if (parsed.documents && Array.isArray(parsed.documents)) {
+              // Extract documents array from nested structure
+              data.documents = parsed.documents;
+              // Also preserve other data if needed
+              if (parsed.personalInfo) data.personalInfo = parsed.personalInfo;
+              if (parsed.emergencyContact)
+                data.emergencyContact = parsed.emergencyContact;
+              if (parsed.bankAccount) data.bankAccount = parsed.bankAccount;
+              console.log(
+                `✅ Extracted documents array from nested structure for ${data.fullName}, ${parsed.documents.length} documents`
+              );
+            } else {
+              console.warn(
+                `⚠️ Unexpected documents format for ${data.fullName}:`,
+                typeof parsed
+              );
+              data.documents = [];
+            }
           } else {
-            console.warn(
-              `⚠️ Unexpected documents format for ${data.fullName}:`,
-              typeof parsed
-            );
+            console.warn(`⚠️ No documents field for ${data.fullName}`);
             data.documents = [];
           }
-        } else {
-          console.warn(`⚠️ No documents field for ${data.fullName}`);
+        } catch (e) {
+          console.error(
+            `❌ Error parsing documents JSON for ${data.fullName}:`,
+            e
+          );
+          console.error(
+            "Raw documents string:",
+            data.documents?.substring(0, 200)
+          );
           data.documents = [];
         }
-      } catch (e) {
-        console.error(
-          `❌ Error parsing documents JSON for ${data.fullName}:`,
-          e
-        );
-        console.error(
-          "Raw documents string:",
-          data.documents?.substring(0, 200)
-        );
-        data.documents = [];
-      }
-      return data;
-    });
+        return data;
+      })
+    );
 
     res.json(formattedList);
   } catch (error) {
@@ -990,6 +1027,11 @@ router.post(
             };
 
             await sendKycApprovedEmail(emailData);
+
+            // Update KYC record's employeeId to match the employee's current RST format ID
+            await item.update({
+              employeeId: permanentEmployeeId,
+            });
 
             console.log(
               `KYC approved for employee ${employee.name}. Employee ID: ${permanentEmployeeId}`
