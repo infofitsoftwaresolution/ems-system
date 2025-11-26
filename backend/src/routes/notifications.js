@@ -38,7 +38,7 @@ router.get("/", authenticateToken, async (req, res) => {
       return res.status(401).json({ message: "User not found" });
     }
 
-    const { limit = 50, offset = 0, unreadOnly = false } = req.query;
+    const { limit = 50, offset = 0, unreadOnly = false, eventId } = req.query;
 
     const whereClause = {
       userId: user.id,
@@ -48,9 +48,18 @@ router.get("/", authenticateToken, async (req, res) => {
       whereClause.isRead = false;
     }
 
+    // Filter by event_id if provided
+    if (eventId) {
+      whereClause.eventId = parseInt(eventId);
+    }
+
+    // Order by: unread first, then by creation date (newest first)
     const notifications = await Notification.findAll({
       where: whereClause,
-      order: [["createdAt", "DESC"]],
+      order: [
+        ["isRead", "ASC"], // Unread (false) first
+        ["createdAt", "DESC"], // Then newest first
+      ],
       limit: parseInt(limit),
       offset: parseInt(offset),
     });

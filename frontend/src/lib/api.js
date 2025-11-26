@@ -580,13 +580,21 @@ class ApiService {
     );
   }
 
+  // Event endpoints
+  async getMyEvents() {
+    return this.request("/api/events/feed/my-events");
+  }
+
   // Notification endpoints
-  async getNotifications(limit = 50, offset = 0, unreadOnly = false) {
+  async getNotifications(limit = 50, offset = 0, unreadOnly = false, eventId = null) {
     const params = new URLSearchParams({
       limit: limit.toString(),
       offset: offset.toString(),
       unreadOnly: unreadOnly.toString(),
     });
+    if (eventId) {
+      params.append("eventId", eventId.toString());
+    }
     return this.request(`/api/notifications?${params}`);
   }
 

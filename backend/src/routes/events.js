@@ -76,23 +76,48 @@ async function sendEventNotifications(event, isUpdate = false) {
       return;
     }
 
+    // Format start date/time for notification message
+    const formatDateTime = (date) => {
+      if (!date) return "";
+      const d = new Date(date);
+      return d.toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+
     // Create notifications for all target users
     const notifications = await Promise.all(
-      targetUserIds.map((userId) =>
-        Notification.create({
+      targetUserIds.map(async (userId) => {
+        // Get user email for notification
+        const user = await User.findByPk(userId, { attributes: ["email"] });
+        const userEmail = user?.email || "";
+
+        // Format notification message as per requirements
+        const notificationMessage = isUpdate
+          ? `Event Updated: ${event.title} on ${formatDateTime(event.start_date_time)}`
+          : `New Event Assigned: ${event.title} on ${formatDateTime(event.start_date_time)}`;
+
+        return Notification.create({
           userId: userId,
-          type: "event",
-          title: isUpdate ? "Event Updated" : "New Event",
-          message: `${event.title}${isUpdate ? " has been updated" : ""}`,
-          data: JSON.stringify({
+          userEmail: userEmail,
+          eventId: event.id, // Link notification to event
+          title: isUpdate ? "Event Updated" : "New Event Assigned",
+          message: notificationMessage,
+          type: "info", // Use standard notification type
+          link: `/calendar?event=${event.id}`, // Link to calendar event
+          metadata: JSON.stringify({
             eventId: event.id,
             eventTitle: event.title,
             startDate: event.start_date_time,
             endDate: event.end_date_time,
           }),
           isRead: false,
-        })
-      )
+        });
+      })
     );
 
     // Emit Socket.IO event to notify clients in real-time
@@ -601,6 +626,91 @@ router.put(
     }
   }
 );
+
+// Get employee-specific event feed (upcoming events for the logged-in employee)
+router.get("/feed/my-events", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || req.user?.id;
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    // Get employee ID from user
+    const employee = await Employee.findOne({
+      where: { email: user.email },
+      attributes: ["id"],
+    });
+    const employeeId = employee?.id || userId; // Fallback to userId if no employee record
+
+    // Build where clause for employee-specific events
+    const whereClause = {
+      [Op.or]: [
+        { visibility_type: "ALL" },
+        {
+          [Op.and]: [
+            { visibility_type: "SPECIFIC" },
+            {
+              assigned_users: {
+                [Op.like]: `%${employeeId}%`,
+              },
+            },
+          ],
+        },
+      ],
+      // Only get upcoming events
+      start_date_time: {
+        [Op.gte]: new Date(),
+      },
+    };
+
+    const events = await Event.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: "creator",
+          attributes: ["id", "name", "email"],
+        },
+      ],
+      order: [["start_date_time", "ASC"]],
+      limit: 10, // Limit to 10 upcoming events
+    });
+
+    // Transform events for frontend
+    const transformedEvents = events.map((event) => {
+      const eventData = event.toJSON();
+      return {
+        id: eventData.id,
+        title: eventData.title,
+        description: eventData.description || "",
+        start: eventData.start_date_time,
+        end: eventData.end_date_time,
+        created_by: eventData.created_by,
+        creator: eventData.creator
+          ? {
+              id: eventData.creator.id,
+              name: eventData.creator.name,
+              email: eventData.creator.email,
+            }
+          : null,
+        visibility_type: eventData.visibility_type,
+        assigned_users: eventData.assigned_users || [],
+        created_at: eventData.created_at,
+        updated_at: eventData.updated_at,
+      };
+    });
+
+    res.json({ success: true, data: transformedEvents });
+  } catch (error) {
+    console.error("Error fetching employee event feed:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching employee event feed",
+      error: error.message,
+    });
+  }
+});
 
 // Delete event (Admin/HR only)
 router.delete(

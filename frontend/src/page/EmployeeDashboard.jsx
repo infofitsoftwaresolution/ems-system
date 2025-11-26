@@ -29,6 +29,7 @@ export default function EmployeeDashboard() {
   });
   const [upcomingTasks, setUpcomingTasks] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
 
   const loadAttendanceData = useCallback(async () => {
     try {
@@ -103,10 +104,82 @@ export default function EmployeeDashboard() {
     }
   }, [user?.email]);
 
+  const loadUpcomingEvents = useCallback(async () => {
+    try {
+      if (user?.id) {
+        // Fetch upcoming events for the employee
+        const eventsData = await apiService.getMyEvents();
+
+        // Handle response format: could be array or { success: true, data: [...] }
+        const eventsList = Array.isArray(eventsData)
+          ? eventsData
+          : eventsData?.data || eventsData?.events || [];
+
+        // Transform events for display
+        const formattedEvents = eventsList.map((event) => ({
+          id: event.id,
+          title: event.title,
+          description: event.description || "",
+          start: event.start || event.start_date_time,
+          end: event.end || event.end_date_time,
+          startDate: event.start || event.start_date_time
+            ? new Date(event.start || event.start_date_time).toLocaleDateString()
+            : "Date TBD",
+          startTime: event.start || event.start_date_time
+            ? new Date(event.start || event.start_date_time).toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "",
+        }));
+
+        setUpcomingEvents(formattedEvents);
+      }
+    } catch (error) {
+      console.error("Error loading upcoming events:", error);
+      setUpcomingEvents([]);
+    }
+  }, [user?.id]);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      if (!user?.id) return;
+      
+      // Fetch recent notifications (last 5) - unread first
+      const notificationsData = await apiService.getNotifications(5, 0, false);
+
+      // Handle response format: could be array or { success: true, data: [...] }
+      const notificationsList = Array.isArray(notificationsData)
+        ? notificationsData
+        : notificationsData?.data || notificationsData?.notifications || [];
+
+      // Transform notifications for display
+      const formattedNotifications = notificationsList.map((notif) => ({
+        id: notif.id,
+        title: notif.title || "Notification",
+        message: notif.message || notif.text,
+        type: notif.type || "info",
+        isRead: notif.isRead || false,
+        eventId: notif.eventId || null,
+        time: notif.createdAt
+          ? new Date(notif.createdAt).toLocaleString()
+          : "Just now",
+        link: notif.link || null,
+      }));
+
+      setNotifications(formattedNotifications);
+    } catch (error) {
+      console.error("Error loading notifications:", error);
+      setNotifications([]);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     loadKycStatus();
     loadAttendanceData();
-  }, [user, loadKycStatus, loadAttendanceData]);
+    loadNotifications();
+    loadUpcomingEvents();
+  }, [user, loadKycStatus, loadAttendanceData, loadNotifications, loadUpcomingEvents]);
 
   // Refresh KYC status every 30 seconds to catch updates
   useEffect(() => {
@@ -198,7 +271,12 @@ export default function EmployeeDashboard() {
           <Button
             variant="outline"
             size="sm"
-            onClick={loadKycStatus}
+            onClick={() => {
+              loadKycStatus();
+              loadAttendanceData();
+              loadNotifications();
+              loadUpcomingEvents();
+            }}
             disabled={loading}
             className="flex items-center space-x-1"
           >
@@ -303,7 +381,7 @@ export default function EmployeeDashboard() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Upcoming Tasks */}
         <Card>
           <CardHeader>
@@ -329,7 +407,7 @@ export default function EmployeeDashboard() {
           </CardContent>
         </Card>
 
-        {/* Notifications */}
+        {/* Recent Notifications */}
         <Card>
           <CardHeader>
             <CardTitle>Recent Notifications</CardTitle>
@@ -339,15 +417,73 @@ export default function EmployeeDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {notifications.map((notification) => (
-                <div key={notification.id} className="flex items-start space-x-3 p-3 border rounded-lg">
-                  {getNotificationIcon(notification.type)}
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm">{notification.message}</p>
-                    <p className="text-xs text-muted-foreground">{notification.time}</p>
+              {notifications.length > 0 ? (
+                notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`flex items-start space-x-3 p-3 border rounded-lg transition-colors ${
+                      !notification.isRead
+                        ? "bg-primary/5 border-primary/20"
+                        : "hover:bg-accent/50"
+                    }`}>
+                    {getNotificationIcon(notification.type)}
+                    <div className="flex-1 space-y-1">
+                      <p className={`text-sm ${!notification.isRead ? "font-semibold" : ""}`}>
+                        {notification.title || notification.message}
+                      </p>
+                      {notification.title && notification.message && (
+                        <p className="text-xs text-muted-foreground">
+                          {notification.message}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">{notification.time}</p>
+                    </div>
+                    {!notification.isRead && (
+                      <div className="h-2 w-2 rounded-full bg-primary mt-1"></div>
+                    )}
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No notifications
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Upcoming Events */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Upcoming Events</CardTitle>
+            <CardDescription>Your scheduled events and activities</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {upcomingEvents.length > 0 ? (
+                upcomingEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <Calendar className="h-4 w-4 text-primary mt-0.5" />
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-medium">{event.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {event.startDate} {event.startTime && `at ${event.startTime}`}
+                      </p>
+                      {event.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-1">
+                          {event.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No upcoming events
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
