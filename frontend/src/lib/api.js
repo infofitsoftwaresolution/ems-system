@@ -672,6 +672,22 @@ class ApiService {
     return this.request(`/api/messages/channel/${encodeURIComponent(channelId)}`);
   }
 
+  // Analytics endpoints
+  async getTeamActivity(period = 'week') {
+    const response = await this.request(`/api/analytics/team-activity?period=${period}`);
+    return response.success ? response.data : response;
+  }
+
+  async getTrainingMetrics() {
+    const response = await this.request("/api/analytics/training-metrics");
+    return response.success ? response.data : response;
+  }
+
+  async getDepartmentStats() {
+    const response = await this.request("/api/analytics/departments");
+    return response.success ? response.data : response;
+  }
+
   // Session management endpoints
   async getMySessions() {
     return this.request("/api/sessions/me");

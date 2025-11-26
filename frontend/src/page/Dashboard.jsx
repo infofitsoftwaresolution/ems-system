@@ -54,6 +54,8 @@ export default function Dashboard() {
   const [kycData, setKycData] = useState([]);
   const [timeRange, setTimeRange] = useState("week");
   const [isLoading, setIsLoading] = useState(true);
+  const [trainingMetrics, setTrainingMetrics] = useState(null);
+  const [departmentStats, setDepartmentStats] = useState([]);
 
   // Fetch events dynamically with React Query for auto-refresh
   const {
@@ -260,6 +262,61 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
+  // Fetch team activity data based on time range
+  useEffect(() => {
+    const fetchTeamActivity = async () => {
+      try {
+        const activityData = await apiService.getTeamActivity(timeRange);
+        if (Array.isArray(activityData)) {
+          setActivity(activityData);
+        }
+      } catch (error) {
+        console.error("Error fetching team activity:", error);
+        // Don't show error toast, just log it
+      }
+    };
+
+    if (user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager') {
+      fetchTeamActivity();
+    }
+  }, [timeRange, user?.role]);
+
+  // Fetch training metrics
+  useEffect(() => {
+    const fetchTrainingMetrics = async () => {
+      try {
+        const metrics = await apiService.getTrainingMetrics();
+        if (metrics) {
+          setTrainingMetrics(metrics);
+        }
+      } catch (error) {
+        console.error("Error fetching training metrics:", error);
+      }
+    };
+
+    if (user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager') {
+      fetchTrainingMetrics();
+    }
+  }, [user?.role]);
+
+  // Fetch department statistics
+  useEffect(() => {
+    const fetchDepartmentStats = async () => {
+      try {
+        const stats = await apiService.getDepartmentStats();
+        if (Array.isArray(stats)) {
+          setDepartmentStats(stats);
+        }
+      } catch (error) {
+        console.error("Error fetching department stats:", error);
+      }
+    };
+
+    if (user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager') {
+      fetchDepartmentStats();
+    }
+  }, [user?.role]);
+
   // Handle Download Report
   const handleDownloadReport = () => {
     const reportData = {
@@ -362,11 +419,16 @@ export default function Dashboard() {
   };
 
   // Department distribution data for pie chart
-  const departmentData =
-    employees.length > 0
+  // Use API data if available, otherwise fallback to employee data
+  const departmentData = departmentStats.length > 0
+    ? departmentStats.map(dept => ({
+        name: dept.name,
+        value: dept.value || dept.total || 0
+      }))
+    : employees.length > 0
       ? Object.entries(
           employees.reduce((acc, emp) => {
-            const dept = emp.department || "Unknown";
+            const dept = emp.department || emp.location || emp.designation || "Unknown";
             acc[dept] = (acc[dept] || 0) + 1;
             return acc;
           }, {})
@@ -463,19 +525,19 @@ export default function Dashboard() {
               </TabsList>
               <div className="space-x-2">
                 <Button
-                  variant="outline"
+                  variant={timeRange === "week" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setTimeRange("week")}>
                   Week
                 </Button>
                 <Button
-                  variant="outline"
+                  variant={timeRange === "month" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setTimeRange("month")}>
                   Month
                 </Button>
                 <Button
-                  variant="outline"
+                  variant={timeRange === "year" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setTimeRange("year")}>
                   Year
@@ -491,34 +553,66 @@ export default function Dashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={activity}
-                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <Tooltip />
-                      <Line
-                        type="monotone"
-                        dataKey="activeUsers"
-                        stroke="#16763a"
-                        name="Active Users"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="completedTasks"
-                        stroke="#f97316"
-                        name="Completed Tasks"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="newDocuments"
-                        stroke="#2d9f52"
-                        name="New Documents"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  {activity.length === 0 ? (
+                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                      <div className="text-center">
+                        <p className="text-sm">No activity data available</p>
+                        <p className="text-xs mt-2">Activity data will appear as employees use the system</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={activity}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(value) => {
+                            try {
+                              return format(new Date(value), 'MMM dd');
+                            } catch {
+                              return value;
+                            }
+                          }}
+                        />
+                        <YAxis />
+                        <Tooltip 
+                          labelFormatter={(value) => {
+                            try {
+                              return format(new Date(value), 'MMM dd, yyyy');
+                            } catch {
+                              return value;
+                            }
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="activeUsers"
+                          stroke="#16763a"
+                          strokeWidth={2}
+                          name="Active Users"
+                          dot={{ r: 4 }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="completedTasks"
+                          stroke="#f97316"
+                          strokeWidth={2}
+                          name="Completed Tasks"
+                          dot={{ r: 4 }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="newDocuments"
+                          stroke="#2d9f52"
+                          strokeWidth={2}
+                          name="New Events"
+                          dot={{ r: 4 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -566,42 +660,56 @@ export default function Dashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium">
-                          Workplace Safety
+                  {trainingMetrics ? (
+                    <div className="space-y-4">
+                      {/* Overall completion rate */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-medium">
+                            Overall Completion Rate
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {trainingMetrics.overallCompletionRate}%
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">89%</div>
+                        <Progress value={trainingMetrics.overallCompletionRate} />
+                        <p className="text-xs text-muted-foreground">
+                          {trainingMetrics.employeesWithKYC} of {trainingMetrics.totalEmployees} employees completed
+                        </p>
                       </div>
-                      <Progress value={89} />
+                      
+                      {/* Department-wise metrics */}
+                      {trainingMetrics.byDepartment && trainingMetrics.byDepartment.length > 0 && (
+                        <>
+                          <div className="border-t pt-4 mt-4">
+                            <h4 className="text-sm font-semibold mb-3">By Department</h4>
+                            {trainingMetrics.byDepartment.map((dept, index) => (
+                              <div key={index} className="space-y-2 mb-4">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-sm font-medium">
+                                    {dept.name || 'Unassigned'}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {dept.completionRate}%
+                                  </div>
+                                </div>
+                                <Progress value={dept.completionRate} />
+                                <p className="text-xs text-muted-foreground">
+                                  {dept.completed} of {dept.total} employees
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium">
-                          Leadership Fundamentals
-                        </div>
-                        <div className="text-sm text-muted-foreground">76%</div>
+                  ) : (
+                    <div className="flex h-[200px] items-center justify-center text-muted-foreground">
+                      <div className="text-center">
+                        <p className="text-sm">Loading training metrics...</p>
                       </div>
-                      <Progress value={76} />
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium">
-                          Technical Onboarding
-                        </div>
-                        <div className="text-sm text-muted-foreground">95%</div>
-                      </div>
-                      <Progress value={95} />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium">Data Security</div>
-                        <div className="text-sm text-muted-foreground">68%</div>
-                      </div>
-                      <Progress value={68} />
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
