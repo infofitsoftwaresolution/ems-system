@@ -15,55 +15,66 @@ async function sendEventNotifications(event, isUpdate = false) {
     let targetUserIds = [];
 
     if (event.visibility_type === "ALL") {
-      // Get all employee user IDs from User table
+      // Get all ACTIVE employee user IDs from User table
       const employeeUsers = await User.findAll({
-        where: { role: "employee" },
+        where: { role: "employee", active: true },
         attributes: ["id", "email"],
       });
-      targetUserIds = employeeUsers.map((u) => u.id);
-
-      // Also try to get user IDs from Employee table by email
+      
+      // Filter to only include active employees who can access system
       const employeeEmails = employeeUsers.map((u) => u.email);
-      if (employeeEmails.length > 0) {
-        const employees = await Employee.findAll({
-          where: { email: { [Op.in]: employeeEmails } },
-          attributes: ["id", "email"],
-        });
-
-        // Try to match employees with users by email
-        employees.forEach((emp) => {
-          const user = employeeUsers.find((u) => u.email === emp.email);
-          if (user && !targetUserIds.includes(user.id)) {
-            targetUserIds.push(user.id);
-          }
-        });
-      }
+      const activeEmployees = await Employee.findAll({
+        where: { 
+          email: { [Op.in]: employeeEmails },
+          is_active: true, // Only active employees
+          can_access_system: true // Only employees who can access system
+        },
+        attributes: ["id", "email", "is_active", "can_access_system"],
+      });
+      
+      // Map active employees with system access to user IDs
+      targetUserIds = employeeUsers
+        .filter((user) => {
+          const employee = activeEmployees.find((emp) => emp.email === user.email);
+          return employee && employee.is_active && employee.can_access_system;
+        })
+        .map((u) => u.id);
     } else if (event.visibility_type === "SPECIFIC" && event.assigned_users) {
-      // Get user IDs from assigned employee IDs
+      // Get user IDs from assigned employee IDs (only active employees)
       const assignedEmployeeIds = Array.isArray(event.assigned_users)
         ? event.assigned_users
         : JSON.parse(event.assigned_users || "[]");
 
       if (assignedEmployeeIds.length > 0) {
-        // First, try to get employees by ID
+        // First, try to get ACTIVE employees with system access by ID
         const employees = await Employee.findAll({
-          where: { id: { [Op.in]: assignedEmployeeIds } },
-          attributes: ["id", "email"],
+          where: { 
+            id: { [Op.in]: assignedEmployeeIds },
+            is_active: true, // Only active employees
+            can_access_system: true // Only employees who can access system
+          },
+          attributes: ["id", "email", "is_active", "can_access_system"],
         });
 
-        // Get user IDs by matching employee emails
+        // Get user IDs by matching employee emails (only for active employees)
         const employeeEmails = employees.map((emp) => emp.email);
         if (employeeEmails.length > 0) {
           const users = await User.findAll({
-            where: { email: { [Op.in]: employeeEmails } },
+            where: { 
+              email: { [Op.in]: employeeEmails },
+              active: true // Only active users
+            },
             attributes: ["id"],
           });
           targetUserIds = users.map((u) => u.id);
         }
 
-        // Also try to get users directly if employee ID matches user ID
+        // Also try to get users directly if employee ID matches user ID (only active)
         const directUsers = await User.findAll({
-          where: { id: { [Op.in]: assignedEmployeeIds } },
+          where: { 
+            id: { [Op.in]: assignedEmployeeIds },
+            active: true // Only active users
+          },
           attributes: ["id"],
         });
         const directUserIds = directUsers.map((u) => u.id);
@@ -89,12 +100,29 @@ async function sendEventNotifications(event, isUpdate = false) {
       });
     };
 
-    // Create notifications for all target users
+    // Create notifications for all target users (only active employees)
     const notifications = await Promise.all(
       targetUserIds.map(async (userId) => {
-        // Get user email for notification
-        const user = await User.findByPk(userId, { attributes: ["email"] });
-        const userEmail = user?.email || "";
+        // Get user email and check if user/employee is active
+        const user = await User.findByPk(userId, { attributes: ["id", "email", "active"] });
+        if (!user || !user.active) {
+          console.log(`⏭️ Skipping notification for inactive user: ${userId}`);
+          return null; // Skip inactive users
+        }
+        
+        // Double-check employee is active and can access system
+        const employee = await Employee.findOne({
+          where: { email: user.email },
+          attributes: ["id", "is_active", "can_access_system"],
+        });
+        
+        if (employee && (!employee.is_active || !employee.can_access_system)) {
+          const reason = !employee.is_active ? 'inactive' : 'cannot access system';
+          console.log(`⏭️ Skipping notification for employee ${user.email}: ${reason}`);
+          return null; // Skip inactive employees or those without system access
+        }
+        
+        const userEmail = user.email || "";
 
         // Format notification message as per requirements
         const notificationMessage = isUpdate
@@ -119,11 +147,16 @@ async function sendEventNotifications(event, isUpdate = false) {
         });
       })
     );
+    
+    // Filter out null values (inactive employees)
+    const validNotifications = notifications.filter(n => n !== null);
 
-    // Emit Socket.IO event to notify clients in real-time
+    // Emit Socket.IO event to notify clients in real-time (only for active employees)
     const io = getIO();
     if (io) {
-      targetUserIds.forEach((userId) => {
+      // Only emit to users who received notifications (active employees)
+      const activeUserIds = validNotifications.map(n => n.userId);
+      activeUserIds.forEach((userId) => {
         io.to(`user_${userId}`).emit("new_notification", {
           type: "event",
           title: isUpdate ? "Event Updated" : "New Event",
@@ -140,7 +173,7 @@ async function sendEventNotifications(event, isUpdate = false) {
     await event.update({ notification_sent: true });
 
     console.log(
-      `✅ Sent ${notifications.length} notifications for event: ${event.title}`
+      `✅ Sent ${validNotifications.length} notifications for event: ${event.title} (skipped ${notifications.length - validNotifications.length} inactive employees)`
     );
   } catch (error) {
     console.error("Error sending event notifications:", error);

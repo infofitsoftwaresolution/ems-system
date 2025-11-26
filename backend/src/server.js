@@ -323,6 +323,12 @@ async function start() {
         "./migrations/addUserProfileFields.js"
       );
       await addUserProfileFields();
+      
+      // Add can_access_system field to employees table
+      const { addCanAccessSystemField } = await import(
+        "./migrations/addCanAccessSystemField.js"
+      );
+      await addCanAccessSystemField(sequelize.getQueryInterface(), sequelize.constructor);
     } catch (migrationError) {
       console.error("Migration error:", migrationError.message);
       // Continue even if migration fails - might already be applied

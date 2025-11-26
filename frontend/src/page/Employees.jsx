@@ -378,6 +378,8 @@ export default function Employees() {
         role: editingEmployee.role,
         hireDate: editingEmployee.joinDate,
         status: editingEmployee.isActive ? "Working" : "Not Working",
+        is_active: editingEmployee.isActive, // Send is_active field
+        can_access_system: editingEmployee.isActive, // Send can_access_system field (same as isActive toggle)
       };
 
       const updatedEmployee = await apiService.updateEmployee(
@@ -583,6 +585,8 @@ export default function Employees() {
         role: newEmployee.role, // Send the role ID, backend will handle mapping
         hireDate: newEmployee.joinDate,
         status: newEmployee.isActive ? "Working" : "Not Working",
+        is_active: newEmployee.isActive, // Send is_active field
+        can_access_system: newEmployee.isActive, // Send can_access_system field (same as isActive toggle)
       };
 
       console.log("Submitting employee data:", employeeData);

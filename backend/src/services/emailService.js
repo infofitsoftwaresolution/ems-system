@@ -1,4 +1,40 @@
 import nodemailer from 'nodemailer';
+import { Employee } from '../models/Employee.js';
+
+// Global validation function to check if employee can receive emails
+// Returns { canReceive: boolean, reason: string }
+export async function canEmployeeReceiveEmail(employeeEmail) {
+  try {
+    if (!employeeEmail) {
+      return { canReceive: false, reason: 'Email address not provided' };
+    }
+
+    const employee = await Employee.findOne({
+      where: { email: employeeEmail.toLowerCase() },
+      attributes: ['id', 'email', 'is_active', 'can_access_system', 'name']
+    });
+
+    if (!employee) {
+      return { canReceive: false, reason: 'Employee not found' };
+    }
+
+    // Check both conditions: employee must be active AND have system access
+    if (!employee.is_active) {
+      console.log(`🚫 Email blocked: Employee ${employee.email} (${employee.name}) is inactive (is_active = false)`);
+      return { canReceive: false, reason: 'Employee is inactive', employee };
+    }
+
+    if (!employee.can_access_system) {
+      console.log(`🚫 Email blocked: Employee ${employee.email} (${employee.name}) cannot access system (can_access_system = false)`);
+      return { canReceive: false, reason: 'Employee cannot access system', employee };
+    }
+
+    return { canReceive: true, reason: 'Employee is active and can access system', employee };
+  } catch (error) {
+    console.error('Error checking employee email eligibility:', error);
+    return { canReceive: false, reason: 'Error checking employee status', error: error.message };
+  }
+}
 
 // Robust Email Service with Error Prevention
 class EmailService {
@@ -83,8 +119,22 @@ class EmailService {
 const emailService = new EmailService();
 
 // Export the sendMail function for backward compatibility
+// GLOBAL RULE: This function now includes automatic validation
+// Emails will NOT be sent if employee is inactive or cannot access system
 export const sendEmail = async (to, template, data) => {
   try {
+    // GLOBAL VALIDATION: Check if employee can receive emails
+    const emailCheck = await canEmployeeReceiveEmail(to);
+    if (!emailCheck.canReceive) {
+      console.log(`🚫 Email blocked for ${to}: ${emailCheck.reason}`);
+      return { 
+        success: false, 
+        blocked: true,
+        reason: emailCheck.reason,
+        message: `Email not sent: ${emailCheck.reason}`
+      };
+    }
+
     const emailContent = emailTemplates[template](data);
     
     const mailOptions = {

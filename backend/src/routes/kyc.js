@@ -1011,22 +1011,50 @@ router.post(
               });
             }
 
-            // Get user's current password (they set it during first login)
-            const user = await User.findOne({
-              where: { email: employee.email },
-            });
-            const userPassword = user ? "Your set password" : "temp123"; // We can't retrieve hashed password
+            // Check if employee is active AND can access system before sending email
+            // The sendEmail function will also validate this, but we check here to avoid unnecessary processing
+            if (!employee.is_active || !employee.can_access_system) {
+              const reason = !employee.is_active
+                ? "inactive"
+                : "cannot access system";
+              console.log(
+                `⏭️ Skipping KYC approval email for employee ${employee.email}: ${reason}`
+              );
+            } else {
+              // Get user's current password (they set it during first login)
+              const user = await User.findOne({
+                where: { email: employee.email },
+              });
 
-            // Send approval email
-            const emailData = {
-              fullName: employee.name,
-              email: employee.email,
-              permanentEmployeeId: permanentEmployeeId,
-              employeeId: permanentEmployeeId, // Also include as employeeId for consistency
-              password: userPassword,
-            };
+              // Double-check user is active
+              if (user && user.active) {
+                const userPassword = user ? "Your set password" : "temp123"; // We can't retrieve hashed password
 
-            await sendKycApprovedEmail(emailData);
+                // Send approval email - sendEmail will validate again
+                const emailData = {
+                  fullName: employee.name,
+                  email: employee.email,
+                  permanentEmployeeId: permanentEmployeeId,
+                  employeeId: permanentEmployeeId, // Also include as employeeId for consistency
+                  password: userPassword,
+                };
+
+                const emailResult = await sendKycApprovedEmail(emailData);
+                if (emailResult.success) {
+                  console.log(
+                    `✅ KYC approval email sent to active employee: ${employee.email}`
+                  );
+                } else if (emailResult.blocked) {
+                  console.log(
+                    `🚫 KYC approval email blocked for ${employee.email}: ${emailResult.reason}`
+                  );
+                }
+              } else {
+                console.log(
+                  `⏭️ Skipping KYC approval email for inactive user: ${employee.email}`
+                );
+              }
+            }
 
             // Update KYC record's employeeId to match the employee's current RST format ID
             await item.update({

@@ -42,6 +42,12 @@ Employee.init(
       allowNull: false,
       field: 'is_active'
     },
+    can_access_system: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      allowNull: false,
+      field: 'can_access_system'
+    },
     // Legacy fields (kept for backward compatibility)
     employeeId: { type: DataTypes.STRING, unique: true, allowNull: true },
     department: { type: DataTypes.STRING, allowNull: true },

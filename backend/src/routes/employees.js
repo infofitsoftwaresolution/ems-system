@@ -233,6 +233,10 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Determine if employee should be active (default to true, but respect request body)
+    const isActive = req.body.is_active !== undefined ? Boolean(req.body.is_active) : true;
+    const canAccessSystem = req.body.can_access_system !== undefined ? Boolean(req.body.can_access_system) : true;
+
     // Prepare employee data
     const employeeData = {
       name: req.body.name.trim(),
@@ -242,7 +246,8 @@ router.post('/', async (req, res) => {
       location: req.body.location || null,
       designation: req.body.designation || null,
       status: req.body.status === 'Not Working' ? 'Not Working' : 'Working',
-      is_active: true, // New employees are always active
+      is_active: isActive, // Respect the is_active value from request
+      can_access_system: canAccessSystem, // Respect the can_access_system value from request
       // Legacy fields for backward compatibility
       employeeId: empId,
       department: req.body.location || req.body.department || null,
@@ -265,7 +270,7 @@ router.post('/', async (req, res) => {
         role: 'employee',
         passwordHash: hash,
         mustChangePassword: true,
-        active: true
+        active: isActive // Match employee's active status
       });
     } else {
       const hash = await bcrypt.hash(tempPassword, 10);
@@ -273,24 +278,34 @@ router.post('/', async (req, res) => {
         name: emp.name,
         passwordHash: hash,
         mustChangePassword: true,
-        active: true
+        active: isActive // Match employee's active status
       });
     }
 
-    // Send welcome email
-    try {
-      const emailData = {
-        fullName: emp.name,
-        email: emp.email,
-        tempEmployeeId: emp.emp_id,
-        employeeId: emp.emp_id, // Also include as employeeId for consistency
-        tempPassword: tempPassword
-      };
-      await sendNewEmployeeEmail(emailData);
-      console.log('✅ Welcome email sent successfully to:', emp.email);
-    } catch (emailError) {
-      console.error('📧 Email sending failed:', emailError);
-      // Don't fail the request if email fails
+    // Send welcome email ONLY if employee is active AND can access system
+    // The sendEmail function will also validate this, but we check here to avoid unnecessary processing
+    if (isActive && canAccessSystem) {
+      try {
+        const emailData = {
+          fullName: emp.name,
+          email: emp.email,
+          tempEmployeeId: emp.emp_id,
+          employeeId: emp.emp_id, // Also include as employeeId for consistency
+          tempPassword: tempPassword
+        };
+        const emailResult = await sendNewEmployeeEmail(emailData);
+        if (emailResult.success) {
+          console.log('✅ Welcome email sent successfully to:', emp.email);
+        } else if (emailResult.blocked) {
+          console.log(`🚫 Welcome email blocked for ${emp.email}: ${emailResult.reason}`);
+        }
+      } catch (emailError) {
+        console.error('📧 Email sending failed:', emailError);
+        // Don't fail the request if email fails
+      }
+    } else {
+      const reason = !isActive ? 'employee is inactive' : 'employee cannot access system';
+      console.log(`⏭️ Skipping welcome email for ${emp.email}: ${reason}`);
     }
 
     res.status(201).json({
@@ -396,6 +411,12 @@ router.put('/:id', async (req, res) => {
     if (req.body.status !== undefined) {
       updateData.status = req.body.status === 'Not Working' ? 'Not Working' : 'Working';
     }
+    if (req.body.is_active !== undefined) {
+      updateData.is_active = Boolean(req.body.is_active);
+    }
+    if (req.body.can_access_system !== undefined) {
+      updateData.can_access_system = Boolean(req.body.can_access_system);
+    }
 
     // Update employee
     await emp.update(updateData);
@@ -406,6 +427,18 @@ router.put('/:id', async (req, res) => {
       const userUpdateData = {};
       if (updateData.name) userUpdateData.name = updateData.name;
       if (updateData.email) userUpdateData.email = updateData.email;
+      // Sync is_active status with user.active
+      if (updateData.is_active !== undefined) {
+        userUpdateData.active = updateData.is_active;
+        console.log(`🔄 Syncing employee active status: ${updateData.is_active ? 'ACTIVE' : 'INACTIVE'} for ${emp.email}`);
+      }
+      // Also sync can_access_system - if false, deactivate user
+      if (updateData.can_access_system !== undefined) {
+        if (!updateData.can_access_system) {
+          userUpdateData.active = false; // Deactivate user if system access is revoked
+        }
+        console.log(`🔄 Updated can_access_system: ${updateData.can_access_system ? 'ENABLED' : 'DISABLED'} for ${emp.email}`);
+      }
       await user.update(userUpdateData);
     }
 
