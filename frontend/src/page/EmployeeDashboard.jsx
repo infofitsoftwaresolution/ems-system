@@ -12,7 +12,8 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowRight,
-  RefreshCw
+  RefreshCw,
+  CheckSquare
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiService } from "@/lib/api";
@@ -141,6 +142,36 @@ export default function EmployeeDashboard() {
     }
   }, [user?.id]);
 
+  const loadTasks = useCallback(async () => {
+    try {
+      if (user?.id) {
+        // Fetch upcoming tasks for the employee
+        const tasksData = await apiService.getMyTasks();
+
+        // Handle response format: could be array or { success: true, data: [...] }
+        const tasksList = Array.isArray(tasksData)
+          ? tasksData
+          : tasksData?.data || tasksData?.tasks || [];
+
+        // Transform tasks for display
+        const formattedTasks = tasksList.map((task) => ({
+          id: task.id,
+          title: task.title || task.name,
+          due: task.dueDate
+            ? new Date(task.dueDate).toLocaleDateString()
+            : "No due date",
+          priority: task.priority || "Medium",
+          status: task.status || "todo",
+        }));
+
+        setUpcomingTasks(formattedTasks);
+      }
+    } catch (error) {
+      console.error("Error loading tasks:", error);
+      setUpcomingTasks([]);
+    }
+  }, [user?.id]);
+
   const loadNotifications = useCallback(async () => {
     try {
       if (!user?.id) return;
@@ -179,7 +210,8 @@ export default function EmployeeDashboard() {
     loadAttendanceData();
     loadNotifications();
     loadUpcomingEvents();
-  }, [user, loadKycStatus, loadAttendanceData, loadNotifications, loadUpcomingEvents]);
+    loadTasks();
+  }, [user, loadKycStatus, loadAttendanceData, loadNotifications, loadUpcomingEvents, loadTasks]);
 
   // Refresh KYC status every 30 seconds to catch updates
   useEffect(() => {
@@ -276,6 +308,7 @@ export default function EmployeeDashboard() {
               loadAttendanceData();
               loadNotifications();
               loadUpcomingEvents();
+              loadTasks();
             }}
             disabled={loading}
             className="flex items-center space-x-1"
@@ -383,39 +416,76 @@ export default function EmployeeDashboard() {
       {/* Main Content Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Upcoming Tasks */}
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>Upcoming Tasks</CardTitle>
             <CardDescription>
               Your pending tasks and deadlines
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 overflow-y-auto max-h-[400px]">
             <div className="space-y-4">
-              {upcomingTasks.map((task) => (
-                <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">{task.title}</p>
-                    <p className="text-xs text-muted-foreground">Due: {task.due}</p>
+              {upcomingTasks.length > 0 ? (
+                upcomingTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className={`text-sm font-medium ${task.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
+                          {task.title}
+                        </p>
+                        {task.status === "completed" && (
+                          <CheckCircle className="h-4 w-4 text-primary" />
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Due: {task.due}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={getPriorityColor(task.priority)}>
+                        {task.priority}
+                      </Badge>
+                      {task.status !== "completed" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2"
+                          onClick={async () => {
+                            try {
+                              await apiService.markTaskAsComplete(task.id);
+                              // Refresh tasks
+                              loadTasks();
+                            } catch (error) {
+                              console.error("Error marking task as complete:", error);
+                            }
+                          }}
+                          title="Mark as complete">
+                          <CheckSquare className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <Badge variant={getPriorityColor(task.priority)}>
-                    {task.priority}
-                  </Badge>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No pending tasks
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
 
         {/* Recent Notifications */}
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>Recent Notifications</CardTitle>
             <CardDescription>
               Latest updates and announcements
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 overflow-y-auto max-h-[400px]">
             <div className="space-y-4">
               {notifications.length > 0 ? (
                 notifications.map((notification) => (
@@ -453,12 +523,12 @@ export default function EmployeeDashboard() {
         </Card>
 
         {/* Upcoming Events */}
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>Upcoming Events</CardTitle>
             <CardDescription>Your scheduled events and activities</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 overflow-y-auto max-h-[400px]">
             <div className="space-y-4">
               {upcomingEvents.length > 0 ? (
                 upcomingEvents.map((event) => (

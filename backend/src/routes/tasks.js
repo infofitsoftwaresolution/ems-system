@@ -1,13 +1,164 @@
 import { Router } from 'express';
 import { Task } from '../models/Task.js';
 import { Employee } from '../models/Employee.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { User } from '../models/User.js';
+import { Notification } from '../models/Notification.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { Op } from 'sequelize';
+import { getIO } from '../server.js';
 
 const router = Router();
 
-// Get all tasks
+// Helper function to send notifications for tasks
+async function sendTaskNotifications(task, isUpdate = false) {
+  try {
+    let targetUserIds = [];
+
+    if (task.visibility_type === "ALL") {
+      // Get all employee user IDs from User table
+      const employeeUsers = await User.findAll({
+        where: { role: "employee" },
+        attributes: ["id", "email"],
+      });
+      targetUserIds = employeeUsers.map((u) => u.id);
+
+      // Also try to get user IDs from Employee table by email
+      const employeeEmails = employeeUsers.map((u) => u.email);
+      if (employeeEmails.length > 0) {
+        const employees = await Employee.findAll({
+          where: { email: { [Op.in]: employeeEmails } },
+          attributes: ["id", "email"],
+        });
+
+        // Try to match employees with users by email
+        employees.forEach((emp) => {
+          const user = employeeUsers.find((u) => u.email === emp.email);
+          if (user && !targetUserIds.includes(user.id)) {
+            targetUserIds.push(user.id);
+          }
+        });
+      }
+    } else if (task.visibility_type === "SPECIFIC" && task.assigned_users) {
+      // Get user IDs from assigned employee IDs
+      const assignedEmployeeIds = Array.isArray(task.assigned_users)
+        ? task.assigned_users
+        : JSON.parse(task.assigned_users || "[]");
+
+      if (assignedEmployeeIds.length > 0) {
+        // First, try to get employees by ID
+        const employees = await Employee.findAll({
+          where: { id: { [Op.in]: assignedEmployeeIds } },
+          attributes: ["id", "email"],
+        });
+
+        // Get user IDs by matching employee emails
+        const employeeEmails = employees.map((emp) => emp.email);
+        if (employeeEmails.length > 0) {
+          const users = await User.findAll({
+            where: { email: { [Op.in]: employeeEmails } },
+            attributes: ["id"],
+          });
+          targetUserIds = users.map((u) => u.id);
+        }
+
+        // Also try to get users directly if employee ID matches user ID
+        const directUsers = await User.findAll({
+          where: { id: { [Op.in]: assignedEmployeeIds } },
+          attributes: ["id"],
+        });
+        const directUserIds = directUsers.map((u) => u.id);
+        targetUserIds = [...new Set([...targetUserIds, ...directUserIds])];
+      }
+    }
+
+    if (targetUserIds.length === 0) {
+      console.log("⚠️ No target users found for task notification");
+      return;
+    }
+
+    // Format due date for notification message
+    const formatDateTime = (date) => {
+      if (!date) return "";
+      const d = new Date(date);
+      return d.toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+
+    // Create notifications for all target users
+    const notifications = await Promise.all(
+      targetUserIds.map(async (userId) => {
+        // Get user email for notification
+        const user = await User.findByPk(userId, { attributes: ["email"] });
+        const userEmail = user?.email || "";
+
+        // Format notification message as per requirements
+        const dueDateStr = task.dueDate ? formatDateTime(task.dueDate) : "No deadline";
+        const notificationMessage = isUpdate
+          ? `Task Updated: ${task.title}${task.dueDate ? ` (Due: ${dueDateStr})` : ""}`
+          : `New Task Assigned: ${task.title}${task.dueDate ? ` (Due: ${dueDateStr})` : ""}`;
+
+        return Notification.create({
+          userId: userId,
+          userEmail: userEmail,
+          taskId: task.id, // Link notification to task
+          title: isUpdate ? "Task Updated" : "New Task Assigned",
+          message: notificationMessage,
+          type: "info", // Use standard notification type
+          link: `/tasks?task=${task.id}`, // Link to tasks page
+          metadata: JSON.stringify({
+            taskId: task.id,
+            taskTitle: task.title,
+            dueDate: task.dueDate,
+            priority: task.priority,
+          }),
+          isRead: false,
+        });
+      })
+    );
+
+    // Emit Socket.IO event to notify clients in real-time
+    const io = getIO();
+    if (io) {
+      targetUserIds.forEach((userId) => {
+        io.to(`user_${userId}`).emit("new_notification", {
+          type: "task",
+          title: isUpdate ? "Task Updated" : "New Task Assigned",
+          message: isUpdate
+            ? `Task Updated: ${task.title}`
+            : `New Task Assigned: ${task.title}`,
+        });
+        io.to(`user_${userId}`).emit("task_created", {
+          taskId: task.id,
+          task: task.toJSON(),
+        });
+      });
+    }
+
+    // Mark notification as sent
+    await task.update({ notification_sent: true });
+
+    console.log(
+      `✅ Sent ${notifications.length} notifications for task: ${task.title}`
+    );
+  } catch (error) {
+    console.error("Error sending task notifications:", error);
+  }
+}
+
+// Get all tasks (filtered by user role and visibility)
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user?.sub || req.user?.id;
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
     const { status, priority, assigneeId } = req.query;
     
     let whereClause = {};
@@ -24,15 +175,43 @@ router.get('/', authenticateToken, async (req, res) => {
       whereClause.assigneeId = assigneeId;
     }
 
+    // Employees can only see:
+    // 1. Tasks with visibility_type = "ALL"
+    // 2. Tasks with visibility_type = "SPECIFIC" where they are in assigned_users
+    if (user.role === "employee") {
+      // Get employee ID from user
+      const employee = await Employee.findOne({
+        where: { email: user.email },
+        attributes: ["id"],
+      });
+      const employeeId = employee?.id || userId; // Fallback to userId if no employee record
+
+      whereClause[Op.or] = [
+        { visibility_type: "ALL" },
+        {
+          [Op.and]: [
+            { visibility_type: "SPECIFIC" },
+            {
+              assigned_users: {
+                [Op.like]: `%${employeeId}%`,
+              },
+            },
+          ],
+        },
+      ];
+    }
+    // Admin, HR, Manager can see all tasks
+
     const tasks = await Task.findAll({
       where: whereClause,
-      order: [['createdAt', 'DESC']]
+      order: [['dueDate', 'ASC'], ['createdAt', 'DESC']] // Sort by due date, then creation date
     });
 
-    res.json(tasks);
+    res.json({ success: true, data: tasks });
   } catch (error) {
     console.error('Error fetching tasks:', error);
     res.status(500).json({ 
+      success: false,
       message: 'Error fetching tasks',
       error: error.message 
     });
@@ -58,57 +237,328 @@ router.get('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Create new task
-router.post('/', authenticateToken, async (req, res) => {
-  try {
-    const { title, description, status, priority, assigneeId, dueDate } = req.body;
-    const userEmail = req.user?.email || req.body.createdBy;
+// Create new task (Admin/HR only)
+router.post(
+  '/',
+  authenticateToken,
+  requireRole(["admin", "hr"]),
+  async (req, res) => {
+    try {
+      const {
+        title,
+        description,
+        status,
+        priority,
+        assigneeId,
+        dueDate,
+        visibility_type,
+        assigned_users,
+      } = req.body;
+      
+      const userId = req.user?.sub || req.user?.id;
+      const userEmail = req.user?.email || req.body.createdBy;
 
-    if (!title) {
-      return res.status(400).json({ 
-        message: 'Task title is required' 
+      // Validation
+      if (!title || !title.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Task title is required",
+        });
+      }
+
+      if (!["ALL", "SPECIFIC"].includes(visibility_type || "ALL")) {
+        return res.status(400).json({
+          success: false,
+          message: "Visibility type must be 'ALL' or 'SPECIFIC'",
+        });
+      }
+
+      if (visibility_type === "SPECIFIC") {
+        if (
+          !assigned_users ||
+          !Array.isArray(assigned_users) ||
+          assigned_users.length === 0
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Assigned users are required when visibility type is 'SPECIFIC'",
+          });
+        }
+      }
+
+      // Prepare assigned_users - handle null case properly
+      let assignedUsersValue = null;
+      if (
+        visibility_type === "SPECIFIC" &&
+        assigned_users &&
+        Array.isArray(assigned_users) &&
+        assigned_users.length > 0
+      ) {
+        assignedUsersValue = assigned_users;
+      }
+
+      // Legacy: If assigneeId is provided, get employee details (for backward compatibility)
+      let assigneeEmail = null;
+      let assigneeName = null;
+      
+      if (assigneeId) {
+        const employee = await Employee.findOne({
+          where: { employeeId: String(assigneeId) }
+        });
+        
+        if (employee) {
+          assigneeEmail = employee.email;
+          assigneeName = employee.name;
+        }
+      }
+
+      const task = await Task.create({
+        title: title.trim(),
+        description: description?.trim() || null,
+        status: status || 'todo',
+        priority: priority || 'medium',
+        assigneeId: assigneeId || null, // Legacy field
+        assigneeEmail: assigneeEmail,
+        assigneeName: assigneeName,
+        createdBy: userEmail, // Legacy field
+        created_by: userId, // New field
+        visibility_type: visibility_type || "ALL",
+        assigned_users: assignedUsersValue,
+        notification_sent: false,
+        dueDate: dueDate ? new Date(dueDate) : null
+      });
+
+      // Send notifications
+      await sendTaskNotifications(task, false);
+
+      res.status(201).json({
+        success: true,
+        message: "Task created successfully",
+        data: task,
+      });
+    } catch (error) {
+      console.error('Error creating task:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error creating task',
+        error: error.message 
+      });
+    }
+  }
+);
+
+// Get employee-specific task feed (upcoming tasks for the logged-in employee)
+router.get('/feed/my-tasks', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || req.user?.id;
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    // Get employee ID from user
+    const employee = await Employee.findOne({
+      where: { email: user.email },
+      attributes: ["id"],
+    });
+    const employeeId = employee?.id || userId; // Fallback to userId if no employee record
+
+    // Build where clause for employee-specific tasks
+    const whereClause = {
+      [Op.or]: [
+        { visibility_type: "ALL" },
+        {
+          [Op.and]: [
+            { visibility_type: "SPECIFIC" },
+            {
+              assigned_users: {
+                [Op.like]: `%${employeeId}%`,
+              },
+            },
+          ],
+        },
+      ],
+      // Only get pending/in-progress tasks (not completed)
+      status: {
+        [Op.in]: ["todo", "in-progress", "review"],
+      },
+    };
+
+    const tasks = await Task.findAll({
+      where: whereClause,
+      order: [['dueDate', 'ASC'], ['priority', 'DESC'], ['createdAt', 'DESC']],
+      limit: 10, // Limit to 10 upcoming tasks
+    });
+
+    res.json({ success: true, data: tasks });
+  } catch (error) {
+    console.error("Error fetching employee task feed:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching employee task feed",
+      error: error.message,
+    });
+  }
+});
+
+// Mark task as complete (Employee can mark their assigned tasks as complete)
+router.put('/:id/complete', authenticateToken, async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.id);
+    const userId = req.user?.sub || req.user?.id;
+    const user = await User.findByPk(userId);
+    
+    if (!user) {
+      return res.status(401).json({ 
+        success: false,
+        message: "User not found" 
       });
     }
 
-    // If assigneeId is provided, get employee details
-    let assigneeEmail = null;
-    let assigneeName = null;
-    
-    if (assigneeId) {
-      const employee = await Employee.findOne({
-        where: { employeeId: String(assigneeId) }
+    const task = await Task.findByPk(taskId);
+    if (!task) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Task not found' 
       });
-      
-      if (employee) {
-        assigneeEmail = employee.email;
-        assigneeName = employee.name;
+    }
+
+    // Check if employee can update this task
+    if (user.role === "employee") {
+      // Get employee ID from user
+      const employee = await Employee.findOne({
+        where: { email: user.email },
+        attributes: ["id"],
+      });
+      const employeeId = employee?.id || userId;
+
+      // Check if task is assigned to this employee
+      const isAssigned = 
+        task.visibility_type === "ALL" || 
+        (task.visibility_type === "SPECIFIC" && 
+         task.assigned_users && 
+         (Array.isArray(task.assigned_users) 
+           ? task.assigned_users.includes(employeeId)
+           : JSON.parse(task.assigned_users || "[]").includes(employeeId)));
+
+      if (!isAssigned) {
+        return res.status(403).json({
+          success: false,
+          message: "You don't have permission to update this task",
+        });
       }
     }
 
-    const task = await Task.create({
-      title: title.trim(),
-      description: description?.trim() || null,
-      status: status || 'todo',
-      priority: priority || 'medium',
-      assigneeId: assigneeId || null,
-      assigneeEmail: assigneeEmail,
-      assigneeName: assigneeName,
-      createdBy: userEmail,
-      dueDate: dueDate ? new Date(dueDate) : null
-    });
+    // Update task status to completed
+    const updateData = {
+      status: "completed",
+      completedAt: task.status !== "completed" ? new Date() : task.completedAt,
+    };
 
-    res.status(201).json(task);
+    await task.update(updateData);
+
+    res.json({
+      success: true,
+      message: "Task marked as completed successfully",
+      data: task,
+    });
   } catch (error) {
-    console.error('Error creating task:', error);
+    console.error('Error marking task as complete:', error);
     res.status(500).json({ 
-      message: 'Error creating task',
+      success: false,
+      message: 'Error marking task as complete',
       error: error.message 
     });
   }
 });
 
-// Update task
-router.put('/:id', authenticateToken, async (req, res) => {
+// Update task status (Employee can update status for their assigned tasks, Admin/HR can update all fields)
+router.put('/:id/status', authenticateToken, async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.id);
+    const { status } = req.body;
+    const userId = req.user?.sub || req.user?.id;
+    const user = await User.findByPk(userId);
+    
+    if (!user) {
+      return res.status(401).json({ 
+        success: false,
+        message: "User not found" 
+      });
+    }
+
+    if (!status || !['todo', 'in-progress', 'review', 'completed'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid status is required (todo, in-progress, review, completed)",
+      });
+    }
+
+    const task = await Task.findByPk(taskId);
+    if (!task) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Task not found' 
+      });
+    }
+
+    // Check if employee can update this task
+    if (user.role === "employee") {
+      // Get employee ID from user
+      const employee = await Employee.findOne({
+        where: { email: user.email },
+        attributes: ["id"],
+      });
+      const employeeId = employee?.id || userId;
+
+      // Check if task is assigned to this employee
+      const isAssigned = 
+        task.visibility_type === "ALL" || 
+        (task.visibility_type === "SPECIFIC" && 
+         task.assigned_users && 
+         (Array.isArray(task.assigned_users) 
+           ? task.assigned_users.includes(employeeId)
+           : JSON.parse(task.assigned_users || "[]").includes(employeeId)));
+
+      if (!isAssigned) {
+        return res.status(403).json({
+          success: false,
+          message: "You don't have permission to update this task",
+        });
+      }
+    }
+
+    // Update completedAt if status is being changed to/from completed
+    let completedAt = task.completedAt;
+    if (status === 'completed' && task.status !== 'completed') {
+      completedAt = new Date();
+    } else if (status !== 'completed' && task.status === 'completed') {
+      completedAt = null;
+    }
+
+    await task.update({
+      status: status,
+      completedAt: completedAt,
+    });
+
+    res.json({
+      success: true,
+      message: "Task status updated successfully",
+      data: task,
+    });
+  } catch (error) {
+    console.error('Error updating task status:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error updating task status',
+      error: error.message 
+    });
+  }
+});
+
+// Update task (Admin/HR only - can update all fields)
+router.put('/:id', authenticateToken, requireRole(["admin", "hr"]), async (req, res) => {
   try {
     const { title, description, status, priority, assigneeId, dueDate } = req.body;
     
@@ -148,7 +598,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       completedAt = null;
     }
 
-    await task.update({
+    // Handle visibility_type and assigned_users updates
+    const updateData = {
       title: title !== undefined ? title.trim() : task.title,
       description: description !== undefined ? (description?.trim() || null) : task.description,
       status: status !== undefined ? status : task.status,
@@ -157,10 +608,31 @@ router.put('/:id', authenticateToken, async (req, res) => {
       assigneeEmail: assigneeEmail,
       assigneeName: assigneeName,
       dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : task.dueDate,
-      completedAt: completedAt
-    });
+      completedAt: completedAt,
+    };
 
-    res.json(task);
+    // Update visibility fields if provided
+    if (req.body.visibility_type !== undefined) {
+      updateData.visibility_type = req.body.visibility_type;
+      if (req.body.assigned_users !== undefined) {
+        updateData.assigned_users =
+          req.body.visibility_type === "SPECIFIC" ? req.body.assigned_users : null;
+      }
+      updateData.notification_sent = false; // Reset notification flag
+    }
+
+    await task.update(updateData);
+
+    // Send notifications for update if visibility changed or task was updated
+    if (req.body.visibility_type !== undefined || req.body.title !== undefined || req.body.dueDate !== undefined) {
+      await sendTaskNotifications(task, true);
+    }
+
+    res.json({
+      success: true,
+      message: "Task updated successfully",
+      data: task,
+    });
   } catch (error) {
     console.error('Error updating task:', error);
     res.status(500).json({ 
@@ -170,8 +642,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Delete task
-router.delete('/:id', authenticateToken, async (req, res) => {
+// Delete task (Admin/HR only)
+router.delete('/:id', authenticateToken, requireRole(["admin", "hr"]), async (req, res) => {
   try {
     const task = await Task.findByPk(req.params.id);
     
@@ -181,7 +653,10 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
     await task.destroy();
     
-    res.json({ message: 'Task deleted successfully' });
+    res.json({
+      success: true,
+      message: 'Task deleted successfully'
+    });
   } catch (error) {
     console.error('Error deleting task:', error);
     res.status(500).json({ 

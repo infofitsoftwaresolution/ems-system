@@ -336,6 +336,36 @@ async function start() {
       // Continue even if migration fails - might already be applied
     }
 
+    // Run migration to add visibility fields to tasks table
+    try {
+      const { addTaskVisibilityFields } = await import(
+        "./migrations/addTaskVisibilityFields.js"
+      );
+      await addTaskVisibilityFields(
+        sequelize.getQueryInterface(),
+        sequelize.constructor
+      );
+      console.log("✅ Task visibility fields migration completed");
+    } catch (migrationError) {
+      console.error("Task visibility fields migration error:", migrationError.message);
+      // Continue even if migration fails - might already be applied
+    }
+
+    // Run migration to add task_id to notifications table
+    try {
+      const { addTaskIdToNotifications } = await import(
+        "./migrations/addTaskIdToNotifications.js"
+      );
+      await addTaskIdToNotifications(
+        sequelize.getQueryInterface(),
+        sequelize.constructor
+      );
+      console.log("✅ Task ID migration for notifications completed");
+    } catch (migrationError) {
+      console.error("Task ID migration error:", migrationError.message);
+      // Continue even if migration fails - might already be applied
+    }
+
     // Seed events and notifications if in development
     if (process.env.NODE_ENV !== "production") {
       try {
@@ -345,6 +375,17 @@ async function start() {
         await seedEventsAndNotifications();
       } catch (seedError) {
         console.error("Events and notifications seed error:", seedError.message);
+        // Continue even if seed fails
+      }
+
+      // Seed tasks and notifications if in development
+      try {
+        const { seedTasksAndNotifications } = await import(
+          "./seeders/seedTasksAndNotifications.js"
+        );
+        await seedTasksAndNotifications();
+      } catch (seedError) {
+        console.error("Tasks and notifications seed error:", seedError.message);
         // Continue even if seed fails
       }
     }

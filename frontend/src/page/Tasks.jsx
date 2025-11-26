@@ -120,7 +120,13 @@ export default function Tasks() {
           apiService.getTasks(),
           apiService.getEmployees()
         ]);
-        setTasks(tasksData);
+        
+        // Handle new API response format: { success: true, data: [...] }
+        const tasksList = Array.isArray(tasksData)
+          ? tasksData
+          : tasksData?.data || tasksData?.tasks || [];
+        setTasks(tasksList);
+        
         // Handle new API response format: { success: true, data: [...], count: ... }
         const employeesData = Array.isArray(employeesResponse) 
           ? employeesResponse 
@@ -142,7 +148,9 @@ export default function Tasks() {
 
   // Apply filters
   useEffect(() => {
-    let result = tasks;
+    // Ensure tasks is always an array
+    const tasksArray = Array.isArray(tasks) ? tasks : [];
+    let result = tasksArray;
 
     if (searchQuery) {
       result = result.filter(
@@ -176,7 +184,7 @@ export default function Tasks() {
 
     setIsLoading(true);
     try {
-      const createdTask = await apiService.createTask({
+      const createdTaskResponse = await apiService.createTask({
         title: newTask.title,
         description: newTask.description,
         status: newTask.status,
@@ -184,9 +192,14 @@ export default function Tasks() {
         assigneeId: newTask.assigneeId || null,
         dueDate: newTask.dueDate,
         createdBy: user?.email || "",
+        visibility_type: newTask.visibility_type || "ALL",
+        assigned_users: newTask.assigned_users || null,
       });
 
-      setTasks([createdTask, ...tasks]);
+      // Handle new API response format: { success: true, data: {...} }
+      const createdTask = createdTaskResponse?.data || createdTaskResponse;
+      const tasksArray = Array.isArray(tasks) ? tasks : [];
+      setTasks([createdTask, ...tasksArray]);
       setIsAddTaskDialogOpen(false);
       toast.success("Task created successfully");
 
@@ -212,7 +225,8 @@ export default function Tasks() {
     setIsLoading(true);
     try {
       await apiService.deleteTask(id);
-      setTasks(tasks.filter((task) => task.id !== id));
+      const tasksArray = Array.isArray(tasks) ? tasks : [];
+      setTasks(tasksArray.filter((task) => task.id !== id));
       setIsViewTaskDialogOpen(false);
       toast.success("Task deleted successfully");
     } catch (error) {
@@ -227,11 +241,23 @@ export default function Tasks() {
   const handleUpdateTaskStatus = async (task, newStatus) => {
     setIsLoading(true);
     try {
-      const updatedTask = await apiService.updateTask(task.id, {
-        status: newStatus,
-      });
+      // Use the status endpoint for employees, full update for admin/hr
+      let updatedTaskResponse;
+      if (user?.role === "employee") {
+        // Employees can only update status
+        updatedTaskResponse = await apiService.updateTaskStatus(task.id, newStatus);
+      } else {
+        // Admin/HR can update all fields
+        updatedTaskResponse = await apiService.updateTask(task.id, {
+          status: newStatus,
+        });
+      }
 
-      setTasks(tasks.map((t) => (t.id === task.id ? updatedTask : t)));
+      // Handle new API response format: { success: true, data: {...} }
+      const updatedTask = updatedTaskResponse?.data || updatedTaskResponse;
+
+      const tasksArray = Array.isArray(tasks) ? tasks : [];
+      setTasks(tasksArray.map((t) => (t.id === task.id ? updatedTask : t)));
       setSelectedTask(updatedTask);
       toast.success("Task status updated successfully");
     } catch (error) {
@@ -300,17 +326,19 @@ export default function Tasks() {
   };
 
   // Calculate task statistics
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(
+  // Ensure tasks is always an array to prevent filter errors
+  const tasksArray = Array.isArray(tasks) ? tasks : [];
+  const totalTasks = tasksArray.length;
+  const completedTasks = tasksArray.filter(
     (task) => task.status === "completed"
   ).length;
-  const overdueTasks = tasks.filter(
+  const overdueTasks = tasksArray.filter(
     (task) =>
       task.status !== "completed" &&
       task.dueDate &&
       isBefore(parseISO(task.dueDate), new Date())
   ).length;
-  const dueThisWeek = tasks.filter((task) => {
+  const dueThisWeek = tasksArray.filter((task) => {
     if (!task.dueDate || task.status === "completed") return false;
     const dueDate = parseISO(task.dueDate);
     const oneWeek = addDays(new Date(), 7);

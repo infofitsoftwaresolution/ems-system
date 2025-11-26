@@ -35,6 +35,17 @@ Notification.init(
       onUpdate: "CASCADE",
       onDelete: "SET NULL",
     },
+    taskId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "task_id",
+      references: {
+        model: "tasks",
+        key: "id",
+      },
+      onUpdate: "CASCADE",
+      onDelete: "SET NULL",
+    },
     title: {
       type: DataTypes.STRING,
       allowNull: false,
