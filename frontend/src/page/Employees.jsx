@@ -748,7 +748,7 @@ export default function Employees() {
                   Add Employee
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[625px]">
+              <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto no-scrollbar">
                 <DialogHeader>
                   <DialogTitle>Add New Employee</DialogTitle>
                   <DialogDescription>
@@ -1064,7 +1064,7 @@ export default function Employees() {
 
             {/* Edit Employee Dialog */}
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-              <DialogContent className="sm:max-w-[625px]">
+              <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto no-scrollbar">
                 <DialogHeader>
                   <DialogTitle>Edit Employee</DialogTitle>
                   <DialogDescription>
@@ -1280,7 +1280,7 @@ export default function Employees() {
 
             {/* Delete Employee Confirmation Dialog */}
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-              <DialogContent className="sm:max-w-[500px]">
+              <DialogContent className="sm:max-w-[500px] max-h-[70vh] overflow-y-auto no-scrollbar">
                 <DialogHeader>
                   <DialogTitle
                     className={isAdmin ? "text-red-600" : "text-orange-600"}>
