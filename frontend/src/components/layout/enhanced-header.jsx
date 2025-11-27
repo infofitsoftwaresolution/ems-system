@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Search, Menu, X } from "lucide-react";
+import { Bell, Search, Menu, X, User, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -32,6 +32,8 @@ export function EnhancedHeader({ toggleSidebar }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [searchResults, setSearchResults] = useState({ employees: [], courses: [] });
+  const [isSearching, setIsSearching] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
@@ -269,14 +271,84 @@ export function EnhancedHeader({ toggleSidebar }) {
     }, 200);
   };
 
-  // Update search results visibility
-  useEffect(() => {
-    if (searchQuery.length > 1) {
-      setShowSearchResults(true);
-    } else {
+  // Perform search
+  const performSearch = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) {
+      setSearchResults({ employees: [], courses: [] });
       setShowSearchResults(false);
+      return;
     }
-  }, [searchQuery]);
+
+    setIsSearching(true);
+    try {
+      const searchTerm = query.toLowerCase().trim();
+      const [employeesData, coursesData] = await Promise.all([
+        apiService.getEmployees().catch(() => []),
+        apiService.getCourses().catch(() => []),
+      ]);
+
+      const employees = Array.isArray(employeesData)
+        ? employeesData
+        : employeesData?.data || [];
+      const courses = Array.isArray(coursesData) ? coursesData : [];
+
+      // Filter employees
+      const filteredEmployees = employees
+        .filter((emp) => {
+          const name = (emp.name || "").toLowerCase();
+          const email = (emp.email || "").toLowerCase();
+          const empId = (emp.emp_id || emp.employeeId || "").toLowerCase();
+          return (
+            name.includes(searchTerm) ||
+            email.includes(searchTerm) ||
+            empId.includes(searchTerm)
+          );
+        })
+        .slice(0, 5); // Limit to 5 results
+
+      // Filter courses
+      const filteredCourses = courses
+        .filter((course) => {
+          const title = (course.title || "").toLowerCase();
+          const description = (course.description || "").toLowerCase();
+          const category = (course.category || "").toLowerCase();
+          return (
+            title.includes(searchTerm) ||
+            description.includes(searchTerm) ||
+            category.includes(searchTerm)
+          );
+        })
+        .slice(0, 5); // Limit to 5 results
+
+      setSearchResults({
+        employees: filteredEmployees,
+        courses: filteredCourses,
+      });
+      setShowSearchResults(
+        filteredEmployees.length > 0 || filteredCourses.length > 0
+      );
+    } catch (error) {
+      console.error("Error performing search:", error);
+      setSearchResults({ employees: [], courses: [] });
+      setShowSearchResults(false);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Debounce search
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        performSearch(searchQuery);
+      } else {
+        setSearchResults({ employees: [], courses: [] });
+        setShowSearchResults(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, performSearch]);
 
   return (
     <motion.header
@@ -342,19 +414,18 @@ export function EnhancedHeader({ toggleSidebar }) {
             )}
           </AnimatePresence>
 
-          <Search
-            className={cn(
-              "absolute left-2.5 h-4 w-4 transition-all duration-300",
-              searchFocused ? "text-primary" : "text-muted-foreground"
-            )}
-          />
-
           <motion.div
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.2 }}
             className="relative">
+            <Search
+              className={cn(
+                "absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 transition-all duration-300 z-10",
+                searchFocused ? "text-primary" : "text-muted-foreground"
+              )}
+            />
             <Input
-              type="search"
+              type="text"
               placeholder="Search employees, courses..."
               className={cn(
                 "w-[200px] lg:w-[300px] pl-8 pr-8 transition-all duration-300",
@@ -374,10 +445,84 @@ export function EnhancedHeader({ toggleSidebar }) {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute mt-1 w-full bg-background rounded-md shadow-lg border z-10">
-                  <div className="p-2 text-sm text-muted-foreground">
-                    No results found for "{searchQuery}"
-                  </div>
+                  className="absolute mt-1 w-full bg-background rounded-md shadow-lg border z-50 max-h-[400px] overflow-y-auto">
+                  {isSearching ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mx-auto"></div>
+                      <p className="mt-2">Searching...</p>
+                    </div>
+                  ) : searchResults.employees.length === 0 &&
+                    searchResults.courses.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      No results found for "{searchQuery}"
+                    </div>
+                  ) : (
+                    <div className="py-2">
+                      {searchResults.employees.length > 0 && (
+                        <div className="px-3 py-2">
+                          <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">
+                            Employees
+                          </div>
+                          {searchResults.employees.map((employee) => (
+                            <Link
+                              key={employee.id || employee.email}
+                              to={`/employees${
+                                employee.id ? `?id=${employee.id}` : ""
+                              }`}
+                              className="flex items-center gap-3 px-3 py-2 hover:bg-accent rounded-md transition-colors cursor-pointer"
+                              onClick={() => {
+                                setSearchQuery("");
+                                setShowSearchResults(false);
+                              }}>
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {employee.name || employee.email}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {employee.email}
+                                  {employee.emp_id
+                                    ? ` • ${employee.emp_id}`
+                                    : employee.employeeId
+                                    ? ` • ${employee.employeeId}`
+                                    : ""}
+                                </p>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                      {searchResults.courses.length > 0 && (
+                        <div className="px-3 py-2 border-t">
+                          <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">
+                            Courses
+                          </div>
+                          {searchResults.courses.map((course) => (
+                            <Link
+                              key={course.id}
+                              to="/training"
+                              className="flex items-center gap-3 px-3 py-2 hover:bg-accent rounded-md transition-colors cursor-pointer"
+                              onClick={() => {
+                                setSearchQuery("");
+                                setShowSearchResults(false);
+                              }}>
+                              <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {course.title}
+                                </p>
+                                {course.category && (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {course.category}
+                                  </p>
+                                )}
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

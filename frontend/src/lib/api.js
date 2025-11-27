@@ -492,6 +492,10 @@ class ApiService {
     });
   }
 
+  async getCourses() {
+    return this.request("/api/courses");
+  }
+
   // Task endpoints
   async getMyTasks() {
     return this.request("/api/tasks/feed/my-tasks");

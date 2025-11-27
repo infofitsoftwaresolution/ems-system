@@ -224,11 +224,48 @@ export default function Tasks() {
     let result = tasksArray;
 
     if (searchQuery) {
-      result = result.filter(
-        (task) =>
-          task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          task.description.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      const searchTerm = searchQuery.toLowerCase().trim();
+      result = result.filter((task) => {
+        // Get assignee name for searching
+        let assigneeName = task.assigneeName || "";
+        if (!assigneeName && task.assigneeId) {
+          const assignee = employees.find(
+            (emp) => emp.employeeId === task.assigneeId
+          );
+          assigneeName = assignee?.name || "Unknown";
+        }
+        if (!assigneeName) {
+          assigneeName = "Unassigned";
+        }
+        
+        // Format due date for searching
+        const formattedDueDate = task.dueDate
+          ? format(parseISO(task.dueDate), "MMM dd, yyyy")
+          : "";
+        const rawDueDate = task.dueDate || "";
+        
+        // Format status for searching (replace hyphens with spaces)
+        const formattedStatus = task.status
+          ? task.status.replace("-", " ")
+          : "";
+        
+        // Search across all table fields
+        const searchableFields = [
+          task.title || "",
+          task.description || "",
+          assigneeName,
+          formattedDueDate,
+          rawDueDate,
+          task.status || "",
+          formattedStatus,
+          task.priority || "",
+        ];
+
+        // Check if search term matches any field
+        return searchableFields.some((field) =>
+          field.toLowerCase().includes(searchTerm)
+        );
+      });
     }
 
     if (statusFilter !== "all") {
@@ -244,7 +281,7 @@ export default function Tasks() {
     }
 
     setFilteredTasks(result);
-  }, [tasks, searchQuery, statusFilter, priorityFilter, assigneeFilter]);
+  }, [tasks, searchQuery, statusFilter, priorityFilter, assigneeFilter, employees]);
 
   // Handle task creation
   const handleCreateTask = async () => {

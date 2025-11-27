@@ -212,11 +212,30 @@ export default function Employees() {
 
   // Filter employees based on search query, filters, and active tab
   const filteredEmployees = employees.filter((employee) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      employee.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      employee.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      employee.position?.toLowerCase().includes(searchQuery.toLowerCase());
+    if (searchQuery === "") {
+      return true;
+    }
+
+    const searchTerm = searchQuery.toLowerCase().trim();
+    
+    // Search across all table fields
+    const searchableFields = [
+      employee.name || "",
+      employee.email || "",
+      employee.emp_id || employee.employeeId || "",
+      employee.mobile_number || "",
+      employee.location || employee.department || "",
+      employee.designation || employee.position || "",
+      employee.status || "",
+      employee.role || "",
+    ];
+
+    // Check if search term matches any field
+    const matchesSearch = searchableFields.some((field) =>
+      field.toLowerCase().includes(searchTerm)
+    );
+
+    return matchesSearch;
 
     const matchesDepartment =
       selectedDepartment === null ||

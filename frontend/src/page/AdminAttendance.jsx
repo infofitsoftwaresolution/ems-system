@@ -116,12 +116,50 @@ export default function AdminAttendance() {
     setAppliedSearchTerm("");
   };
 
+  // Format time
+  const formatTime = (timeString) => {
+    if (!timeString) return 'N/A';
+    return new Date(timeString).toLocaleTimeString();
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString();
+  };
+
   // Filter attendance data
   const filteredAttendance = attendanceData.filter(record => {
     if (!appliedSearchTerm) return true;
-    const matchesSearch = record.name?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
-                         record.email?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
-                         record.employeeId?.toLowerCase().includes(appliedSearchTerm.toLowerCase());
+    
+    const searchTerm = appliedSearchTerm.toLowerCase().trim();
+    
+    // Format dates and times for searching
+    const formattedDate = record.date ? formatDate(record.date) : "";
+    const formattedCheckIn = record.checkIn ? formatTime(record.checkIn) : "";
+    const formattedCheckOut = record.checkOut ? formatTime(record.checkOut) : "";
+    
+    // Search across all table fields
+    const searchableFields = [
+      record.name || "",
+      record.email || "",
+      record.employeeId || "",
+      record.date || "",
+      formattedDate,
+      formattedCheckIn,
+      formattedCheckOut,
+      record.status || "",
+      record.checkInAddress || record.checkInLocation || "",
+      record.checkOutAddress || record.checkOutLocation || "",
+      record.isLate ? "late" : "on time",
+      record.checkoutType || "",
+    ];
+
+    // Check if search term matches any field
+    const matchesSearch = searchableFields.some((field) =>
+      field.toLowerCase().includes(searchTerm)
+    );
+
     return matchesSearch;
   });
 
@@ -137,18 +175,6 @@ export default function AdminAttendance() {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
-  };
-
-  // Format time
-  const formatTime = (timeString) => {
-    if (!timeString) return 'N/A';
-    return new Date(timeString).toLocaleTimeString();
-  };
-
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
   };
 
   // Get location display
