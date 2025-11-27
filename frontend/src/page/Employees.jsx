@@ -212,13 +212,9 @@ export default function Employees() {
 
   // Filter employees based on search query, filters, and active tab
   const filteredEmployees = employees.filter((employee) => {
-    if (searchQuery === "") {
-      return true;
-    }
-
+    // Search across all table fields. If there's no search query, default to true.
     const searchTerm = searchQuery.toLowerCase().trim();
-    
-    // Search across all table fields
+
     const searchableFields = [
       employee.name || "",
       employee.email || "",
@@ -230,12 +226,11 @@ export default function Employees() {
       employee.role || "",
     ];
 
-    // Check if search term matches any field
-    const matchesSearch = searchableFields.some((field) =>
-      field.toLowerCase().includes(searchTerm)
-    );
-
-    return matchesSearch;
+    const matchesSearch =
+      !searchTerm ||
+      searchableFields.some((field) =>
+        field.toLowerCase().includes(searchTerm)
+      );
 
     const matchesDepartment =
       selectedDepartment === null ||
@@ -260,7 +255,8 @@ export default function Employees() {
       (activeTab === "inactive" &&
         (employee.status === "inactive" ||
           employee.status === "Not Working")) ||
-      (activeTab === "onLeave" && employee.status === "onLeave");
+      (activeTab === "onLeave" &&
+        (employee.status === "onLeave" || employee.status === "On Leave"));
 
     return matchesSearch && matchesDepartment && matchesStatus && matchesTab;
   });
@@ -372,7 +368,11 @@ export default function Employees() {
       position: employee.position || "",
       role: employee.role || "",
       joinDate: employee.hireDate || "",
-      isActive: (employee.is_active !== false && employee.can_access_system !== false) || employee.status === "active" || employee.status === "Working",
+      isActive:
+        (employee.is_active !== false &&
+          employee.can_access_system !== false) ||
+        employee.status === "active" ||
+        employee.status === "Working",
     });
     setShowEditDialog(true);
   };
@@ -720,7 +720,14 @@ export default function Employees() {
 
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={(value) => {
+          setActiveTab(value);
+          // Keep the Status filter in sync with tabs for better UX
+          if (value === "all") setSelectedStatus(null);
+          else if (value === "active") setSelectedStatus("active");
+          else if (value === "inactive") setSelectedStatus("inactive");
+          else if (value === "onLeave") setSelectedStatus("onLeave");
+        }}
         className="space-y-4">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <TabsList>
@@ -1519,26 +1526,39 @@ export default function Employees() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setSelectedStatus(null)}>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedStatus(null);
+                        setActiveTab("all");
+                      }}>
                       All Statuses
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => setSelectedStatus("active")}>
+                      onClick={() => {
+                        setSelectedStatus("active");
+                        setActiveTab("active");
+                      }}>
                       Working
                       {selectedStatus === "active" && (
                         <CheckCircle className="ml-2 h-4 w-4" />
                       )}
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => setSelectedStatus("inactive")}>
+                      onClick={() => {
+                        setSelectedStatus("inactive");
+                        setActiveTab("inactive");
+                      }}>
                       Not Working
                       {selectedStatus === "inactive" && (
                         <CheckCircle className="ml-2 h-4 w-4" />
                       )}
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => setSelectedStatus("onLeave")}>
+                      onClick={() => {
+                        setSelectedStatus("onLeave");
+                        setActiveTab("onLeave");
+                      }}>
                       On Leave
                       {selectedStatus === "onLeave" && (
                         <CheckCircle className="ml-2 h-4 w-4" />
@@ -1611,7 +1631,7 @@ export default function Employees() {
                             crossOrigin="anonymous"
                             onError={(e) => {
                               // Hide broken image and show fallback
-                              e.target.style.display = 'none';
+                              e.target.style.display = "none";
                             }}
                           />
                           <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs">
