@@ -145,20 +145,55 @@ export default function EmployeeDashboard() {
           /test\./i,
           /^\d+\s+event/i,
           /->\s*all\s+employee/i,
+          /monthly\s+all-hands\s+meeting/i,
+          /department\s+review\s+meeting/i,
+          /team\s+training\s+session/i,
+        ];
+
+        const dummyTitles = [
+          "monthly all-hands meeting",
+          "department review meeting",
+          "team training session",
         ];
 
         const filteredEvents = eventsList.filter((event) => {
-          const title = (event.title || "").toLowerCase();
-          return !dummyPatterns.some((pattern) => pattern.test(title));
+          const title = (event.title || "").toLowerCase().trim();
+          
+          // Check against patterns
+          const matchesPattern = dummyPatterns.some((pattern) =>
+            pattern.test(title)
+          );
+
+          // Check against exact titles
+          const matchesTitle = dummyTitles.some((dummyTitle) =>
+            title === dummyTitle
+          );
+
+          return !matchesPattern && !matchesTitle;
         });
 
-        // Remove duplicates by id
+        // Remove duplicates by id and title (to handle same title with different IDs)
         const uniqueEvents = Array.from(
-          new Map(filteredEvents.map((event) => [event.id, event])).values()
+          new Map(
+            filteredEvents.map((event) => [
+              `${event.id}-${(event.title || "").toLowerCase().trim()}`,
+              event,
+            ])
+          ).values()
         );
 
+        // Additional deduplication by title only (in case same title appears with different IDs)
+        const titleMap = new Map();
+        uniqueEvents.forEach((event) => {
+          const titleKey = (event.title || "").toLowerCase().trim();
+          if (!titleMap.has(titleKey) || new Date(event.start || event.start_date_time) > new Date(titleMap.get(titleKey).start || titleMap.get(titleKey).start_date_time)) {
+            titleMap.set(titleKey, event);
+          }
+        });
+        const finalUniqueEvents = Array.from(titleMap.values());
+
         // Transform events for display
-        const formattedEvents = uniqueEvents.map((event) => ({
+        const formattedEvents = finalUniqueEvents.map((event) => ({
           id: event.id,
           title: event.title,
           description: event.description || "",
@@ -301,9 +336,54 @@ export default function EmployeeDashboard() {
         ? notificationsData
         : notificationsData?.data || notificationsData?.notifications || [];
 
-      // Remove duplicates by id
+      // Filter out dummy/test notifications
+      const dummyPatterns = [
+        /review\s+company\s+policy\s+updates/i,
+        /submit\s+monthly\s+report/i,
+        /complete\s+safety\s+training\s+module/i,
+        /department\s+review\s+meeting/i,
+        /team\s+training\s+session/i,
+        /monthly\s+all-hands\s+meeting/i,
+        /^test\s+/i,
+        /^dummy\s+/i,
+        /test\./i,
+      ];
+
+      const dummyMessages = [
+        "review company policy updates",
+        "submit monthly report",
+        "complete safety training module",
+        "department review meeting",
+        "team training session",
+        "monthly all-hands meeting",
+      ];
+
+      const filteredNotifications = notificationsList.filter((notif) => {
+        const title = (notif.title || "").toLowerCase();
+        const message = (notif.message || notif.text || "").toLowerCase();
+        const combined = `${title} ${message}`;
+
+        // Check against patterns
+        const matchesPattern = dummyPatterns.some((pattern) =>
+          pattern.test(combined)
+        );
+
+        // Check against exact messages
+        const matchesMessage = dummyMessages.some((dummyMsg) =>
+          combined.includes(dummyMsg)
+        );
+
+        return !matchesPattern && !matchesMessage;
+      });
+
+      // Remove duplicates by id and content
       const uniqueNotifications = Array.from(
-        new Map(notificationsList.map((notif) => [notif.id, notif])).values()
+        new Map(
+          filteredNotifications.map((notif) => [
+            `${notif.id}-${notif.title}-${notif.message}`,
+            notif,
+          ])
+        ).values()
       );
 
       // Transform notifications for display
