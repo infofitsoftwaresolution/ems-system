@@ -47,8 +47,148 @@ export function EnhancedHeader({ toggleSidebar }) {
         apiService.getUnreadNotificationCount(),
       ]);
 
-      setNotifications(allNotifications || []);
-      setUnreadCount(countData?.count || 0);
+      const notificationsList = Array.isArray(allNotifications)
+        ? allNotifications
+        : allNotifications?.data || allNotifications?.notifications || [];
+
+      // Filter out dummy/test notifications - comprehensive patterns
+      const dummyPatterns = [
+        /^test\s+/i,
+        /^dummy\s+/i,
+        /test\./i,
+        /complete\s+safety\s+training\s+module/i,
+        /review\s+company\s+policy\s+updates/i,
+        /department\s+review\s+meeting/i,
+        /monthly\s+all-hands\s+meeting/i,
+        /new\s+task\s+assigned.*complete\s+safety/i,
+        /new\s+task\s+assigned.*review\s+company/i,
+        /new\s+event\s+assigned.*department\s+review/i,
+        /new\s+event\s+assigned.*monthly\s+all-hands/i,
+      ];
+
+      // Specific dummy notification messages to filter (case-insensitive matching)
+      const dummyMessages = [
+        "complete safety training module",
+        "review company policy updates",
+        "new task assigned: complete safety training module",
+        "new task assigned: review company policy updates",
+        "new event assigned: department review meeting",
+        "new event assigned: monthly all-hands meeting",
+        "test task",
+        "today task",
+        "compelte this task",
+        "department review meeting",
+        "monthly all-hands meeting",
+      ];
+
+      const filteredNotifications = notificationsList.filter((notif) => {
+        const title = (notif.title || "").toLowerCase().trim();
+        const message = (notif.message || notif.text || "").toLowerCase().trim();
+        const fullText = `${title} ${message}`.trim();
+
+        // Skip if title or message is empty
+        if (!title && !message) {
+          return false;
+        }
+
+        // Filter out notifications matching dummy patterns in title or message
+        if (
+          dummyPatterns.some(
+            (pattern) =>
+              pattern.test(title) ||
+              pattern.test(message) ||
+              pattern.test(fullText)
+          )
+        ) {
+          return false;
+        }
+
+        // Filter out notifications containing dummy messages (more aggressive matching)
+        if (
+          dummyMessages.some(
+            (dummyMsg) =>
+              title.includes(dummyMsg) ||
+              message.includes(dummyMsg) ||
+              fullText.includes(dummyMsg)
+          )
+        ) {
+          return false;
+        }
+
+        // Additional check: filter if message contains "Due:" with dates (common in dummy task notifications)
+        // But only if it also contains our dummy keywords
+        if (
+          (message.includes("due:") || message.includes("(due:")) &&
+          (message.includes("complete safety") ||
+            message.includes("review company") ||
+            message.includes("department review") ||
+            message.includes("monthly all-hands"))
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+      // Remove duplicates by id (keep the most recent one)
+      const uniqueById = new Map();
+      filteredNotifications.forEach((notif) => {
+        if (!uniqueById.has(notif.id)) {
+          uniqueById.set(notif.id, notif);
+        } else {
+          // If duplicate id exists, keep the one with later createdAt
+          const existing = uniqueById.get(notif.id);
+          const existingDate = existing.createdAt
+            ? new Date(existing.createdAt)
+            : new Date(0);
+          const currentDate = notif.createdAt
+            ? new Date(notif.createdAt)
+            : new Date(0);
+          if (currentDate > existingDate) {
+            uniqueById.set(notif.id, notif);
+          }
+        }
+      });
+
+      // Also remove duplicates by message+title combination (for notifications with same content)
+      const uniqueByContent = new Map();
+      Array.from(uniqueById.values()).forEach((notif) => {
+        const contentKey = `${(notif.title || "").trim()}_${
+          notif.message || notif.text || ""
+        }`.trim();
+        if (!uniqueByContent.has(contentKey)) {
+          uniqueByContent.set(contentKey, notif);
+        } else {
+          // If duplicate content exists, keep the one with later createdAt
+          const existing = uniqueByContent.get(contentKey);
+          const existingDate = existing.createdAt
+            ? new Date(existing.createdAt)
+            : new Date(0);
+          const currentDate = notif.createdAt
+            ? new Date(notif.createdAt)
+            : new Date(0);
+          if (currentDate > existingDate) {
+            uniqueByContent.set(contentKey, notif);
+          }
+        }
+      });
+
+      // Sort by createdAt (newest first)
+      const finalNotifications = Array.from(uniqueByContent.values()).sort(
+        (a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+          const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+          return dateB - dateA;
+        }
+      );
+
+      // Calculate unread count from filtered notifications
+      const filteredUnreadCount = finalNotifications.filter(
+        (n) => !n.isRead
+      ).length;
+
+      setNotifications(finalNotifications);
+      setUnreadCount(filteredUnreadCount);
     } catch (error) {
       console.error("Error loading notifications:", error);
       setNotifications([]);
@@ -67,6 +207,19 @@ export function EnhancedHeader({ toggleSidebar }) {
       return () => clearInterval(interval);
     }
   }, [user?.id, loadNotifications]);
+
+  // Listen for notification updates from other components (notifications page)
+  useEffect(() => {
+    const handleNotificationUpdate = () => {
+      // Reload notifications when updated from notifications page
+      loadNotifications();
+    };
+
+    window.addEventListener('notification-updated', handleNotificationUpdate);
+    return () => {
+      window.removeEventListener('notification-updated', handleNotificationUpdate);
+    };
+  }, [loadNotifications]);
 
   // Handle real-time notifications via Socket.io
   const handleNewNotification = useCallback(
@@ -94,6 +247,11 @@ export function EnhancedHeader({ toggleSidebar }) {
     try {
       await apiService.markAllNotificationsAsRead();
       await loadNotifications(); // Refresh notifications
+      
+      // Dispatch event to notify other components (notifications page)
+      window.dispatchEvent(new CustomEvent('notification-updated', { 
+        detail: { type: 'marked-all-read' } 
+      }));
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
     }
@@ -318,6 +476,11 @@ export function EnhancedHeader({ toggleSidebar }) {
                                   notification.id
                                 );
                                 await loadNotifications();
+                                
+                                // Dispatch event to notify other components (notifications page)
+                                window.dispatchEvent(new CustomEvent('notification-updated', { 
+                                  detail: { type: 'marked-read', notificationId: notification.id } 
+                                }));
                               } catch (error) {
                                 console.error(
                                   "Error marking notification as read:",

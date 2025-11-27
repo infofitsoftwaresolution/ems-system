@@ -115,16 +115,18 @@ class ApiService {
   async exportEmployeesCSV() {
     const url = `${this.baseURL}/api/employees/export/csv`;
     const token = this.getAuthToken();
-    
+
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "Authorization": token ? `Bearer ${token}` : "",
+        Authorization: token ? `Bearer ${token}` : "",
       },
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: "Export failed" }));
+      const errorData = await response
+        .json()
+        .catch(() => ({ message: "Export failed" }));
       throw new Error(errorData.message || `HTTP ${response.status}`);
     }
 
@@ -143,16 +145,18 @@ class ApiService {
   async exportEmployeeCSV(id) {
     const url = `${this.baseURL}/api/employees/${id}/export/csv`;
     const token = this.getAuthToken();
-    
+
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "Authorization": token ? `Bearer ${token}` : "",
+        Authorization: token ? `Bearer ${token}` : "",
       },
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: "Export failed" }));
+      const errorData = await response
+        .json()
+        .catch(() => ({ message: "Export failed" }));
       throw new Error(errorData.message || `HTTP ${response.status}`);
     }
 
@@ -215,7 +219,7 @@ class ApiService {
     formData.append("avatar", file);
 
     const token = this.getAuthToken();
-    
+
     // For FormData, don't set Content-Type - browser will set it automatically with boundary
     const headers = {};
     if (token) {
@@ -232,7 +236,9 @@ class ApiService {
       if (!response.ok) {
         const errorData = await response
           .json()
-          .catch(() => ({ message: `Upload failed with status ${response.status}` }));
+          .catch(() => ({
+            message: `Upload failed with status ${response.status}`,
+          }));
         throw new Error(errorData.message || `HTTP ${response.status}`);
       }
 
@@ -245,7 +251,9 @@ class ApiService {
         error.message.includes("ERR_CONNECTION_REFUSED") ||
         error.name === "TypeError"
       ) {
-        throw new Error("Backend server is not running. Please start the backend server.");
+        throw new Error(
+          "Backend server is not running. Please start the backend server."
+        );
       }
       throw error;
     }
@@ -265,7 +273,7 @@ class ApiService {
       if (currentUserEmail) {
         return currentUserEmail;
       }
-      
+
       // Second, try userContext (set by auth context)
       const userContextStr = localStorage.getItem("userContext");
       if (userContextStr) {
@@ -274,7 +282,7 @@ class ApiService {
           return user.email;
         }
       }
-      
+
       // Third, try user (legacy key)
       const userStr = localStorage.getItem("user");
       if (userStr) {
@@ -496,7 +504,9 @@ class ApiService {
     if (filters.assigneeId) params.append("assigneeId", filters.assigneeId);
 
     const queryString = params.toString();
-    const response = await this.request(`/api/tasks${queryString ? `?${queryString}` : ""}`);
+    const response = await this.request(
+      `/api/tasks${queryString ? `?${queryString}` : ""}`
+    );
     // Handle new response format: { success: true, data: [...] }
     return response.success ? response.data : response;
   }
@@ -553,7 +563,9 @@ class ApiService {
     if (filters.end) params.append("end", filters.end);
 
     const queryString = params.toString();
-    const response = await this.request(`/api/events${queryString ? `?${queryString}` : ""}`);
+    const response = await this.request(
+      `/api/events${queryString ? `?${queryString}` : ""}`
+    );
     // Handle new response format: { success: true, data: [...] }
     return response.success ? response.data : response;
   }
@@ -647,7 +659,12 @@ class ApiService {
   }
 
   // Notification endpoints
-  async getNotifications(limit = 50, offset = 0, unreadOnly = false, eventId = null) {
+  async getNotifications(
+    limit = 50,
+    offset = 0,
+    unreadOnly = false,
+    eventId = null
+  ) {
     const params = new URLSearchParams({
       limit: limit.toString(),
       offset: offset.toString(),
@@ -675,6 +692,12 @@ class ApiService {
     });
   }
 
+  async deleteNotification(notificationId) {
+    return this.request(`/api/notifications/${notificationId}`, {
+      method: "DELETE",
+    });
+  }
+
   async createNotification(data) {
     return this.request("/api/notifications", {
       method: "POST",
@@ -683,16 +706,20 @@ class ApiService {
   }
 
   async getChannels() {
-    return this.request('/api/messages/channels');
+    return this.request("/api/messages/channels");
   }
 
   async getChannelMessages(channelId) {
-    return this.request(`/api/messages/channel/${encodeURIComponent(channelId)}`);
+    return this.request(
+      `/api/messages/channel/${encodeURIComponent(channelId)}`
+    );
   }
 
   // Analytics endpoints
-  async getTeamActivity(period = 'week') {
-    const response = await this.request(`/api/analytics/team-activity?period=${period}`);
+  async getTeamActivity(period = "week") {
+    const response = await this.request(
+      `/api/analytics/team-activity?period=${period}`
+    );
     return response.success ? response.data : response;
   }
 

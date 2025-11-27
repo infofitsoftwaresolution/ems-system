@@ -87,17 +87,119 @@ export default function Dashboard() {
     }
 
     const now = new Date();
-    return eventsData
-      .filter((event) => {
-        if (!event || !event.start) return false;
-        try {
-          const eventStart = parseISO(event.start);
-          return eventStart >= now;
-        } catch (error) {
-          console.error("Error parsing event date:", error, event);
-          return false;
+
+    // Comprehensive filter out dummy/test data
+    const dummyPatterns = [
+      /^test\s+/i,
+      /^dummy\s+/i,
+      /test\./i,
+      /^\d+\s+event/i,
+      /->\s*all\s+employee/i,
+      /department\s+review\s+meeting/i,
+      /monthly\s+all-hands\s+meeting/i,
+      /team\s+training\s+session/i,
+    ];
+
+    // Specific dummy event titles to filter
+    const dummyTitles = [
+      "27 event -> all employee",
+      "department review meeting",
+      "monthly all-hands meeting",
+      "team training session",
+      "test event",
+      "dummy event",
+    ];
+
+    const filteredEvents = eventsData.filter((event) => {
+      if (!event || !event.start) return false;
+
+      const title = (event.title || "").toLowerCase().trim();
+      const description = (event.description || "").toLowerCase().trim();
+      const fullText = `${title} ${description}`.trim();
+
+      // Skip if title is empty
+      if (!title) {
+        return false;
+      }
+
+      // Filter out events matching dummy patterns
+      if (
+        dummyPatterns.some(
+          (pattern) =>
+            pattern.test(title) ||
+            pattern.test(description) ||
+            pattern.test(fullText)
+        )
+      ) {
+        return false;
+      }
+
+      // Filter out events containing dummy titles
+      if (
+        dummyTitles.some(
+          (dummyTitle) =>
+            title.includes(dummyTitle) ||
+            description.includes(dummyTitle) ||
+            fullText.includes(dummyTitle)
+        )
+      ) {
+        return false;
+      }
+
+      // Only show future events
+      try {
+        const eventStart = parseISO(event.start);
+        return eventStart >= now;
+      } catch (error) {
+        console.error("Error parsing event date:", error, event);
+        return false;
+      }
+    });
+
+    // Remove duplicates by id (keep the most recent one)
+    const uniqueById = new Map();
+    filteredEvents.forEach((event) => {
+      if (!uniqueById.has(event.id)) {
+        uniqueById.set(event.id, event);
+      } else {
+        // If duplicate id exists, keep the one with later createdAt
+        const existing = uniqueById.get(event.id);
+        const existingDate = existing.createdAt
+          ? new Date(existing.createdAt)
+          : new Date(0);
+        const currentDate = event.createdAt
+          ? new Date(event.createdAt)
+          : new Date(0);
+        if (currentDate > existingDate) {
+          uniqueById.set(event.id, event);
         }
-      })
+      }
+    });
+
+    // Also remove duplicates by title+start combination
+    const uniqueByContent = new Map();
+    Array.from(uniqueById.values()).forEach((event) => {
+      const contentKey = `${(event.title || "").trim()}_${event.start || ""}`;
+      if (!uniqueByContent.has(contentKey)) {
+        uniqueByContent.set(contentKey, event);
+      } else {
+        // If duplicate content exists, keep the one with later createdAt
+        const existing = uniqueByContent.get(contentKey);
+        const existingDate = existing.createdAt
+          ? new Date(existing.createdAt)
+          : new Date(0);
+        const currentDate = event.createdAt
+          ? new Date(event.createdAt)
+          : new Date(0);
+        if (currentDate > existingDate) {
+          uniqueByContent.set(contentKey, event);
+        }
+      }
+    });
+
+    const finalEvents = Array.from(uniqueByContent.values());
+
+    return finalEvents
       .sort((a, b) => {
         try {
           const aTime = parseISO(a.start).getTime();
@@ -138,29 +240,39 @@ export default function Dashboard() {
         const employeesRaw =
           employeesData.status === "fulfilled" ? employeesData.value : null;
         let employeesResult = [];
-        
+
         if (Array.isArray(employeesRaw)) {
           // Direct array response (legacy format)
           employeesResult = employeesRaw;
-        } else if (employeesRaw && typeof employeesRaw === 'object') {
+        } else if (employeesRaw && typeof employeesRaw === "object") {
           // Handle new API response format: { success: true, data: [...], count: ... }
           if (employeesRaw.data && Array.isArray(employeesRaw.data)) {
             employeesResult = employeesRaw.data;
-          } else if (employeesRaw.success && employeesRaw.data && Array.isArray(employeesRaw.data)) {
+          } else if (
+            employeesRaw.success &&
+            employeesRaw.data &&
+            Array.isArray(employeesRaw.data)
+          ) {
             employeesResult = employeesRaw.data;
           } else {
             // Fallback: if data is not an array, use empty array
-            console.warn('Employees data is not in expected format:', employeesRaw);
+            console.warn(
+              "Employees data is not in expected format:",
+              employeesRaw
+            );
             employeesResult = [];
           }
         }
-        
+
         // Ensure employeesResult is always an array
         if (!Array.isArray(employeesResult)) {
-          console.warn('Employees result is not an array, defaulting to empty array:', employeesResult);
+          console.warn(
+            "Employees result is not an array, defaulting to empty array:",
+            employeesResult
+          );
           employeesResult = [];
         }
-        
+
         const attendanceRaw =
           attendanceData.status === "fulfilled" ? attendanceData.value : null;
         const attendanceResult = Array.isArray(attendanceRaw)
@@ -168,7 +280,7 @@ export default function Dashboard() {
           : attendanceRaw?.data && Array.isArray(attendanceRaw.data)
           ? attendanceRaw.data
           : [];
-        
+
         const kycRaw = kycData.status === "fulfilled" ? kycData.value : null;
         const kycResult = Array.isArray(kycRaw)
           ? kycRaw
@@ -187,7 +299,9 @@ export default function Dashboard() {
           ? employeesResult.length
           : 0;
         const activeEmployees = Array.isArray(employeesResult)
-          ? employeesResult.filter((emp) => emp.status === "active" || emp.status === "Working").length
+          ? employeesResult.filter(
+              (emp) => emp.status === "active" || emp.status === "Working"
+            ).length
           : 0;
         const departmentsCount = Array.isArray(employeesResult)
           ? new Set(employeesResult.map((emp) => emp.department)).size
@@ -276,7 +390,11 @@ export default function Dashboard() {
       }
     };
 
-    if (user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager') {
+    if (
+      user?.role === "admin" ||
+      user?.role === "hr" ||
+      user?.role === "manager"
+    ) {
       fetchTeamActivity();
     }
   }, [timeRange, user?.role]);
@@ -294,7 +412,11 @@ export default function Dashboard() {
       }
     };
 
-    if (user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager') {
+    if (
+      user?.role === "admin" ||
+      user?.role === "hr" ||
+      user?.role === "manager"
+    ) {
       fetchTrainingMetrics();
     }
   }, [user?.role]);
@@ -312,7 +434,11 @@ export default function Dashboard() {
       }
     };
 
-    if (user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager') {
+    if (
+      user?.role === "admin" ||
+      user?.role === "hr" ||
+      user?.role === "manager"
+    ) {
       fetchDepartmentStats();
     }
   }, [user?.role]);
@@ -324,18 +450,21 @@ export default function Dashboard() {
       stats: stats,
       totalEmployees: Array.isArray(employees) ? employees.length : 0,
       activeEmployees: Array.isArray(employees)
-        ? employees.filter((emp) => emp.status === "active" || emp.status === "Working").length
+        ? employees.filter(
+            (emp) => emp.status === "active" || emp.status === "Working"
+          ).length
         : 0,
       departments: departmentData,
-      recentEmployees: Array.isArray(employees) && employees.length > 0
-        ? (employees || []).slice(0, 10).map((emp) => ({
-            name: emp.name,
-            email: emp.email,
-            department: emp.department || emp.location,
-            status: emp.status,
-            hireDate: emp.hireDate,
-          }))
-        : [],
+      recentEmployees:
+        Array.isArray(employees) && employees.length > 0
+          ? (employees || []).slice(0, 10).map((emp) => ({
+              name: emp.name,
+              email: emp.email,
+              department: emp.department || emp.location,
+              status: emp.status,
+              hireDate: emp.hireDate,
+            }))
+          : [],
       attendance: {
         today: attendance.filter((att) => {
           const attDate = new Date(att.date);
@@ -420,15 +549,17 @@ export default function Dashboard() {
 
   // Department distribution data for pie chart
   // Use API data if available, otherwise fallback to employee data
-  const departmentData = departmentStats.length > 0
-    ? departmentStats.map(dept => ({
-        name: dept.name,
-        value: dept.value || dept.total || 0
-      }))
-    : employees.length > 0
+  const departmentData =
+    departmentStats.length > 0
+      ? departmentStats.map((dept) => ({
+          name: dept.name,
+          value: dept.value || dept.total || 0,
+        }))
+      : employees.length > 0
       ? Object.entries(
           employees.reduce((acc, emp) => {
-            const dept = emp.department || emp.location || emp.designation || "Unknown";
+            const dept =
+              emp.department || emp.location || emp.designation || "Unknown";
             acc[dept] = (acc[dept] || 0) + 1;
             return acc;
           }, {})
@@ -557,7 +688,9 @@ export default function Dashboard() {
                     <div className="flex h-full items-center justify-center text-muted-foreground">
                       <div className="text-center">
                         <p className="text-sm">No activity data available</p>
-                        <p className="text-xs mt-2">Activity data will appear as employees use the system</p>
+                        <p className="text-xs mt-2">
+                          Activity data will appear as employees use the system
+                        </p>
                       </div>
                     </div>
                   ) : (
@@ -566,21 +699,21 @@ export default function Dashboard() {
                         data={activity}
                         margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="date" 
+                        <XAxis
+                          dataKey="date"
                           tickFormatter={(value) => {
                             try {
-                              return format(new Date(value), 'MMM dd');
+                              return format(new Date(value), "MMM dd");
                             } catch {
                               return value;
                             }
                           }}
                         />
                         <YAxis />
-                        <Tooltip 
+                        <Tooltip
                           labelFormatter={(value) => {
                             try {
-                              return format(new Date(value), 'MMM dd, yyyy');
+                              return format(new Date(value), "MMM dd, yyyy");
                             } catch {
                               return value;
                             }
@@ -672,36 +805,44 @@ export default function Dashboard() {
                             {trainingMetrics.overallCompletionRate}%
                           </div>
                         </div>
-                        <Progress value={trainingMetrics.overallCompletionRate} />
+                        <Progress
+                          value={trainingMetrics.overallCompletionRate}
+                        />
                         <p className="text-xs text-muted-foreground">
-                          {trainingMetrics.employeesWithKYC} of {trainingMetrics.totalEmployees} employees completed
+                          {trainingMetrics.employeesWithKYC} of{" "}
+                          {trainingMetrics.totalEmployees} employees completed
                         </p>
                       </div>
-                      
+
                       {/* Department-wise metrics */}
-                      {trainingMetrics.byDepartment && trainingMetrics.byDepartment.length > 0 && (
-                        <>
-                          <div className="border-t pt-4 mt-4">
-                            <h4 className="text-sm font-semibold mb-3">By Department</h4>
-                            {trainingMetrics.byDepartment.map((dept, index) => (
-                              <div key={index} className="space-y-2 mb-4">
-                                <div className="flex items-center justify-between">
-                                  <div className="text-sm font-medium">
-                                    {dept.name || 'Unassigned'}
+                      {trainingMetrics.byDepartment &&
+                        trainingMetrics.byDepartment.length > 0 && (
+                          <>
+                            <div className="border-t pt-4 mt-4">
+                              <h4 className="text-sm font-semibold mb-3">
+                                By Department
+                              </h4>
+                              {trainingMetrics.byDepartment.map(
+                                (dept, index) => (
+                                  <div key={index} className="space-y-2 mb-4">
+                                    <div className="flex items-center justify-between">
+                                      <div className="text-sm font-medium">
+                                        {dept.name || "Unassigned"}
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">
+                                        {dept.completionRate}%
+                                      </div>
+                                    </div>
+                                    <Progress value={dept.completionRate} />
+                                    <p className="text-xs text-muted-foreground">
+                                      {dept.completed} of {dept.total} employees
+                                    </p>
                                   </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {dept.completionRate}%
-                                  </div>
-                                </div>
-                                <Progress value={dept.completionRate} />
-                                <p className="text-xs text-muted-foreground">
-                                  {dept.completed} of {dept.total} employees
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
+                                )
+                              )}
+                            </div>
+                          </>
+                        )}
                     </div>
                   ) : (
                     <div className="flex h-[200px] items-center justify-center text-muted-foreground">
@@ -732,52 +873,59 @@ export default function Dashboard() {
                 <div className="space-y-4">
                   {Array.isArray(employees) && employees.length > 0 ? (
                     (employees || []).slice(0, 5).map((employee) => (
-                    <div key={employee.id} className="flex items-center gap-4">
-                      <Avatar>
-                        <AvatarImage
-                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            employee.name
-                          )}&background=random`}
-                        />
-                        <AvatarFallback>
-                          {employee.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 space-y-1">
-                        <p className="font-medium leading-none">
-                          {employee.name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {employee.role} • {employee.department}
-                        </p>
+                      <div
+                        key={employee.id}
+                        className="flex items-center gap-4">
+                        <Avatar>
+                          <AvatarImage
+                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                              employee.name
+                            )}&background=random`}
+                          />
+                          <AvatarFallback>
+                            {employee.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 space-y-1">
+                          <p className="font-medium leading-none">
+                            {employee.name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {employee.role} • {employee.department}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
+                              employee.status === "active" ||
+                              employee.status === "Working"
+                                ? "bg-primary/20 text-primary"
+                                : employee.status === "onLeave"
+                                ? "bg-yellow-100 text-yellow-700"
+                                : "bg-red-100 text-red-700"
+                            }`}>
+                            {employee.status === "Working"
+                              ? "Active"
+                              : employee.status === "Not Working"
+                              ? "Inactive"
+                              : employee.status}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {employee.department === "d1"
+                              ? "Engineering"
+                              : employee.department === "d2"
+                              ? "HR"
+                              : employee.department === "d3"
+                              ? "Finance"
+                              : employee.department === "d4"
+                              ? "Marketing"
+                              : "Other"}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
-                            employee.status === "active" || employee.status === "Working"
-                              ? "bg-primary/20 text-primary"
-                              : employee.status === "onLeave"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-red-100 text-red-700"
-                          }`}>
-                          {employee.status === "Working" ? "Active" : employee.status === "Not Working" ? "Inactive" : employee.status}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {employee.department === "d1"
-                            ? "Engineering"
-                            : employee.department === "d2"
-                            ? "HR"
-                            : employee.department === "d3"
-                            ? "Finance"
-                            : employee.department === "d4"
-                            ? "Marketing"
-                            : "Other"}
-                        </span>
-                      </div>
-                    </div>
                     ))
                   ) : (
                     <div className="text-center text-sm text-muted-foreground py-8">

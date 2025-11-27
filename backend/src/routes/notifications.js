@@ -173,6 +173,37 @@ router.put("/read-all", authenticateToken, async (req, res) => {
   }
 });
 
+// Delete a notification
+router.delete("/:id", authenticateToken, async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    const notification = await Notification.findOne({
+      where: {
+        id: req.params.id,
+        userId: user.id,
+      },
+    });
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+
+    await notification.destroy();
+
+    res.json({ success: true, message: "Notification deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting notification:", error);
+    res.status(500).json({
+      message: "Error deleting notification",
+      error: error.message,
+    });
+  }
+});
+
 // Create a notification (for admin/system use)
 router.post("/", authenticateToken, async (req, res) => {
   try {

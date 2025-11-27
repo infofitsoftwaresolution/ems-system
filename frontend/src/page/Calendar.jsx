@@ -21,8 +21,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarIcon, Plus, Edit, Trash2, Users, User } from "lucide-react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO } from "date-fns";
+import {
+  Calendar as CalendarIcon,
+  Plus,
+  Edit,
+  Trash2,
+  Users,
+  User,
+} from "lucide-react";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  isSameMonth,
+  isSameDay,
+  addMonths,
+  subMonths,
+  parseISO,
+} from "date-fns";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
@@ -37,6 +54,8 @@ export default function Calendar() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [newEvent, setNewEvent] = useState({
     title: "",
@@ -55,7 +74,11 @@ export default function Calendar() {
       if (isAdminOrHR) {
         try {
           const employeesData = await apiService.getEmployees();
-          setEmployees(Array.isArray(employeesData) ? employeesData : employeesData.data || []);
+          setEmployees(
+            Array.isArray(employeesData)
+              ? employeesData
+              : employeesData.data || []
+          );
         } catch (error) {
           console.error("Error loading employees:", error);
         }
@@ -70,13 +93,117 @@ export default function Calendar() {
       setLoading(true);
       const startOfCurrentMonth = startOfMonth(currentDate);
       const endOfCurrentMonth = endOfMonth(currentDate);
-      
+
       const eventsData = await apiService.getEvents({
         start: startOfCurrentMonth.toISOString(),
         end: endOfCurrentMonth.toISOString(),
       });
-      
-      setEvents(Array.isArray(eventsData) ? eventsData : []);
+
+      const eventsList = Array.isArray(eventsData)
+        ? eventsData
+        : eventsData?.data || eventsData?.events || [];
+
+      // Filter out dummy/test events
+      const dummyPatterns = [
+        /^test\s+/i,
+        /^dummy\s+/i,
+        /test\./i,
+        /^\d+\s+event/i,
+        /->\s*all\s+employee/i,
+        /department\s+review\s+meeting/i,
+        /monthly\s+all-hands\s+meeting/i,
+      ];
+
+      // Specific dummy event titles to filter
+      const dummyTitles = [
+        "27 event -> all employee",
+        "department review meeting",
+        "monthly all-hands meeting",
+        "test event",
+        "dummy event",
+      ];
+
+      const filteredEvents = eventsList.filter((event) => {
+        const title = (event.title || "").toLowerCase().trim();
+        const description = (event.description || "").toLowerCase().trim();
+        const fullText = `${title} ${description}`.trim();
+
+        // Skip if title is empty
+        if (!title) {
+          return false;
+        }
+
+        // Filter out events matching dummy patterns
+        if (
+          dummyPatterns.some(
+            (pattern) =>
+              pattern.test(title) ||
+              pattern.test(description) ||
+              pattern.test(fullText)
+          )
+        ) {
+          return false;
+        }
+
+        // Filter out events containing dummy titles
+        if (
+          dummyTitles.some(
+            (dummyTitle) =>
+              title.includes(dummyTitle) ||
+              description.includes(dummyTitle) ||
+              fullText.includes(dummyTitle)
+          )
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+      // Remove duplicates by id (keep the most recent one)
+      const uniqueById = new Map();
+      filteredEvents.forEach((event) => {
+        if (!uniqueById.has(event.id)) {
+          uniqueById.set(event.id, event);
+        } else {
+          // If duplicate id exists, keep the one with later createdAt
+          const existing = uniqueById.get(event.id);
+          const existingDate = existing.createdAt
+            ? new Date(existing.createdAt)
+            : new Date(0);
+          const currentDate = event.createdAt
+            ? new Date(event.createdAt)
+            : new Date(0);
+          if (currentDate > existingDate) {
+            uniqueById.set(event.id, event);
+          }
+        }
+      });
+
+      // Also remove duplicates by title+start combination
+      const uniqueByContent = new Map();
+      Array.from(uniqueById.values()).forEach((event) => {
+        const contentKey = `${(event.title || "").trim()}_${event.start || ""}`;
+        if (!uniqueByContent.has(contentKey)) {
+          uniqueByContent.set(contentKey, event);
+        } else {
+          // If duplicate content exists, keep the one with later createdAt
+          const existing = uniqueByContent.get(contentKey);
+          const existingDate = existing.createdAt
+            ? new Date(existing.createdAt)
+            : new Date(0);
+          const currentDate = event.createdAt
+            ? new Date(event.createdAt)
+            : new Date(0);
+          if (currentDate > existingDate) {
+            uniqueByContent.set(contentKey, event);
+          }
+        }
+      });
+
+      const finalEvents = Array.from(uniqueByContent.values());
+
+      setEvents(finalEvents);
     } catch (error) {
       console.error("Error loading events:", error);
       toast.error("Failed to load events");
@@ -96,8 +223,16 @@ export default function Calendar() {
   const getEventsForDay = (day) => {
     return events.filter((event) => {
       try {
-        const eventStart = event.start ? (typeof event.start === 'string' ? parseISO(event.start) : new Date(event.start)) : null;
-        const eventEnd = event.end ? (typeof event.end === 'string' ? parseISO(event.end) : new Date(event.end)) : null;
+        const eventStart = event.start
+          ? typeof event.start === "string"
+            ? parseISO(event.start)
+            : new Date(event.start)
+          : null;
+        const eventEnd = event.end
+          ? typeof event.end === "string"
+            ? parseISO(event.end)
+            : new Date(event.end)
+          : null;
         if (!eventStart || !eventEnd) return false;
         return (
           isSameDay(eventStart, day) ||
@@ -130,7 +265,10 @@ export default function Calendar() {
         start_date_time: new Date(newEvent.start_date_time).toISOString(),
         end_date_time: new Date(newEvent.end_date_time).toISOString(),
         visibility_type: newEvent.visibility_type,
-        assigned_users: newEvent.visibility_type === "SPECIFIC" ? newEvent.assigned_users : null,
+        assigned_users:
+          newEvent.visibility_type === "SPECIFIC"
+            ? newEvent.assigned_users
+            : null,
       };
 
       await apiService.createEvent(eventData);
@@ -167,7 +305,10 @@ export default function Calendar() {
         start_date_time: new Date(selectedEvent.start).toISOString(),
         end_date_time: new Date(selectedEvent.end).toISOString(),
         visibility_type: selectedEvent.visibility_type,
-        assigned_users: selectedEvent.visibility_type === "SPECIFIC" ? selectedEvent.assigned_users : null,
+        assigned_users:
+          selectedEvent.visibility_type === "SPECIFIC"
+            ? selectedEvent.assigned_users
+            : null,
       };
 
       await apiService.updateEvent(selectedEvent.id, eventData);
@@ -181,21 +322,43 @@ export default function Calendar() {
     }
   };
 
+  // Handle delete event confirmation
+  const handleDeleteClick = (eventId) => {
+    setEventToDelete(eventId);
+    setIsDeleteDialogOpen(true);
+  };
+
   // Handle delete event
-  const handleDeleteEvent = async (eventId) => {
-    if (!confirm("Are you sure you want to delete this event?")) {
-      return;
-    }
+  const handleDeleteEvent = async () => {
+    if (!eventToDelete) return;
 
     try {
-      await apiService.deleteEvent(eventId);
-      toast.success("Event deleted successfully");
+      await apiService.deleteEvent(eventToDelete);
+
+      // Immediately remove event from state (optimistic update)
+      // Handle both string and number IDs
+      setEvents((prevEvents) =>
+        prevEvents.filter((event) => String(event.id) !== String(eventToDelete))
+      );
+
+      // Close dialogs
       setIsViewDialogOpen(false);
+      setIsEditDialogOpen(false);
+      setIsDeleteDialogOpen(false);
       setSelectedEvent(null);
-      loadEvents();
+      setEventToDelete(null);
+
+      // Reload events to ensure consistency with backend
+      await loadEvents();
+
+      toast.success("Event deleted successfully");
     } catch (error) {
       console.error("Error deleting event:", error);
       toast.error(error.message || "Failed to delete event");
+      setIsDeleteDialogOpen(false);
+      setEventToDelete(null);
+      // Reload events on error to ensure UI is in sync
+      loadEvents();
     }
   };
 
@@ -223,24 +386,21 @@ export default function Calendar() {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            onClick={() => setCurrentDate(subMonths(currentDate, 1))}
-          >
+            onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
             Previous
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => setCurrentDate(new Date())}
-          >
+          <Button variant="outline" onClick={() => setCurrentDate(new Date())}>
             Today
           </Button>
           <Button
             variant="outline"
-            onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-          >
+            onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
             Next
           </Button>
           {isAdminOrHR && (
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <Dialog
+              open={isCreateDialogOpen}
+              onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
@@ -272,7 +432,10 @@ export default function Calendar() {
                       id="description"
                       value={newEvent.description}
                       onChange={(e) =>
-                        setNewEvent({ ...newEvent, description: e.target.value })
+                        setNewEvent({
+                          ...newEvent,
+                          description: e.target.value,
+                        })
                       }
                       placeholder="Enter event description (optional)"
                       rows={3}
@@ -280,7 +443,9 @@ export default function Calendar() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="start_date_time">Start Date & Time *</Label>
+                      <Label htmlFor="start_date_time">
+                        Start Date & Time *
+                      </Label>
                       <Input
                         id="start_date_time"
                         type="datetime-local"
@@ -316,16 +481,18 @@ export default function Calendar() {
                         setNewEvent({
                           ...newEvent,
                           visibility_type: value,
-                          assigned_users: value === "ALL" ? [] : newEvent.assigned_users,
+                          assigned_users:
+                            value === "ALL" ? [] : newEvent.assigned_users,
                         })
-                      }
-                    >
+                      }>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ALL">All Employees</SelectItem>
-                        <SelectItem value="SPECIFIC">Specific Employees</SelectItem>
+                        <SelectItem value="SPECIFIC">
+                          Specific Employees
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -336,11 +503,12 @@ export default function Calendar() {
                         {employees.map((employee) => (
                           <label
                             key={employee.id}
-                            className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                          >
+                            className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
                             <input
                               type="checkbox"
-                              checked={newEvent.assigned_users.includes(employee.id)}
+                              checked={newEvent.assigned_users.includes(
+                                employee.id
+                              )}
                               onChange={(e) => {
                                 if (e.target.checked) {
                                   setNewEvent({
@@ -353,9 +521,10 @@ export default function Calendar() {
                                 } else {
                                   setNewEvent({
                                     ...newEvent,
-                                    assigned_users: newEvent.assigned_users.filter(
-                                      (id) => id !== employee.id
-                                    ),
+                                    assigned_users:
+                                      newEvent.assigned_users.filter(
+                                        (id) => id !== employee.id
+                                      ),
                                   });
                                 }
                               }}
@@ -372,8 +541,7 @@ export default function Calendar() {
                 <DialogFooter>
                   <Button
                     variant="outline"
-                    onClick={() => setIsCreateDialogOpen(false)}
-                  >
+                    onClick={() => setIsCreateDialogOpen(false)}>
                     Cancel
                   </Button>
                   <Button onClick={handleCreateEvent}>Create Event</Button>
@@ -402,8 +570,7 @@ export default function Calendar() {
                   (day) => (
                     <div
                       key={day}
-                      className="text-center font-semibold text-sm text-muted-foreground py-2"
-                    >
+                      className="text-center font-semibold text-sm text-muted-foreground py-2">
                       {day}
                     </div>
                   )
@@ -434,13 +601,11 @@ export default function Calendar() {
                           setSelectedEvent(dayEvents[0]);
                           setIsViewDialogOpen(true);
                         }
-                      }}
-                    >
+                      }}>
                       <div
                         className={`text-sm font-medium mb-1 ${
                           isToday ? "text-primary" : ""
-                        }`}
-                      >
+                        }`}>
                         {format(day, "d")}
                       </div>
                       <div className="space-y-1">
@@ -452,8 +617,7 @@ export default function Calendar() {
                               e.stopPropagation();
                               setSelectedEvent(event);
                               setIsViewDialogOpen(true);
-                            }}
-                          >
+                            }}>
                             {event.title}
                           </div>
                         ))}
@@ -486,10 +650,10 @@ export default function Calendar() {
               <div>
                 <Label>Start</Label>
                 <p className="text-sm">
-                  {selectedEvent.start 
+                  {selectedEvent.start
                     ? format(
-                        typeof selectedEvent.start === 'string' 
-                          ? parseISO(selectedEvent.start) 
+                        typeof selectedEvent.start === "string"
+                          ? parseISO(selectedEvent.start)
                           : new Date(selectedEvent.start),
                         "PPpp"
                       )
@@ -499,10 +663,10 @@ export default function Calendar() {
               <div>
                 <Label>End</Label>
                 <p className="text-sm">
-                  {selectedEvent.end 
+                  {selectedEvent.end
                     ? format(
-                        typeof selectedEvent.end === 'string' 
-                          ? parseISO(selectedEvent.end) 
+                        typeof selectedEvent.end === "string"
+                          ? parseISO(selectedEvent.end)
                           : new Date(selectedEvent.end),
                         "PPpp"
                       )
@@ -511,7 +675,12 @@ export default function Calendar() {
               </div>
               <div>
                 <Label>Visibility</Label>
-                <Badge variant={selectedEvent.visibility_type === "ALL" ? "default" : "secondary"}>
+                <Badge
+                  variant={
+                    selectedEvent.visibility_type === "ALL"
+                      ? "default"
+                      : "secondary"
+                  }>
                   {selectedEvent.visibility_type === "ALL" ? (
                     <>
                       <Users className="h-3 w-3 mr-1" />
@@ -528,7 +697,9 @@ export default function Calendar() {
               {selectedEvent.creator && (
                 <div>
                   <Label>Created By</Label>
-                  <p className="text-sm">{selectedEvent.creator.name || selectedEvent.creator.email}</p>
+                  <p className="text-sm">
+                    {selectedEvent.creator.name || selectedEvent.creator.email}
+                  </p>
                 </div>
               )}
             </div>
@@ -541,21 +712,21 @@ export default function Calendar() {
                   onClick={() => {
                     setIsViewDialogOpen(false);
                     setIsEditDialogOpen(true);
-                  }}
-                >
+                  }}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={() => handleDeleteEvent(selectedEvent.id)}
-                >
+                  onClick={() => handleDeleteClick(selectedEvent.id)}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete
                 </Button>
               </>
             )}
-            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsViewDialogOpen(false)}>
               Close
             </Button>
           </DialogFooter>
@@ -577,7 +748,10 @@ export default function Calendar() {
                   id="edit-title"
                   value={selectedEvent.title}
                   onChange={(e) =>
-                    setSelectedEvent({ ...selectedEvent, title: e.target.value })
+                    setSelectedEvent({
+                      ...selectedEvent,
+                      title: e.target.value,
+                    })
                   }
                 />
               </div>
@@ -604,8 +778,8 @@ export default function Calendar() {
                     value={
                       selectedEvent.start
                         ? format(
-                            typeof selectedEvent.start === 'string' 
-                              ? parseISO(selectedEvent.start) 
+                            typeof selectedEvent.start === "string"
+                              ? parseISO(selectedEvent.start)
                               : new Date(selectedEvent.start),
                             "yyyy-MM-dd'T'HH:mm"
                           )
@@ -628,8 +802,8 @@ export default function Calendar() {
                     value={
                       selectedEvent.end
                         ? format(
-                            typeof selectedEvent.end === 'string' 
-                              ? parseISO(selectedEvent.end) 
+                            typeof selectedEvent.end === "string"
+                              ? parseISO(selectedEvent.end)
                               : new Date(selectedEvent.end),
                             "yyyy-MM-dd'T'HH:mm"
                           )
@@ -653,10 +827,12 @@ export default function Calendar() {
                     setSelectedEvent({
                       ...selectedEvent,
                       visibility_type: value,
-                      assigned_users: value === "ALL" ? [] : selectedEvent.assigned_users || [],
+                      assigned_users:
+                        value === "ALL"
+                          ? []
+                          : selectedEvent.assigned_users || [],
                     })
-                  }
-                >
+                  }>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -673,17 +849,22 @@ export default function Calendar() {
                     {employees.map((employee) => (
                       <label
                         key={employee.id}
-                        className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                      >
+                        className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
                         <input
                           type="checkbox"
-                          checked={(selectedEvent.assigned_users || []).includes(employee.id)}
+                          checked={(
+                            selectedEvent.assigned_users || []
+                          ).includes(employee.id)}
                           onChange={(e) => {
-                            const currentAssigned = selectedEvent.assigned_users || [];
+                            const currentAssigned =
+                              selectedEvent.assigned_users || [];
                             if (e.target.checked) {
                               setSelectedEvent({
                                 ...selectedEvent,
-                                assigned_users: [...currentAssigned, employee.id],
+                                assigned_users: [
+                                  ...currentAssigned,
+                                  employee.id,
+                                ],
                               });
                             } else {
                               setSelectedEvent({
@@ -711,11 +892,37 @@ export default function Calendar() {
               onClick={() => {
                 setIsEditDialogOpen(false);
                 setSelectedEvent(null);
-              }}
-            >
+              }}>
               Cancel
             </Button>
             <Button onClick={handleUpdateEvent}>Update Event</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Event</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this event? This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setEventToDelete(null);
+              }}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteEvent}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

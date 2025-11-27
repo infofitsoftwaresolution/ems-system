@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Check, CheckCheck, RefreshCw } from "lucide-react";
+import { Bell, Check, CheckCheck, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
-import { format, isToday, isYesterday, parseISO, formatDistanceToNow } from "date-fns";
+import {
+  format,
+  isToday,
+  isYesterday,
+  parseISO,
+  formatDistanceToNow,
+} from "date-fns";
 import { cn } from "@/lib/utils";
 import { useSocket } from "@/hooks/use-socket";
 
@@ -27,13 +33,158 @@ export default function Notifications() {
 
     try {
       setIsLoading(true);
-      const [allNotifications, countData] = await Promise.all([
-        apiService.getNotifications(100, 0, filter === "unread"),
-        apiService.getUnreadNotificationCount(),
-      ]);
+      const allNotifications = await apiService.getNotifications(
+        100,
+        0,
+        filter === "unread"
+      );
 
-      setNotifications(allNotifications || []);
-      setUnreadCount(countData?.count || 0);
+      const notificationsList = Array.isArray(allNotifications)
+        ? allNotifications
+        : allNotifications?.data || allNotifications?.notifications || [];
+
+      // Filter out dummy/test notifications - comprehensive patterns
+      const dummyPatterns = [
+        /^test\s+/i,
+        /^dummy\s+/i,
+        /test\./i,
+        /complete\s+safety\s+training\s+module/i,
+        /review\s+company\s+policy\s+updates/i,
+        /department\s+review\s+meeting/i,
+        /monthly\s+all-hands\s+meeting/i,
+        /new\s+task\s+assigned.*complete\s+safety/i,
+        /new\s+task\s+assigned.*review\s+company/i,
+        /new\s+event\s+assigned.*department\s+review/i,
+        /new\s+event\s+assigned.*monthly\s+all-hands/i,
+      ];
+
+      // Specific dummy notification messages to filter (case-insensitive matching)
+      const dummyMessages = [
+        "complete safety training module",
+        "review company policy updates",
+        "new task assigned: complete safety training module",
+        "new task assigned: review company policy updates",
+        "new event assigned: department review meeting",
+        "new event assigned: monthly all-hands meeting",
+        "test task",
+        "today task",
+        "compelte this task",
+        "department review meeting",
+        "monthly all-hands meeting",
+      ];
+
+      const filteredNotifications = notificationsList.filter((notif) => {
+        const title = (notif.title || "").toLowerCase().trim();
+        const message = (notif.message || notif.text || "")
+          .toLowerCase()
+          .trim();
+        const fullText = `${title} ${message}`.trim();
+
+        // Skip if title or message is empty
+        if (!title && !message) {
+          return false;
+        }
+
+        // Filter out notifications matching dummy patterns in title or message
+        if (
+          dummyPatterns.some(
+            (pattern) =>
+              pattern.test(title) ||
+              pattern.test(message) ||
+              pattern.test(fullText)
+          )
+        ) {
+          return false;
+        }
+
+        // Filter out notifications containing dummy messages (more aggressive matching)
+        if (
+          dummyMessages.some(
+            (dummyMsg) =>
+              title.includes(dummyMsg) ||
+              message.includes(dummyMsg) ||
+              fullText.includes(dummyMsg)
+          )
+        ) {
+          return false;
+        }
+
+        // Additional check: filter if message contains "Due:" with dates (common in dummy task notifications)
+        // But only if it also contains our dummy keywords
+        if (
+          (message.includes("due:") || message.includes("(due:")) &&
+          (message.includes("complete safety") ||
+            message.includes("review company") ||
+            message.includes("department review") ||
+            message.includes("monthly all-hands"))
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+      // Remove duplicates by id (keep the most recent one)
+      const uniqueById = new Map();
+      filteredNotifications.forEach((notif) => {
+        if (!uniqueById.has(notif.id)) {
+          uniqueById.set(notif.id, notif);
+        } else {
+          // If duplicate id exists, keep the one with later createdAt
+          const existing = uniqueById.get(notif.id);
+          const existingDate = existing.createdAt
+            ? new Date(existing.createdAt)
+            : new Date(0);
+          const currentDate = notif.createdAt
+            ? new Date(notif.createdAt)
+            : new Date(0);
+          if (currentDate > existingDate) {
+            uniqueById.set(notif.id, notif);
+          }
+        }
+      });
+
+      // Also remove duplicates by message+title combination (for notifications with same content)
+      const uniqueByContent = new Map();
+      Array.from(uniqueById.values()).forEach((notif) => {
+        const contentKey = `${(notif.title || "").trim()}_${(
+          notif.message ||
+          notif.text ||
+          ""
+        ).trim()}`;
+        if (!uniqueByContent.has(contentKey)) {
+          uniqueByContent.set(contentKey, notif);
+        } else {
+          // If duplicate content exists, keep the one with later createdAt
+          const existing = uniqueByContent.get(contentKey);
+          const existingDate = existing.createdAt
+            ? new Date(existing.createdAt)
+            : new Date(0);
+          const currentDate = notif.createdAt
+            ? new Date(notif.createdAt)
+            : new Date(0);
+          if (currentDate > existingDate) {
+            uniqueByContent.set(contentKey, notif);
+          }
+        }
+      });
+
+      // Sort by createdAt (newest first) and set notifications
+      const finalNotifications = Array.from(uniqueByContent.values()).sort(
+        (a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+          const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+          return dateB - dateA;
+        }
+      );
+
+      // Calculate unread count from filtered notifications
+      const filteredUnreadCount = finalNotifications.filter(
+        (n) => !n.isRead
+      ).length;
+
+      setNotifications(finalNotifications);
+      setUnreadCount(filteredUnreadCount);
     } catch (error) {
       console.error("Error loading notifications:", error);
       toast.error("Failed to load notifications");
@@ -45,12 +196,15 @@ export default function Notifications() {
   }, [user?.id, filter]);
 
   // Handle new notification from socket
-  const handleNewNotification = useCallback((data) => {
-    if (data.userId === user?.id) {
-      console.log("New notification received via socket:", data);
-      loadNotifications();
-    }
-  }, [user?.id, loadNotifications]);
+  const handleNewNotification = useCallback(
+    (data) => {
+      if (data.userId === user?.id) {
+        console.log("New notification received via socket:", data);
+        loadNotifications();
+      }
+    },
+    [user?.id, loadNotifications]
+  );
 
   // Use socket for real-time notifications
   useSocket(null, null, handleNewNotification);
@@ -60,6 +214,22 @@ export default function Notifications() {
     loadNotifications();
   }, [loadNotifications]);
 
+  // Listen for notification updates from other components (header dropdown)
+  useEffect(() => {
+    const handleNotificationUpdate = () => {
+      // Reload notifications when updated from header dropdown
+      loadNotifications();
+    };
+
+    window.addEventListener("notification-updated", handleNotificationUpdate);
+    return () => {
+      window.removeEventListener(
+        "notification-updated",
+        handleNotificationUpdate
+      );
+    };
+  }, [loadNotifications]);
+
   // Mark notification as read
   const handleMarkAsRead = async (notificationId, e) => {
     e.stopPropagation();
@@ -67,10 +237,20 @@ export default function Notifications() {
       await apiService.markNotificationAsRead(notificationId);
       setNotifications((prev) =>
         prev.map((notif) =>
-          notif.id === notificationId ? { ...notif, isRead: true, readAt: new Date().toISOString() } : notif
+          notif.id === notificationId
+            ? { ...notif, isRead: true, readAt: new Date().toISOString() }
+            : notif
         )
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
+
+      // Dispatch event to notify other components (header dropdown)
+      window.dispatchEvent(
+        new CustomEvent("notification-updated", {
+          detail: { type: "marked-read", notificationId },
+        })
+      );
+
       toast.success("Notification marked as read");
     } catch (error) {
       console.error("Error marking notification as read:", error);
@@ -91,6 +271,14 @@ export default function Notifications() {
         }))
       );
       setUnreadCount(0);
+
+      // Dispatch event to notify other components (header dropdown)
+      window.dispatchEvent(
+        new CustomEvent("notification-updated", {
+          detail: { type: "marked-all-read" },
+        })
+      );
+
       toast.success("All notifications marked as read");
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
@@ -114,6 +302,13 @@ export default function Notifications() {
           )
         );
         setUnreadCount((prev) => Math.max(0, prev - 1));
+
+        // Dispatch event to notify other components (header dropdown)
+        window.dispatchEvent(
+          new CustomEvent("notification-updated", {
+            detail: { type: "marked-read", notificationId: notification.id },
+          })
+        );
       } catch (error) {
         console.error("Error marking notification as read:", error);
       }
@@ -122,6 +317,35 @@ export default function Notifications() {
     // Navigate to link if available
     if (notification.link) {
       navigate(notification.link);
+    }
+  };
+
+  // Handle notification deletion
+  const handleDeleteNotification = async (notificationId, e) => {
+    e.stopPropagation(); // Prevent triggering the card click
+    try {
+      await apiService.deleteNotification(notificationId);
+      setNotifications((prev) => {
+        const deleted = prev.find((n) => n.id === notificationId);
+        const updated = prev.filter((n) => n.id !== notificationId);
+        // Update unread count if deleted notification was unread
+        if (deleted && !deleted.isRead) {
+          setUnreadCount((prevCount) => Math.max(0, prevCount - 1));
+        }
+        return updated;
+      });
+
+      // Dispatch event to notify other components (header dropdown)
+      window.dispatchEvent(
+        new CustomEvent("notification-updated", {
+          detail: { type: "deleted", notificationId },
+        })
+      );
+
+      toast.success("Notification deleted successfully");
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+      toast.error("Failed to delete notification");
     }
   };
 
@@ -137,7 +361,7 @@ export default function Notifications() {
       } else {
         return formatDistanceToNow(date, { addSuffix: true });
       }
-    } catch (error) {
+    } catch {
       return "Just now";
     }
   };
@@ -174,8 +398,7 @@ export default function Notifications() {
               variant="outline"
               size="sm"
               onClick={handleMarkAllAsRead}
-              disabled={isMarkingAllRead}
-            >
+              disabled={isMarkingAllRead}>
               {isMarkingAllRead ? (
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
               ) : (
@@ -184,8 +407,14 @@ export default function Notifications() {
               Mark all as read
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={loadNotifications} disabled={isLoading}>
-            <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadNotifications}
+            disabled={isLoading}>
+            <RefreshCw
+              className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")}
+            />
             Refresh
           </Button>
         </div>
@@ -216,7 +445,9 @@ export default function Notifications() {
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <RefreshCw className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Loading notifications...</p>
+                <p className="text-sm text-muted-foreground">
+                  Loading notifications...
+                </p>
               </div>
             </div>
           ) : notifications.length === 0 ? (
@@ -240,8 +471,7 @@ export default function Notifications() {
                     "cursor-pointer transition-all hover:shadow-md",
                     !notification.isRead && "border-primary/50 bg-primary/5"
                   )}
-                  onClick={() => handleNotificationClick(notification)}
-                >
+                  onClick={() => handleNotificationClick(notification)}>
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
                       <div className="flex-1">
@@ -251,37 +481,56 @@ export default function Notifications() {
                               className={cn(
                                 "font-semibold text-sm",
                                 !notification.isRead && "font-bold"
-                              )}
-                            >
+                              )}>
                               {notification.title}
                             </h3>
                             <Badge
                               variant="outline"
-                              className={cn("text-xs", getTypeColor(notification.type))}
-                            >
+                              className={cn(
+                                "text-xs",
+                                getTypeColor(notification.type)
+                              )}>
                               {notification.type}
                             </Badge>
                           </div>
-                          {!notification.isRead && (
+                          <div className="flex items-center gap-1">
+                            {!notification.isRead && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={(e) =>
+                                  handleMarkAsRead(notification.id, e)
+                                }
+                                title="Mark as read">
+                                <Check className="h-3 w-3" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6"
-                              onClick={(e) => handleMarkAsRead(notification.id, e)}
-                            >
-                              <Check className="h-3 w-3" />
+                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) =>
+                                handleDeleteNotification(notification.id, e)
+                              }
+                              title="Delete notification">
+                              <Trash2 className="h-3 w-3" />
                             </Button>
-                          )}
+                          </div>
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">
                           {notification.message}
                         </p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{formatNotificationTime(notification.createdAt)}</span>
+                          <span>
+                            {formatNotificationTime(notification.createdAt)}
+                          </span>
                           {notification.link && (
                             <>
                               <span>•</span>
-                              <span className="text-primary hover:underline">View details</span>
+                              <span className="text-primary hover:underline">
+                                View details
+                              </span>
                             </>
                           )}
                         </div>
@@ -297,4 +546,3 @@ export default function Notifications() {
     </div>
   );
 }
-

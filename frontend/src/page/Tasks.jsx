@@ -118,20 +118,91 @@ export default function Tasks() {
         setIsInitialLoading(true);
         const [tasksData, employeesResponse] = await Promise.all([
           apiService.getTasks(),
-          apiService.getEmployees()
+          apiService.getEmployees(),
         ]);
-        
+
         // Handle new API response format: { success: true, data: [...] }
         const tasksList = Array.isArray(tasksData)
           ? tasksData
           : tasksData?.data || tasksData?.tasks || [];
-        setTasks(tasksList);
-        
+
+        // Filter out dummy/test data
+        const dummyPatterns = [
+          /^test\s+task/i,
+          /^today\s+task/i,
+          /test\./i,
+          /^dummy\s+/i,
+          /compelte\s+this\s+task/i,
+          /^complete\s+safety\s+training\s+module/i,
+          /^review\s+company\s+policy\s+updates/i,
+          /^submit\s+monthly\s+report/i,
+        ];
+
+        // Specific dummy task titles to filter
+        const dummyTitles = [
+          "complete safety training module",
+          "review company policy updates",
+          "submit monthly report",
+        ];
+
+        const filteredTasks = tasksList.filter((task) => {
+          const title = (task.title || task.name || "").toLowerCase().trim();
+          const description = (task.description || "" || "")
+            .toLowerCase()
+            .trim();
+          const fullText = `${title} ${description}`.trim();
+
+          // Skip if title is empty
+          if (!title) {
+            return false;
+          }
+
+          // Filter out tasks matching dummy patterns
+          if (
+            dummyPatterns.some(
+              (pattern) =>
+                pattern.test(title) ||
+                pattern.test(description) ||
+                pattern.test(fullText)
+            )
+          ) {
+            return false;
+          }
+
+          // Filter out tasks containing dummy titles
+          if (
+            dummyTitles.some(
+              (dummyTitle) =>
+                title.includes(dummyTitle) ||
+                description.includes(dummyTitle) ||
+                fullText.includes(dummyTitle)
+            )
+          ) {
+            return false;
+          }
+
+          return true;
+        });
+
+        // Remove duplicates by id, and also by title+dueDate combination
+        const uniqueTasksMap = new Map();
+        filteredTasks.forEach((task) => {
+          const key = `${task.id}_${task.title || task.name}_${
+            task.dueDate || ""
+          }`;
+          if (!uniqueTasksMap.has(key)) {
+            uniqueTasksMap.set(key, task);
+          }
+        });
+        const uniqueTasks = Array.from(uniqueTasksMap.values());
+
+        setTasks(uniqueTasks);
+
         // Handle new API response format: { success: true, data: [...], count: ... }
-        const employeesData = Array.isArray(employeesResponse) 
-          ? employeesResponse 
-          : (employeesResponse?.data && Array.isArray(employeesResponse.data)) 
-          ? employeesResponse.data 
+        const employeesData = Array.isArray(employeesResponse)
+          ? employeesResponse
+          : employeesResponse?.data && Array.isArray(employeesResponse.data)
+          ? employeesResponse.data
           : [];
         setEmployees(employeesData);
       } catch (error) {
@@ -142,7 +213,7 @@ export default function Tasks() {
         setIsInitialLoading(false);
       }
     };
-    
+
     loadData();
   }, []);
 
@@ -245,7 +316,10 @@ export default function Tasks() {
       let updatedTaskResponse;
       if (user?.role === "employee") {
         // Employees can only update status
-        updatedTaskResponse = await apiService.updateTaskStatus(task.id, newStatus);
+        updatedTaskResponse = await apiService.updateTaskStatus(
+          task.id,
+          newStatus
+        );
       } else {
         // Admin/HR can update all fields
         updatedTaskResponse = await apiService.updateTask(task.id, {
@@ -342,10 +416,7 @@ export default function Tasks() {
     if (!task.dueDate || task.status === "completed") return false;
     const dueDate = parseISO(task.dueDate);
     const oneWeek = addDays(new Date(), 7);
-    return (
-      isAfter(dueDate, new Date()) &&
-      isBefore(dueDate, oneWeek)
-    );
+    return isAfter(dueDate, new Date()) && isBefore(dueDate, oneWeek);
   }).length;
 
   if (isInitialLoading) {
@@ -566,7 +637,9 @@ export default function Tasks() {
                           </AvatarFallback>
                         </Avatar>
                         <span className="text-sm">
-                          {task.assigneeName || getAssigneeInfo(task.assigneeId).name || "Unassigned"}
+                          {task.assigneeName ||
+                            getAssigneeInfo(task.assigneeId).name ||
+                            "Unassigned"}
                         </span>
                       </div>
                     </TableCell>
@@ -585,7 +658,9 @@ export default function Tasks() {
                           </span>
                         </div>
                       ) : (
-                        <span className="text-sm text-muted-foreground">No due date</span>
+                        <span className="text-sm text-muted-foreground">
+                          No due date
+                        </span>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
@@ -685,7 +760,10 @@ export default function Tasks() {
                 <Select
                   value={newTask.assigneeId}
                   onValueChange={(value) =>
-                    setNewTask({ ...newTask, assigneeId: value === "none" ? "" : value })
+                    setNewTask({
+                      ...newTask,
+                      assigneeId: value === "none" ? "" : value,
+                    })
                   }>
                   <SelectTrigger>
                     <SelectValue placeholder="Select assignee" />
@@ -822,7 +900,10 @@ export default function Tasks() {
                       <Calendar className="h-4 w-4" />
                       <span>
                         {selectedTask.dueDate
-                          ? format(parseISO(selectedTask.dueDate), "MMMM dd, yyyy")
+                          ? format(
+                              parseISO(selectedTask.dueDate),
+                              "MMMM dd, yyyy"
+                            )
                           : "No due date"}
                       </span>
                     </div>
@@ -853,7 +934,9 @@ export default function Tasks() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleUpdateTaskStatus(selectedTask, "review")}
+                          onClick={() =>
+                            handleUpdateTaskStatus(selectedTask, "review")
+                          }
                           disabled={isLoading}>
                           {isLoading ? (
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />

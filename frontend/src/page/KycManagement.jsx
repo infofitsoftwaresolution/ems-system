@@ -400,7 +400,10 @@ export default function KycManagement() {
                                 // Check if personalInfo is at top level (new format from backend)
                                 if (submission.personalInfo) {
                                   personalInfo = submission.personalInfo;
-                                  console.log('📋 Using top-level personalInfo:', personalInfo);
+                                  console.log(
+                                    "📋 Using top-level personalInfo:",
+                                    personalInfo
+                                  );
                                 } else if (
                                   submission.documents &&
                                   typeof submission.documents === "object" &&
@@ -409,9 +412,15 @@ export default function KycManagement() {
                                   // Fallback: check if documents is the old format with personalInfo
                                   personalInfo =
                                     submission.documents.personalInfo || {};
-                                  console.log('📋 Using nested personalInfo:', personalInfo);
+                                  console.log(
+                                    "📋 Using nested personalInfo:",
+                                    personalInfo
+                                  );
                                 } else {
-                                  console.log('⚠️ No personalInfo found for', submission.fullName);
+                                  console.log(
+                                    "⚠️ No personalInfo found for",
+                                    submission.fullName
+                                  );
                                 }
 
                                 const panNumber = personalInfo.panNumber || "";
@@ -463,7 +472,8 @@ export default function KycManagement() {
 
                                 // Check if emergencyContact is at top level (new format from backend)
                                 if (submission.emergencyContact) {
-                                  emergencyContact = submission.emergencyContact;
+                                  emergencyContact =
+                                    submission.emergencyContact;
                                 } else if (
                                   submission.documents &&
                                   typeof submission.documents === "object" &&
@@ -703,14 +713,12 @@ export default function KycManagement() {
                                     );
                                   }
                                 );
-                                
-                                const panDocs = documentsArray.filter(
-                                  (doc) => {
-                                    const type = doc.type?.toLowerCase() || "";
-                                    return type.includes("pan");
-                                  }
-                                );
-                                
+
+                                const panDocs = documentsArray.filter((doc) => {
+                                  const type = doc.type?.toLowerCase() || "";
+                                  return type.includes("pan");
+                                });
+
                                 const aadhaarDocs = documentsArray.filter(
                                   (doc) => {
                                     const type = doc.type?.toLowerCase() || "";
@@ -720,14 +728,14 @@ export default function KycManagement() {
                                     );
                                   }
                                 );
-                                
+
                                 const salarySlipDocs = documentsArray.filter(
                                   (doc) => {
                                     const type = doc.type?.toLowerCase() || "";
                                     return type.includes("salary slip");
                                   }
                                 );
-                                
+
                                 const bankProofDocs = documentsArray.filter(
                                   (doc) => {
                                     const type = doc.type?.toLowerCase() || "";
@@ -738,7 +746,7 @@ export default function KycManagement() {
                                     );
                                   }
                                 );
-                                
+
                                 const otherDocs = documentsArray.filter(
                                   (doc) => {
                                     const type = doc.type?.toLowerCase() || "";
@@ -766,7 +774,10 @@ export default function KycManagement() {
                                         </h4>
                                         <div className="grid grid-cols-1 gap-3">
                                           {selfieDocs.map((doc, index) =>
-                                            renderDocumentCard(doc, `selfie-${index}`)
+                                            renderDocumentCard(
+                                              doc,
+                                              `selfie-${index}`
+                                            )
                                           )}
                                         </div>
                                       </div>
@@ -780,7 +791,10 @@ export default function KycManagement() {
                                         </h4>
                                         <div className="grid grid-cols-1 gap-3">
                                           {panDocs.map((doc, index) =>
-                                            renderDocumentCard(doc, `pan-${index}`)
+                                            renderDocumentCard(
+                                              doc,
+                                              `pan-${index}`
+                                            )
                                           )}
                                         </div>
                                       </div>
@@ -794,7 +808,10 @@ export default function KycManagement() {
                                         </h4>
                                         <div className="grid grid-cols-2 gap-3">
                                           {aadhaarDocs.map((doc, index) =>
-                                            renderDocumentCard(doc, `aadhaar-${index}`)
+                                            renderDocumentCard(
+                                              doc,
+                                              `aadhaar-${index}`
+                                            )
                                           )}
                                         </div>
                                       </div>
@@ -808,7 +825,10 @@ export default function KycManagement() {
                                         </h4>
                                         <div className="grid grid-cols-3 gap-3">
                                           {salarySlipDocs.map((doc, index) =>
-                                            renderDocumentCard(doc, `salary-${index}`)
+                                            renderDocumentCard(
+                                              doc,
+                                              `salary-${index}`
+                                            )
                                           )}
                                         </div>
                                       </div>
@@ -822,7 +842,10 @@ export default function KycManagement() {
                                         </h4>
                                         <div className="grid grid-cols-1 gap-3">
                                           {bankProofDocs.map((doc, index) =>
-                                            renderDocumentCard(doc, `bank-${index}`)
+                                            renderDocumentCard(
+                                              doc,
+                                              `bank-${index}`
+                                            )
                                           )}
                                         </div>
                                       </div>
@@ -836,7 +859,10 @@ export default function KycManagement() {
                                         </h4>
                                         <div className="grid grid-cols-2 gap-3">
                                           {otherDocs.map((doc, index) =>
-                                            renderDocumentCard(doc, `other-${index}`)
+                                            renderDocumentCard(
+                                              doc,
+                                              `other-${index}`
+                                            )
                                           )}
                                         </div>
                                       </div>

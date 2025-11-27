@@ -815,10 +815,10 @@ export default function Communication() {
           // Try to get employees first
           const employeesResponse = await apiService.getEmployees();
           // Handle new API response format: { success: true, data: [...], count: ... }
-          const employees = Array.isArray(employeesResponse) 
-            ? employeesResponse 
-            : (employeesResponse?.data && Array.isArray(employeesResponse.data)) 
-            ? employeesResponse.data 
+          const employees = Array.isArray(employeesResponse)
+            ? employeesResponse
+            : employeesResponse?.data && Array.isArray(employeesResponse.data)
+            ? employeesResponse.data
             : [];
           usersData = employees
             .filter((emp) => emp.email !== user?.email) // Exclude current user
