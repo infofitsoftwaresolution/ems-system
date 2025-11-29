@@ -284,6 +284,31 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager', 'hr']), asyn
         // Ensure isLate is a boolean (default to false if null/undefined)
         json.isLate = json.isLate === true;
         
+        // Calculate working hours: checkout_datetime - checkin_datetime
+        // Only calculate if both checkIn and checkOut exist
+        if (json.checkIn && json.checkOut) {
+          try {
+            const checkInTime = new Date(json.checkIn);
+            const checkOutTime = new Date(json.checkOut);
+            if (!isNaN(checkInTime.getTime()) && !isNaN(checkOutTime.getTime())) {
+              const workingHoursMs = checkOutTime - checkInTime;
+              const hours = Math.floor(workingHoursMs / (1000 * 60 * 60));
+              const minutes = Math.floor((workingHoursMs % (1000 * 60 * 60)) / (1000 * 60));
+              const seconds = Math.floor((workingHoursMs % (1000 * 60)) / 1000);
+              // Format as HH:MM:SS
+              json.workingHours = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            } else {
+              json.workingHours = null;
+            }
+          } catch (dateError) {
+            console.error('Error calculating working hours:', dateError);
+            json.workingHours = null;
+          }
+        } else {
+          // If only checkIn exists (incomplete record), set workingHours to null
+          json.workingHours = json.checkIn && !json.checkOut ? null : null;
+        }
+        
         return json;
       } catch (rowError) {
         console.error(`Error processing attendance row ${index}:`, rowError);
@@ -455,9 +480,32 @@ router.get('/my', authenticateToken, async (req, res) => {
       raw: false
     });
 
-    // Convert to JSON format
+    // Convert to JSON format and calculate working hours
     const formattedList = attendanceList.map(att => {
       const attData = att.toJSON ? att.toJSON() : att;
+      
+      // Calculate working hours: checkout_datetime - checkin_datetime
+      // Only calculate if both checkIn and checkOut exist
+      let workingHours = null;
+      if (attData.checkIn && attData.checkOut) {
+        try {
+          const checkInTime = new Date(attData.checkIn);
+          const checkOutTime = new Date(attData.checkOut);
+          if (!isNaN(checkInTime.getTime()) && !isNaN(checkOutTime.getTime())) {
+            const workingHoursMs = checkOutTime - checkInTime;
+            const hours = Math.floor(workingHoursMs / (1000 * 60 * 60));
+            const minutes = Math.floor((workingHoursMs % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((workingHoursMs % (1000 * 60)) / 1000);
+            // Format as HH:MM:SS
+            workingHours = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+          }
+        } catch (dateError) {
+          console.error('Error calculating working hours:', dateError);
+          workingHours = null;
+        }
+      }
+      // If only checkIn exists (incomplete record), workingHours remains null
+      
       return {
         id: attData.id,
         email: attData.email,
@@ -477,6 +525,7 @@ router.get('/my', authenticateToken, async (req, res) => {
         checkOutPhoto: attData.checkOutPhoto,
         isLate: attData.isLate,
         checkoutType: attData.checkoutType,
+        workingHours: workingHours, // Calculated working hours or null
         createdAt: attData.createdAt,
         updatedAt: attData.updatedAt
       };
@@ -500,8 +549,19 @@ router.post('/checkin', authenticateToken, async (req, res) => {
   console.log('Check-in request:', { email, name, latitude, longitude, address, hasPhoto: !!photoBase64 });
   
   const today = new Date().toISOString().slice(0, 10);
-  let row = await Attendance.findOne({ where: { email, date: today } });
-  if (row?.checkIn) return res.status(400).json({ message: 'Already checked in' });
+  
+  // Check if already checked in today
+  const existingRecord = await Attendance.findOne({ 
+    where: { 
+      email: email.toLowerCase(), 
+      date: today,
+      checkIn: { [Op.ne]: null }
+    } 
+  });
+  
+  if (existingRecord) {
+    return res.status(400).json({ message: 'Already checked in today' });
+  }
   
   // Check if check-in is late (after 10:00 AM)
   const checkInTime = new Date();
@@ -509,42 +569,39 @@ router.post('/checkin', authenticateToken, async (req, res) => {
   expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
   const isLate = checkInTime > expectedCheckInTime;
   
-  if (!row) {
-    row = await Attendance.create({ 
-      email: email.toLowerCase(), 
-      name, 
-      date: today, 
-      checkIn: checkInTime, 
-      status: 'present',
-      isLate: isLate,
-      checkInLatitude: latitude || null,
-      checkInLongitude: longitude || null,
-      checkInAddress: address || null,
-      checkInPhoto: photoBase64 || null
-    });
-    console.log('Created new attendance record with location and photo:', {
-      checkInLatitude: row.checkInLatitude,
-      checkInLongitude: row.checkInLongitude,
-      checkInAddress: row.checkInAddress,
-      isLate: row.isLate,
-      hasPhoto: !!row.checkInPhoto
-    });
-  } else {
-    row.checkIn = checkInTime;
-    row.isLate = isLate;
-    row.checkInLatitude = latitude || null;
-    row.checkInLongitude = longitude || null;
-    row.checkInAddress = address || null;
-    row.checkInPhoto = photoBase64 || null;
-    await row.save();
-    console.log('Updated attendance record with location and photo:', {
-      checkInLatitude: row.checkInLatitude,
-      checkInLongitude: row.checkInLongitude,
-      checkInAddress: row.checkInAddress,
-      isLate: row.isLate,
-      hasPhoto: !!row.checkInPhoto
-    });
-  }
+  // Create attendance record immediately with check-in data
+  // checkout fields remain null, working_hours is null, status = "checked_in"
+  const row = await Attendance.create({ 
+    email: email.toLowerCase(), 
+    name, 
+    date: today, 
+    checkIn: checkInTime, 
+    status: 'checked_in', // Status is "Checked In" until checkout
+    isLate: isLate,
+    checkInLatitude: latitude || null,
+    checkInLongitude: longitude || null,
+    checkInAddress: address || null,
+    checkInPhoto: photoBase64 || null,
+    // Checkout fields remain null
+    checkOut: null,
+    checkOutLatitude: null,
+    checkOutLongitude: null,
+    checkOutAddress: null,
+    checkOutPhoto: null,
+    checkoutType: null
+  });
+  
+  console.log('✅ Created new attendance record (checked in):', {
+    id: row.id,
+    email: row.email,
+    date: row.date,
+    checkInTime: row.checkIn,
+    checkInAddress: row.checkInAddress,
+    isLate: row.isLate,
+    status: row.status,
+    hasPhoto: !!row.checkInPhoto
+  });
+  
   res.json(row);
 });
 
@@ -556,23 +613,54 @@ router.post('/checkout', authenticateToken, async (req, res) => {
   console.log('Check-out request:', { email, latitude, longitude, address, checkoutType, hasPhoto: !!photoBase64 });
   
   const today = new Date().toISOString().slice(0, 10);
-  const row = await Attendance.findOne({ where: { email: email.toLowerCase(), date: today } });
-  if (!row?.checkIn) return res.status(400).json({ message: 'Check-in first' });
-  if (row.checkOut) return res.status(400).json({ message: 'Already checked out' });
+  const row = await Attendance.findOne({ 
+    where: { 
+      email: email.toLowerCase(), 
+      date: today,
+      checkIn: { [Op.ne]: null }
+    } 
+  });
   
-  row.checkOut = new Date();
+  if (!row) {
+    return res.status(400).json({ message: 'Check-in first' });
+  }
+  
+  if (row.checkOut) {
+    return res.status(400).json({ message: 'Already checked out' });
+  }
+  
+  // Set checkout time
+  const checkOutTime = new Date();
+  row.checkOut = checkOutTime;
   row.checkoutType = checkoutType || 'manual';
   row.checkOutLatitude = latitude || null;
   row.checkOutLongitude = longitude || null;
   row.checkOutAddress = address || null;
   row.checkOutPhoto = photoBase64 || null;
+  
+  // Calculate working hours: checkout_datetime - checkin_datetime
+  if (row.checkIn) {
+    const checkInTime = new Date(row.checkIn);
+    const workingHoursMs = checkOutTime - checkInTime;
+    const workingHours = Math.floor(workingHoursMs / (1000 * 60 * 60)); // Hours
+    const workingMinutes = Math.floor((workingHoursMs % (1000 * 60 * 60)) / (1000 * 60)); // Minutes
+    // Store as string in format "HH:MM" or we can add a field for this
+    // For now, we'll calculate it on the fly in GET routes
+  }
+  
+  // Update status to "Present" after checkout
+  row.status = 'present';
+  
   await row.save();
   
-  console.log('Updated attendance record with check-out location and photo:', {
-    checkOutLatitude: row.checkOutLatitude,
-    checkOutLongitude: row.checkOutLongitude,
+  console.log('✅ Updated attendance record with check-out:', {
+    id: row.id,
+    email: row.email,
+    checkInTime: row.checkIn,
+    checkOutTime: row.checkOut,
     checkOutAddress: row.checkOutAddress,
     checkoutType: row.checkoutType,
+    status: row.status,
     hasPhoto: !!row.checkOutPhoto
   });
   
@@ -605,6 +693,17 @@ router.post('/auto-checkout-midnight', async (req, res) => {
       record.checkOut = checkoutTime;
       record.checkoutType = 'auto-midnight';
       record.checkOutAddress = 'Auto-checkout (midnight reset)';
+      
+      // Calculate working hours: checkout_datetime - checkin_datetime
+      if (record.checkIn) {
+        const checkInTime = new Date(record.checkIn);
+        const workingHoursMs = checkoutTime - checkInTime;
+        // Working hours will be calculated on the fly in GET routes
+      }
+      
+      // Update status to "Present" after checkout
+      record.status = 'present';
+      
       await record.save();
       console.log(`Auto-checked out: ${record.email} at ${checkoutTime.toISOString()}`);
     }

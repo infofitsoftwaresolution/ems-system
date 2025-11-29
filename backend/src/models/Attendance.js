@@ -11,7 +11,7 @@ Attendance.init(
     date: { type: DataTypes.DATEONLY, allowNull: false },
     checkIn: { type: DataTypes.DATE },
     checkOut: { type: DataTypes.DATE },
-    status: { type: DataTypes.ENUM('present', 'absent', 'half-day'), defaultValue: 'present' },
+    status: { type: DataTypes.ENUM('checked_in', 'present', 'absent', 'half-day'), defaultValue: 'checked_in' },
     notes: { type: DataTypes.TEXT },
     isLate: { type: DataTypes.BOOLEAN, defaultValue: false },
     checkoutType: { type: DataTypes.STRING, allowNull: true }, // 'manual', 'auto-midnight'

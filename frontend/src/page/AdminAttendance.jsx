@@ -148,7 +148,14 @@ export default function AdminAttendance() {
 
   // Calculate time between check in and check out
   const calculateWorkingHours = (checkIn, checkOut) => {
+    // If only checkIn exists (incomplete record), return "Pending"
+    if (checkIn && !checkOut) {
+      return 'Pending';
+    }
+    
+    // If both exist, calculate the difference
     if (!checkIn || !checkOut) return 'N/A';
+    
     try {
       const checkInTime = new Date(checkIn);
       const checkOutTime = new Date(checkOut);
@@ -205,6 +212,8 @@ export default function AdminAttendance() {
   // Get status badge
   const getStatusBadge = (status) => {
     switch (status) {
+      case 'checked_in':
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300"><Clock className="h-3 w-3 mr-1" />Checked In</Badge>;
       case 'present':
         return <Badge variant="default" className="bg-primary"><CheckCircle className="h-3 w-3 mr-1" />Present</Badge>;
       case 'absent':
@@ -270,8 +279,8 @@ export default function AdminAttendance() {
     const employeeId = record.employeeId || record.emp_id || 'N/A';
     const employeeName = record.name || record.employeeId || record.email?.split('@')[0] || 'employee';
     
-    // Calculate working hours
-    const workingHours = calculateWorkingHours(record.checkIn, record.checkOut);
+    // Calculate working hours - use backend value if available, otherwise calculate
+    const workingHours = record.workingHours || calculateWorkingHours(record.checkIn, record.checkOut);
     
     // Format checkout type: Normal / Auto-checkout / Manual
     let checkoutType = 'Normal';
