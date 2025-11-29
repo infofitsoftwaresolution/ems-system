@@ -846,64 +846,64 @@ export default function KycManagement() {
                                     <div
                                       key={index}
                                       className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="flex-1 min-w-0">
-                                          <span className="font-medium text-sm block truncate">
-                                            {filename}
+                                      {/* Upper div - Text content */}
+                                      <div className="mb-3">
+                                        <span className="font-medium text-sm block truncate">
+                                          {filename}
+                                        </span>
+                                        {doc.type && (
+                                          <span className="text-xs text-gray-500 block mt-1">
+                                            {doc.type}
                                           </span>
-                                          {doc.type && (
-                                            <span className="text-xs text-gray-500 block mt-1">
-                                              {doc.type}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="flex gap-2 flex-shrink-0">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                              const url = getDocumentUrl(doc);
-                                              if (url) {
-                                                window.open(url, "_blank");
-                                              } else {
-                                                toast.error("Document URL not available");
-                                              }
-                                            }}>
-                                            <Eye className="h-4 w-4 mr-1" />
-                                            View
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                              const url = getDocumentUrl(doc);
-                                              if (url) {
-                                                const link = document.createElement('a');
-                                                link.href = url;
-                                                link.download = filename;
-                                                document.body.appendChild(link);
-                                                link.click();
-                                                document.body.removeChild(link);
-                                              } else {
-                                                toast.error("Document URL not available");
-                                              }
-                                            }}>
-                                            <Download className="h-4 w-4 mr-1" />
-                                            Download
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                              setSelectedDocument({ ...doc, documentType: doc.type });
-                                              setRejectRemark("");
-                                              setRejectDialogOpen(true);
-                                            }}
-                                            className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                                            <XCircle className="h-4 w-4 mr-1" />
-                                            Reject
-                                          </Button>
-                                        </div>
+                                        )}
+                                      </div>
+                                      {/* Lower div - Buttons */}
+                                      <div className="flex gap-2 flex-wrap">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            const url = getDocumentUrl(doc);
+                                            if (url) {
+                                              window.open(url, "_blank");
+                                            } else {
+                                              toast.error("Document URL not available");
+                                            }
+                                          }}>
+                                          <Eye className="h-4 w-4 mr-1" />
+                                          View
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            const url = getDocumentUrl(doc);
+                                            if (url) {
+                                              const link = document.createElement('a');
+                                              link.href = url;
+                                              link.download = filename;
+                                              document.body.appendChild(link);
+                                              link.click();
+                                              document.body.removeChild(link);
+                                            } else {
+                                              toast.error("Document URL not available");
+                                            }
+                                          }}>
+                                          <Download className="h-4 w-4 mr-1" />
+                                          Download
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            setSelectedDocument({ ...doc, documentType: doc.type });
+                                            setRejectRemark("");
+                                            setRejectDialogOpen(true);
+                                          }}
+                                          className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                                          <XCircle className="h-4 w-4 mr-1" />
+                                          Reject
+                                        </Button>
                                       </div>
                                     </div>
                                   );
