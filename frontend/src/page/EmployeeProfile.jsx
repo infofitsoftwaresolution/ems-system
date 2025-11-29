@@ -32,6 +32,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useKycScroll } from "@/hooks/use-kyc-scroll";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
+import { Dropzone } from "@/components/ui/dropzone";
 
 export default function EmployeeProfile() {
   const { user } = useAuth();
@@ -65,8 +66,10 @@ export default function EmployeeProfile() {
   const [bankProofFile, setBankProofFile] = useState(null);
   const [aadhaarFrontFile, setAadhaarFrontFile] = useState(null);
   const [aadhaarBackFile, setAadhaarBackFile] = useState(null);
+  const [educationDocuments, setEducationDocuments] = useState([]);
   const [submittingKyc, setSubmittingKyc] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
+  const [uploadedFileUrls, setUploadedFileUrls] = useState({});
 
   // Validation functions
   const validatePAN = (pan) => {
@@ -193,7 +196,7 @@ export default function EmployeeProfile() {
 
   const validateFile = (file, fieldName) => {
     if (!file) return `${fieldName} is required`;
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 5 * 1024 * 1024; // 5MB
     // Allow both images and PDFs for all document types
     const allowedTypes = [
       "image/jpeg",
@@ -207,9 +210,55 @@ export default function EmployeeProfile() {
       return "Please upload a valid file (PDF, JPEG, PNG, or WebP)";
     }
     if (file.size > maxSize) {
-      return "File size must be less than 10MB";
+      return "File size must be less than 5MB";
     }
     return "";
+  };
+
+  // Upload file to server
+  const uploadFileToServer = async (file, onProgress) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const token = localStorage.getItem("authToken");
+    const apiUrl =
+      import.meta.env.VITE_API_URL ||
+      (import.meta.env.PROD ? "" : "http://localhost:3001");
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable && onProgress) {
+          const progress = (e.loaded / e.total) * 100;
+          onProgress(progress);
+        }
+      });
+
+      xhr.addEventListener("load", () => {
+        if (xhr.status === 200 || xhr.status === 201) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            const url = response.data?.url || response.url || response.data?.path;
+            resolve(url);
+          } catch (error) {
+            reject(new Error("Failed to parse upload response"));
+          }
+        } else {
+          reject(new Error(`Upload failed: ${xhr.statusText}`));
+        }
+      });
+
+      xhr.addEventListener("error", () => {
+        reject(new Error("Upload failed"));
+      });
+
+      xhr.open("POST", `${apiUrl}/api/documents/upload`);
+      if (token) {
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      }
+      xhr.send(formData);
+    });
   };
 
   // Handle field validation on change
@@ -370,6 +419,8 @@ export default function EmployeeProfile() {
     errors.employeePhoto = validateFile(employeePhotoFile, "Employee Photo");
     errors.aadhaarFront = validateFile(aadhaarFrontFile, "Aadhaar Front");
     errors.aadhaarBack = validateFile(aadhaarBackFile, "Aadhaar Back");
+    errors.bankProof = validateFile(bankProofFile, "Bank Proof");
+    // Salary slips and education documents are optional - no validation needed
 
     setValidationErrors(errors);
 
@@ -466,6 +517,7 @@ export default function EmployeeProfile() {
             employeePhoto: "Employee Photo",
             aadhaarFront: "Aadhaar Card - Front",
             aadhaarBack: "Aadhaar Card - Back",
+            bankProof: "Bank Proof",
           };
           return fieldLabels[field] || field;
         });
@@ -532,11 +584,12 @@ export default function EmployeeProfile() {
         formData.append("salary_slip_month_3", salarySlipMonth3);
       if (bankProofFile) formData.append("bank_proof", bankProofFile);
 
-      // Handle education documents (if multiple files are supported)
-      // Note: If you have an array of education documents, append each one
-      // For now, assuming single file upload for education documents
-      // If you have educationDocumentsFile state, add it here:
-      // if (educationDocumentsFile) formData.append("education_documents", educationDocumentsFile);
+      // Handle education documents (multiple files)
+      if (educationDocuments && educationDocuments.length > 0) {
+        educationDocuments.forEach((file) => {
+          formData.append("education_documents", file);
+        });
+      }
 
       // Add required fields for backend
       formData.append("dob", kycFormData.dob);
@@ -617,6 +670,8 @@ export default function EmployeeProfile() {
       setBankProofFile(null);
       setAadhaarFrontFile(null);
       setAadhaarBackFile(null);
+      setEducationDocuments([]);
+      setUploadedFileUrls({});
       setValidationErrors({});
 
       // Reload KYC status
@@ -1338,72 +1393,37 @@ export default function EmployeeProfile() {
                   <h4 className="text-md font-semibold text-gray-700">
                     Employee Photo
                   </h4>
-                  <div className="space-y-2">
-                    <Label htmlFor="employeePhoto">Employee Photo *</Label>
-                    <div
-                      className={`border-2 border-dashed rounded-lg p-4 ${
-                        validationErrors.employeePhoto
-                          ? "border-red-500"
-                          : "border-gray-300"
-                      }`}>
-                      {employeePhotoFile ? (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <FileImage className="h-4 w-4" />
-                            <span className="text-sm">
-                              {employeePhotoFile.name}
-                            </span>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEmployeePhotoFile(null);
-                              setValidationErrors({
-                                ...validationErrors,
-                                employeePhoto: "",
-                              });
-                            }}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="text-center">
-                          <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-500">
-                            Click to upload employee photo
-                          </p>
-                          <Input
-                            id="employeePhoto"
-                            type="file"
-                            accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e.target.files[0],
-                                "employeePhoto"
-                              )
-                            }
-                            className="hidden"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              document.getElementById("employeePhoto").click()
-                            }>
-                            Choose File
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    {validationErrors.employeePhoto && (
-                      <p className="text-sm text-red-500">
-                        {validationErrors.employeePhoto}
-                      </p>
-                    )}
-                  </div>
+                  <Dropzone
+                    label="Employee Photo"
+                    placeholder="Drag & Drop employee photo here or Click to Upload"
+                    acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
+                    acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
+                    maxFileSize={5 * 1024 * 1024}
+                    multiple={false}
+                    required={true}
+                    error={validationErrors.employeePhoto}
+                    files={employeePhotoFile}
+                    onFileSelect={(file) => {
+                      if (file) {
+                        handleFileUpload(file, "employeePhoto");
+                      } else {
+                        setEmployeePhotoFile(null);
+                        setValidationErrors({
+                          ...validationErrors,
+                          employeePhoto: "",
+                        });
+                      }
+                    }}
+                    onFileRemove={() => {
+                      setEmployeePhotoFile(null);
+                      setValidationErrors({
+                        ...validationErrors,
+                        employeePhoto: "",
+                      });
+                    }}
+                    onUpload={uploadFileToServer}
+                    autoUpload={true}
+                  />
                 </div>
 
                 {/* Section 2: PAN Card Photo */}
@@ -1411,67 +1431,37 @@ export default function EmployeeProfile() {
                   <h4 className="text-md font-semibold text-gray-700">
                     PAN Card Photo
                   </h4>
-                  <div className="space-y-2">
-                    <Label htmlFor="panCard">PAN Card Photo *</Label>
-                    <div
-                      className={`border-2 border-dashed rounded-lg p-4 ${
-                        validationErrors.panCard
-                          ? "border-red-500"
-                          : "border-gray-300"
-                      }`}>
-                      {panCardFile ? (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <FileImage className="h-4 w-4" />
-                            <span className="text-sm">{panCardFile.name}</span>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setPanCardFile(null);
-                              setValidationErrors({
-                                ...validationErrors,
-                                panCard: "",
-                              });
-                            }}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="text-center">
-                          <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-500">
-                            Click to upload PAN card photo
-                          </p>
-                          <Input
-                            id="panCard"
-                            type="file"
-                            accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
-                            onChange={(e) =>
-                              handleFileUpload(e.target.files[0], "panCard")
-                            }
-                            className="hidden"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              document.getElementById("panCard").click()
-                            }>
-                            Choose File
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    {validationErrors.panCard && (
-                      <p className="text-sm text-red-500">
-                        {validationErrors.panCard}
-                      </p>
-                    )}
-                  </div>
+                  <Dropzone
+                    label="PAN Card Photo"
+                    placeholder="Drag & Drop PAN card photo here or Click to Upload"
+                    acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
+                    acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
+                    maxFileSize={5 * 1024 * 1024}
+                    multiple={false}
+                    required={true}
+                    error={validationErrors.panCard}
+                    files={panCardFile}
+                    onFileSelect={(file) => {
+                      if (file) {
+                        handleFileUpload(file, "panCard");
+                      } else {
+                        setPanCardFile(null);
+                        setValidationErrors({
+                          ...validationErrors,
+                          panCard: "",
+                        });
+                      }
+                    }}
+                    onFileRemove={() => {
+                      setPanCardFile(null);
+                      setValidationErrors({
+                        ...validationErrors,
+                        panCard: "",
+                      });
+                    }}
+                    onUpload={uploadFileToServer}
+                    autoUpload={true}
+                  />
                 </div>
 
                 {/* Section 3: Aadhaar Card Photo (Front and Back) */}
@@ -1480,141 +1470,68 @@ export default function EmployeeProfile() {
                     Aadhaar Card Photo
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="aadhaarFront">
-                        Aadhaar Card - Front *
-                      </Label>
-                      <div
-                        className={`border-2 border-dashed rounded-lg p-4 ${
-                          validationErrors.aadhaarFront
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}>
-                        {aadhaarFrontFile ? (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <FileImage className="h-4 w-4" />
-                              <span className="text-sm">
-                                {aadhaarFrontFile.name}
-                              </span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setAadhaarFrontFile(null);
-                                setValidationErrors({
-                                  ...validationErrors,
-                                  aadhaarFront: "",
-                                });
-                              }}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="text-center">
-                            <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
-                            <p className="text-xs text-gray-500 mb-2">
-                              Upload Aadhaar front
-                            </p>
-                            <Input
-                              id="aadhaarFront"
-                              type="file"
-                              accept=".pdf,image/jpeg,image/jpg,image/png"
-                              onChange={(e) =>
-                                handleFileUpload(
-                                  e.target.files[0],
-                                  "aadhaarFront"
-                                )
-                              }
-                              className="hidden"
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                document.getElementById("aadhaarFront").click()
-                              }>
-                              Choose File
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      {validationErrors.aadhaarFront && (
-                        <p className="text-sm text-red-500">
-                          {validationErrors.aadhaarFront}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="aadhaarBack">Aadhaar Card - Back *</Label>
-                      <div
-                        className={`border-2 border-dashed rounded-lg p-4 ${
-                          validationErrors.aadhaarBack
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}>
-                        {aadhaarBackFile ? (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <FileImage className="h-4 w-4" />
-                              <span className="text-sm">
-                                {aadhaarBackFile.name}
-                              </span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setAadhaarBackFile(null);
-                                setValidationErrors({
-                                  ...validationErrors,
-                                  aadhaarBack: "",
-                                });
-                              }}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="text-center">
-                            <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
-                            <p className="text-xs text-gray-500 mb-2">
-                              Upload Aadhaar back
-                            </p>
-                            <Input
-                              id="aadhaarBack"
-                              type="file"
-                              accept=".pdf,image/jpeg,image/jpg,image/png"
-                              onChange={(e) =>
-                                handleFileUpload(
-                                  e.target.files[0],
-                                  "aadhaarBack"
-                                )
-                              }
-                              className="hidden"
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                document.getElementById("aadhaarBack").click()
-                              }>
-                              Choose File
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      {validationErrors.aadhaarBack && (
-                        <p className="text-sm text-red-500">
-                          {validationErrors.aadhaarBack}
-                        </p>
-                      )}
-                    </div>
+                    <Dropzone
+                      label="Aadhaar Card - Front"
+                      placeholder="Drag & Drop Aadhaar front here or Click to Upload"
+                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                      maxFileSize={5 * 1024 * 1024}
+                      multiple={false}
+                      required={true}
+                      error={validationErrors.aadhaarFront}
+                      files={aadhaarFrontFile}
+                      onFileSelect={(file) => {
+                        if (file) {
+                          handleFileUpload(file, "aadhaarFront");
+                        } else {
+                          setAadhaarFrontFile(null);
+                          setValidationErrors({
+                            ...validationErrors,
+                            aadhaarFront: "",
+                          });
+                        }
+                      }}
+                      onFileRemove={() => {
+                        setAadhaarFrontFile(null);
+                        setValidationErrors({
+                          ...validationErrors,
+                          aadhaarFront: "",
+                        });
+                      }}
+                      onUpload={uploadFileToServer}
+                      autoUpload={true}
+                    />
+                    <Dropzone
+                      label="Aadhaar Card - Back"
+                      placeholder="Drag & Drop Aadhaar back here or Click to Upload"
+                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                      maxFileSize={5 * 1024 * 1024}
+                      multiple={false}
+                      required={true}
+                      error={validationErrors.aadhaarBack}
+                      files={aadhaarBackFile}
+                      onFileSelect={(file) => {
+                        if (file) {
+                          handleFileUpload(file, "aadhaarBack");
+                        } else {
+                          setAadhaarBackFile(null);
+                          setValidationErrors({
+                            ...validationErrors,
+                            aadhaarBack: "",
+                          });
+                        }
+                      }}
+                      onFileRemove={() => {
+                        setAadhaarBackFile(null);
+                        setValidationErrors({
+                          ...validationErrors,
+                          aadhaarBack: "",
+                        });
+                      }}
+                      onUpload={uploadFileToServer}
+                      autoUpload={true}
+                    />
                   </div>
                 </div>
 
@@ -1624,218 +1541,99 @@ export default function EmployeeProfile() {
                     3 Months Salary Slips
                   </h4>
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="salarySlipMonth1">
-                        Salary Slip - Month 1
-                      </Label>
-                      <div
-                        className={`border-2 border-dashed rounded-lg p-4 ${
-                          validationErrors.salarySlipMonth1
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}>
-                        {salarySlipMonth1 ? (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <FileImage className="h-4 w-4" />
-                              <span className="text-sm">
-                                {salarySlipMonth1.name}
-                              </span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSalarySlipMonth1(null);
-                                setValidationErrors({
-                                  ...validationErrors,
-                                  salarySlipMonth1: "",
-                                });
-                              }}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="text-center">
-                            <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
-                            <p className="text-xs text-gray-500 mb-2">
-                              Upload salary slip
-                            </p>
-                            <Input
-                              id="salarySlipMonth1"
-                              type="file"
-                              accept=".pdf,.jpg,.jpeg,.png"
-                              onChange={(e) =>
-                                handleFileUpload(
-                                  e.target.files[0],
-                                  "salarySlipMonth1"
-                                )
-                              }
-                              className="hidden"
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                document
-                                  .getElementById("salarySlipMonth1")
-                                  .click()
-                              }>
-                              Choose File
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      {validationErrors.salarySlipMonth1 && (
-                        <p className="text-sm text-red-500">
-                          {validationErrors.salarySlipMonth1}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="salarySlipMonth2">
-                        Salary Slip - Month 2
-                      </Label>
-                      <div
-                        className={`border-2 border-dashed rounded-lg p-4 ${
-                          validationErrors.salarySlipMonth2
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}>
-                        {salarySlipMonth2 ? (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <FileImage className="h-4 w-4" />
-                              <span className="text-sm">
-                                {salarySlipMonth2.name}
-                              </span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSalarySlipMonth2(null);
-                                setValidationErrors({
-                                  ...validationErrors,
-                                  salarySlipMonth2: "",
-                                });
-                              }}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="text-center">
-                            <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
-                            <p className="text-xs text-gray-500 mb-2">
-                              Upload salary slip
-                            </p>
-                            <Input
-                              id="salarySlipMonth2"
-                              type="file"
-                              accept=".pdf,.jpg,.jpeg,.png"
-                              onChange={(e) =>
-                                handleFileUpload(
-                                  e.target.files[0],
-                                  "salarySlipMonth2"
-                                )
-                              }
-                              className="hidden"
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                document
-                                  .getElementById("salarySlipMonth2")
-                                  .click()
-                              }>
-                              Choose File
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      {validationErrors.salarySlipMonth2 && (
-                        <p className="text-sm text-red-500">
-                          {validationErrors.salarySlipMonth2}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="salarySlipMonth3">
-                        Salary Slip - Month 3
-                      </Label>
-                      <div
-                        className={`border-2 border-dashed rounded-lg p-4 ${
-                          validationErrors.salarySlipMonth3
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}>
-                        {salarySlipMonth3 ? (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <FileImage className="h-4 w-4" />
-                              <span className="text-sm">
-                                {salarySlipMonth3.name}
-                              </span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSalarySlipMonth3(null);
-                                setValidationErrors({
-                                  ...validationErrors,
-                                  salarySlipMonth3: "",
-                                });
-                              }}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="text-center">
-                            <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
-                            <p className="text-xs text-gray-500 mb-2">
-                              Upload salary slip
-                            </p>
-                            <Input
-                              id="salarySlipMonth3"
-                              type="file"
-                              accept=".pdf,.jpg,.jpeg,.png"
-                              onChange={(e) =>
-                                handleFileUpload(
-                                  e.target.files[0],
-                                  "salarySlipMonth3"
-                                )
-                              }
-                              className="hidden"
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                document
-                                  .getElementById("salarySlipMonth3")
-                                  .click()
-                              }>
-                              Choose File
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      {validationErrors.salarySlipMonth3 && (
-                        <p className="text-sm text-red-500">
-                          {validationErrors.salarySlipMonth3}
-                        </p>
-                      )}
-                    </div>
+                    <Dropzone
+                      label="Salary Slip - Month 1"
+                      placeholder="Drag & Drop salary slip here or Click to Upload"
+                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                      maxFileSize={5 * 1024 * 1024}
+                      multiple={false}
+                      required={false}
+                      error={validationErrors.salarySlipMonth1}
+                      files={salarySlipMonth1}
+                      onFileSelect={(file) => {
+                        if (file) {
+                          handleFileUpload(file, "salarySlipMonth1");
+                        } else {
+                          setSalarySlipMonth1(null);
+                          setValidationErrors({
+                            ...validationErrors,
+                            salarySlipMonth1: "",
+                          });
+                        }
+                      }}
+                      onFileRemove={() => {
+                        setSalarySlipMonth1(null);
+                        setValidationErrors({
+                          ...validationErrors,
+                          salarySlipMonth1: "",
+                        });
+                      }}
+                      onUpload={uploadFileToServer}
+                      autoUpload={true}
+                    />
+                    <Dropzone
+                      label="Salary Slip - Month 2"
+                      placeholder="Drag & Drop salary slip here or Click to Upload"
+                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                      maxFileSize={5 * 1024 * 1024}
+                      multiple={false}
+                      required={false}
+                      error={validationErrors.salarySlipMonth2}
+                      files={salarySlipMonth2}
+                      onFileSelect={(file) => {
+                        if (file) {
+                          handleFileUpload(file, "salarySlipMonth2");
+                        } else {
+                          setSalarySlipMonth2(null);
+                          setValidationErrors({
+                            ...validationErrors,
+                            salarySlipMonth2: "",
+                          });
+                        }
+                      }}
+                      onFileRemove={() => {
+                        setSalarySlipMonth2(null);
+                        setValidationErrors({
+                          ...validationErrors,
+                          salarySlipMonth2: "",
+                        });
+                      }}
+                      onUpload={uploadFileToServer}
+                      autoUpload={true}
+                    />
+                    <Dropzone
+                      label="Salary Slip - Month 3"
+                      placeholder="Drag & Drop salary slip here or Click to Upload"
+                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                      maxFileSize={5 * 1024 * 1024}
+                      multiple={false}
+                      required={false}
+                      error={validationErrors.salarySlipMonth3}
+                      files={salarySlipMonth3}
+                      onFileSelect={(file) => {
+                        if (file) {
+                          handleFileUpload(file, "salarySlipMonth3");
+                        } else {
+                          setSalarySlipMonth3(null);
+                          setValidationErrors({
+                            ...validationErrors,
+                            salarySlipMonth3: "",
+                          });
+                        }
+                      }}
+                      onFileRemove={() => {
+                        setSalarySlipMonth3(null);
+                        setValidationErrors({
+                          ...validationErrors,
+                          salarySlipMonth3: "",
+                        });
+                      }}
+                      onUpload={uploadFileToServer}
+                      autoUpload={true}
+                    />
                   </div>
                 </div>
 
@@ -1844,69 +1642,77 @@ export default function EmployeeProfile() {
                   <h4 className="text-md font-semibold text-gray-700">
                     Bank Proof (Cancelled Cheque/Passbook)
                   </h4>
-                  <div className="space-y-2">
-                    <Label htmlFor="bankProof">Bank Proof</Label>
-                    <div
-                      className={`border-2 border-dashed rounded-lg p-4 ${
-                        validationErrors.bankProof
-                          ? "border-red-500"
-                          : "border-gray-300"
-                      }`}>
-                      {bankProofFile ? (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <FileImage className="h-4 w-4" />
-                            <span className="text-sm">
-                              {bankProofFile.name}
-                            </span>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setBankProofFile(null);
-                              setValidationErrors({
-                                ...validationErrors,
-                                bankProof: "",
-                              });
-                            }}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="text-center">
-                          <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-500">
-                            Upload cancelled cheque or passbook (PDF or Image)
-                          </p>
-                          <Input
-                            id="bankProof"
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            onChange={(e) =>
-                              handleFileUpload(e.target.files[0], "bankProof")
-                            }
-                            className="hidden"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              document.getElementById("bankProof").click()
-                            }>
-                            Choose File
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    {validationErrors.bankProof && (
-                      <p className="text-sm text-red-500">
-                        {validationErrors.bankProof}
-                      </p>
-                    )}
-                  </div>
+                  <Dropzone
+                    label="Bank Proof"
+                    placeholder="Drag & Drop cancelled cheque or passbook here or Click to Upload"
+                    acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                    acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                    maxFileSize={5 * 1024 * 1024}
+                    multiple={false}
+                    required={true}
+                    error={validationErrors.bankProof}
+                    files={bankProofFile}
+                    onFileSelect={(file) => {
+                      if (file) {
+                        handleFileUpload(file, "bankProof");
+                      } else {
+                        setBankProofFile(null);
+                        setValidationErrors({
+                          ...validationErrors,
+                          bankProof: "",
+                        });
+                      }
+                    }}
+                    onFileRemove={() => {
+                      setBankProofFile(null);
+                      setValidationErrors({
+                        ...validationErrors,
+                        bankProof: "",
+                      });
+                    }}
+                    onUpload={uploadFileToServer}
+                    autoUpload={true}
+                  />
+                </div>
+
+                {/* Section 6: Educational Certificates */}
+                <div className="space-y-4 border-b pb-4">
+                  <h4 className="text-md font-semibold text-gray-700">
+                    Educational Certificates
+                  </h4>
+                  <Dropzone
+                    label="Educational Certificates"
+                    placeholder="Drag & Drop educational certificates here or Click to Upload (Multiple files allowed)"
+                    acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
+                    acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
+                    maxFileSize={5 * 1024 * 1024}
+                    multiple={true}
+                    required={false}
+                    error={validationErrors.educationDocuments}
+                    files={educationDocuments}
+                    onFileSelect={(files) => {
+                      if (files) {
+                        const fileArray = Array.isArray(files) ? files : [files];
+                        setEducationDocuments(fileArray);
+                        setValidationErrors({
+                          ...validationErrors,
+                          educationDocuments: "",
+                        });
+                      } else {
+                        setEducationDocuments([]);
+                        setValidationErrors({
+                          ...validationErrors,
+                          educationDocuments: "",
+                        });
+                      }
+                    }}
+                    onFileRemove={(index) => {
+                      const newFiles = educationDocuments.filter((_, i) => i !== index);
+                      setEducationDocuments(newFiles);
+                    }}
+                    onUpload={uploadFileToServer}
+                    autoUpload={true}
+                  />
                 </div>
               </div>
 

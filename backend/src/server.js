@@ -43,6 +43,7 @@ import notificationsRouter from "./routes/notifications.js";
 import sessionsRouter from "./routes/sessions.js";
 import twoFactorRouter from "./routes/twoFactor.js";
 import analyticsRouter from "./routes/analytics.js";
+import documentsRouter from "./routes/documents.js";
 import { updateSessionActivity } from "./middleware/sessionActivity.js";
 
 const app = express();
@@ -271,6 +272,7 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/two-factor", twoFactorRouter);
 app.use("/api/analytics", analyticsRouter);
+app.use("/api/documents", documentsRouter);
 
 const PORT = process.env.PORT || 3001;
 
