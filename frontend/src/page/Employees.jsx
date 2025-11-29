@@ -1576,15 +1576,21 @@ export default function Employees() {
                   <TableHead className="w-12">No</TableHead>
                   <TableHead
                     onClick={() => handleSort("emp_id")}
-                    className="cursor-pointer hover:text-primary">
+                    className="cursor-pointer hover:text-primary select-none">
                     <div className="flex items-center gap-1">
                       Emp Id
-                      {sortConfig?.key === "emp_id" &&
-                        (sortConfig.direction === "asc" ? (
-                          <ChevronUp className="h-4 w-4" />
+                      {sortConfig?.key === "emp_id" ? (
+                        sortConfig.direction === "asc" ? (
+                          <ChevronUp className="h-4 w-4 text-primary" />
                         ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        ))}
+                          <ChevronDown className="h-4 w-4 text-primary" />
+                        )
+                      ) : (
+                        <div className="flex flex-col h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 -mb-1" />
+                          <ChevronDown className="h-2 w-4" />
+                        </div>
+                      )}
                     </div>
                   </TableHead>
                   <TableHead
