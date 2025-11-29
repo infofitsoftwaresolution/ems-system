@@ -449,6 +449,29 @@ router.put('/:id', async (req, res) => {
       const userUpdateData = {};
       if (updateData.name) userUpdateData.name = updateData.name;
       if (updateData.email) userUpdateData.email = updateData.email;
+      
+      // Map role from Employee table to User table role (RBAC)
+      // Frontend roles: "Administrator" -> 'admin', "HR Manager" -> 'hr', "Department Head" -> 'manager', "Employee" -> 'employee'
+      if (req.body.role) {
+        const roleMapping = {
+          'Administrator': 'admin',
+          'administrator': 'admin',
+          'admin': 'admin',
+          'HR Manager': 'hr',
+          'hr manager': 'hr',
+          'hr': 'hr',
+          'Department Head': 'manager',
+          'department head': 'manager',
+          'manager': 'manager',
+          'Employee': 'employee',
+          'employee': 'employee'
+        };
+        
+        const mappedRole = roleMapping[req.body.role] || 'employee';
+        userUpdateData.role = mappedRole;
+        console.log(`🔄 Updating user RBAC role: ${req.body.role} -> ${mappedRole} for ${emp.email}`);
+      }
+      
       // Sync is_active status with user.active
       if (updateData.is_active !== undefined) {
         userUpdateData.active = updateData.is_active;

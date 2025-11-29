@@ -579,6 +579,7 @@ export default function Employees() {
         : "";
 
       // Get role name from ID if role is selected
+      // This role will update the User table's role field, which controls RBAC (Role-Based Access Control)
       const roleName = editingEmployee.role && editingEmployee.role !== ""
         ? roles.find((r) => r.id === editingEmployee.role)?.name || editingEmployee.role
         : "";
@@ -592,7 +593,7 @@ export default function Employees() {
         designation: editingEmployee.designation || "",
         position: editingEmployee.position || editingEmployee.designation || "",
         department: departmentName || editingEmployee.location || "", // Send department name to backend
-        role: roleName, // Send role name to backend
+        role: roleName, // Send role name to backend - this will update RBAC in User table
         hireDate: editingEmployee.joinDate || null,
         status: editingEmployee.isActive ? "Working" : "Not Working",
         is_active: editingEmployee.isActive,
@@ -607,7 +608,13 @@ export default function Employees() {
       // Reload employees list to get updated data
       await loadEmployees();
 
-      toast.success("Employee updated successfully!");
+      // Show success message with role update info if role was changed
+      const roleChanged = roleName && roleName !== "";
+      const successMessage = roleChanged 
+        ? `Employee updated successfully! RBAC role changed to ${roleName}.`
+        : "Employee updated successfully!";
+      
+      toast.success(successMessage);
       setShowEditDialog(false);
       setEditingEmployee(null);
     } catch (err) {
