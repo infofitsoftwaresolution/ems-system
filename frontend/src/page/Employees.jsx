@@ -641,22 +641,57 @@ export default function Employees() {
 
   // Handle Export to CSV
   const handleExportCSV = () => {
+    // Helper function to format date for CSV
+    const formatDateForCSV = (dateString) => {
+      if (!dateString) return 'N/A';
+      try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'N/A';
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      } catch (e) {
+        return 'N/A';
+      }
+    };
+
+    // Helper function to calculate Date of Leaving
+    // If employee is inactive or status is "Not Working", use updatedAt as approximation
+    const getDateOfLeaving = (emp) => {
+      if (emp.is_active === false || emp.status === 'Not Working') {
+        // Use updatedAt as the leave date if available
+        if (emp.updatedAt) {
+          return formatDateForCSV(emp.updatedAt);
+        }
+      }
+      return 'N/A';
+    };
+
     const headers = [
+      "Employee ID",
       "Name",
       "Email",
-      "Department",
+      "Mobile Number",
+      "Location",
+      "Designation",
       "Position",
       "Role",
       "Start Date",
+      "Date of Leaving",
       "Status",
     ];
     const csvData = filteredEmployees.map((emp) => [
-      emp.name,
-      emp.email,
-      getDepartmentName(emp.department),
+      emp.emp_id || emp.employeeId || "N/A",
+      emp.name || "N/A",
+      emp.email || "N/A",
+      emp.mobile_number || emp.mobileNumber || "N/A",
+      emp.location || "N/A",
+      emp.designation || "N/A",
       emp.position || "N/A",
       emp.role || "N/A",
-      emp.hireDate ? new Date(emp.hireDate).toLocaleDateString() : "N/A",
+      emp.hireDate ? formatDateForCSV(emp.hireDate) : "N/A",
+      getDateOfLeaving(emp),
       emp.status || "N/A",
     ]);
 

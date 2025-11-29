@@ -109,7 +109,9 @@ router.get('/', async (req, res) => {
         'id', 'emp_id', 'name', 'email', 'mobile_number', 
         'location', 'designation', 'status', 'is_active', 'can_access_system',
         // Legacy fields for backward compatibility
-        'employeeId', 'department', 'position', 'role', 'hireDate', 'salary', 'kycStatus'
+        'employeeId', 'department', 'position', 'role', 'hireDate', 'salary', 'kycStatus',
+        // Timestamps for Date of Leaving calculation
+        'createdAt', 'updatedAt'
       ]
     });
     
