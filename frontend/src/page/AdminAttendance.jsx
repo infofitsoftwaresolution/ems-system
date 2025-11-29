@@ -316,12 +316,16 @@ export default function AdminAttendance() {
     const dateOfJoining = (record.hireDate || record.dateOfJoining) ? formatDateForCSV(record.hireDate || record.dateOfJoining) : 'N/A';
     const dateOfLeaving = (record.leaveDate || record.dateOfLeaving) ? formatDateForCSV(record.leaveDate || record.dateOfLeaving) : 'N/A';
 
+    // Get mobile number
+    const mobileNumber = record.mobileNumber || record.mobile_number || 'N/A';
+
     const csvRows = [
       [
         'Date',
         'Employee ID',
         'Employee Name',
         'Email',
+        'Mobile Number',
         'Date of Joining',
         'Date of Leaving',
         'Check In Time',
@@ -340,6 +344,7 @@ export default function AdminAttendance() {
         employeeId,
         employeeName,
         record.email || 'N/A',
+        mobileNumber,
         dateOfJoining,
         dateOfLeaving,
         formatTime(record.checkIn),
@@ -386,6 +391,7 @@ export default function AdminAttendance() {
         'Employee ID',
         'Employee Name',
         'Email',
+        'Mobile Number',
         'Date of Joining',
         'Date of Leaving',
         'Check In Time',
@@ -413,6 +419,9 @@ export default function AdminAttendance() {
         const employeeId = record.employeeId || record.emp_id || 'N/A';
         const employeeName = record.name || 'N/A';
         
+        // Get mobile number
+        const mobileNumber = record.mobileNumber || record.mobile_number || 'N/A';
+        
         // Format dates of joining and leaving - fetch from record data
         // Debug: Log what we're receiving (only for first record to avoid spam)
         if (process.env.NODE_ENV === 'development' && filteredAttendance.indexOf(record) === 0) {
@@ -421,15 +430,16 @@ export default function AdminAttendance() {
             hireDate: record.hireDate,
             dateOfJoining: record.dateOfJoining,
             leaveDate: record.leaveDate,
-            dateOfLeaving: record.dateOfLeaving
+            dateOfLeaving: record.dateOfLeaving,
+            mobileNumber: mobileNumber
           });
         }
         
         const dateOfJoining = (record.hireDate || record.dateOfJoining) ? formatDateForCSV(record.hireDate || record.dateOfJoining) : 'N/A';
         const dateOfLeaving = (record.leaveDate || record.dateOfLeaving) ? formatDateForCSV(record.leaveDate || record.dateOfLeaving) : 'N/A';
         
-        // Calculate working hours
-        const workingHours = calculateWorkingHours(record.checkIn, record.checkOut);
+        // Calculate working hours - use backend value if available, otherwise calculate
+        const workingHours = record.workingHours || calculateWorkingHours(record.checkIn, record.checkOut);
         
         // Format checkout type: Normal / Auto-checkout / Manual
         let checkoutType = 'Normal';
@@ -454,6 +464,7 @@ export default function AdminAttendance() {
           employeeId,
           employeeName,
           record.email || 'N/A',
+          mobileNumber,
           dateOfJoining,
           dateOfLeaving,
           formatTime(record.checkIn),

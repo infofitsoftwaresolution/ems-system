@@ -151,7 +151,7 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager', 'hr']), asyn
                 [Op.in]: emails
               }
             },
-            attributes: ['email', 'employeeId', 'name', 'hireDate', 'is_active', 'status', 'updatedAt']
+            attributes: ['email', 'employeeId', 'name', 'hireDate', 'is_active', 'status', 'updatedAt', 'mobile_number']
           });
           
           console.log(`✅ Found ${employees?.length || 0} employees`);
@@ -193,13 +193,21 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager', 'hr']), asyn
                     }
                   }
                   
+                  // Try multiple ways to access mobile_number
+                  const mobileNumber = empData.mobile_number || 
+                                     empData.mobileNumber || 
+                                     (e.dataValues && e.dataValues.mobile_number) ||
+                                     (e.dataValues && e.dataValues.mobileNumber) ||
+                                     null;
+                  
                   return [String(empData.email).toLowerCase(), { 
                     employeeId: empData.employeeId || null, 
                     name: empData.name || null,
                     hireDate: hireDate,
                     is_active: empData.is_active !== undefined ? empData.is_active : true,
                     status: empData.status || null,
-                    leaveDate: leaveDate
+                    leaveDate: leaveDate,
+                    mobileNumber: mobileNumber
                   }];
                 })
             );
@@ -239,6 +247,8 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager', 'hr']), asyn
             json.hireDate = emp.hireDate || null;
             // Add leaveDate (Date of Leaving) - calculated from employee status/updatedAt
             json.leaveDate = emp.leaveDate || null;
+            // Add mobileNumber - fetch from employee data
+            json.mobileNumber = emp.mobileNumber || null;
             
             // Debug: Log if hireDate is being set
             if (emp.hireDate) {
