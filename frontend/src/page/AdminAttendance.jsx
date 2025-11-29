@@ -122,10 +122,49 @@ export default function AdminAttendance() {
     return new Date(timeString).toLocaleTimeString();
   };
 
-  // Format date
+  // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString();
+  };
+
+  // Format date for CSV (date only, YYYY-MM-DD format)
+  const formatDateForCSV = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'N/A';
+      }
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch (e) {
+      return 'N/A';
+    }
+  };
+
+  // Calculate time between check in and check out
+  const calculateWorkingHours = (checkIn, checkOut) => {
+    if (!checkIn || !checkOut) return 'N/A';
+    try {
+      const checkInTime = new Date(checkIn);
+      const checkOutTime = new Date(checkOut);
+      const diffMs = checkOutTime - checkInTime;
+      
+      if (diffMs < 0) return 'N/A'; // Invalid if check out is before check in
+      
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+      
+      // Format as HH:MM:SS
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    } catch (e) {
+      return 'N/A';
+    }
   };
 
   // Filter attendance data
@@ -227,25 +266,73 @@ export default function AdminAttendance() {
       return `"${stringValue.replace(/"/g, '""')}"`;
     };
 
+    // Get employee ID separately
+    const employeeId = record.employeeId || record.emp_id || 'N/A';
+    const employeeName = record.name || record.employeeId || record.email?.split('@')[0] || 'employee';
+    
+    // Calculate working hours
+    const workingHours = calculateWorkingHours(record.checkIn, record.checkOut);
+    
+    // Format checkout type: Normal / Auto-checkout / Manual
+    let checkoutType = 'Normal';
+    if (record.checkoutType === 'auto-midnight') {
+      checkoutType = 'Auto-checkout';
+    } else if (record.checkoutType === 'manual') {
+      checkoutType = 'Manual';
+    } else if (record.checkoutType === 'normal' || !record.checkoutType) {
+      checkoutType = 'Normal';
+    } else if (record.checkoutType) {
+      // Map other values
+      const typeMap = {
+        'auto': 'Auto-checkout',
+        'auto-midnight': 'Auto-checkout',
+        'manual': 'Manual'
+      };
+      checkoutType = typeMap[record.checkoutType.toLowerCase()] || record.checkoutType;
+    }
+
+    // Format dates of joining and leaving - fetch from record data
+    // Debug: Log what we're receiving
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📅 Record data for CSV export:', {
+        email: record.email,
+        hireDate: record.hireDate,
+        dateOfJoining: record.dateOfJoining,
+        leaveDate: record.leaveDate,
+        dateOfLeaving: record.dateOfLeaving,
+        allKeys: Object.keys(record)
+      });
+    }
+    
+    const dateOfJoining = (record.hireDate || record.dateOfJoining) ? formatDateForCSV(record.hireDate || record.dateOfJoining) : 'N/A';
+    const dateOfLeaving = (record.leaveDate || record.dateOfLeaving) ? formatDateForCSV(record.leaveDate || record.dateOfLeaving) : 'N/A';
+
     const csvRows = [
       [
-        'Date', 
-        'Employee Name/ID', 
-        'Email', 
-        'Check In Time', 
+        'Date',
+        'Employee ID',
+        'Employee Name',
+        'Email',
+        'Date of Joining',
+        'Date of Leaving',
+        'Check In Time',
         'Check In Date & Time',
         'Check In Address',
-        'Late', 
-        'Check Out Time', 
+        'Late',
+        'Check Out Time',
         'Check Out Date & Time',
         'Check Out Address',
-        'Checkout Type', 
+        'Working Hours',
+        'Checkout Type',
         'Status'
       ],
       [
-        formatDate(record.date),
-        record.name || record.employeeId || record.email.split('@')[0] || 'N/A',
+        formatDateForCSV(record.date),
+        employeeId,
+        employeeName,
         record.email || 'N/A',
+        dateOfJoining,
+        dateOfLeaving,
         formatTime(record.checkIn),
         record.checkIn ? new Date(record.checkIn).toLocaleString() : 'N/A',
         record.checkInAddress || 'N/A',
@@ -253,7 +340,8 @@ export default function AdminAttendance() {
         formatTime(record.checkOut),
         record.checkOut ? new Date(record.checkOut).toLocaleString() : 'N/A',
         record.checkOutAddress || 'N/A',
-        record.checkoutType === 'auto-midnight' ? 'Auto (Midnight)' : (record.checkoutType || 'Manual'),
+        workingHours,
+        checkoutType,
         record.status || 'N/A'
       ]
     ];
@@ -266,7 +354,6 @@ export default function AdminAttendance() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const employeeName = record.name || record.employeeId || record.email.split('@')[0] || 'employee';
     const dateStr = formatDate(record.date).replace(/\//g, '-');
     a.download = `attendance-${employeeName}-${dateStr}.csv`;
     a.click();
@@ -286,17 +373,21 @@ export default function AdminAttendance() {
 
     const csvRows = [
       [
-        'Date', 
-        'Employee Name/ID', 
-        'Email', 
-        'Check In Time', 
+        'Date',
+        'Employee ID',
+        'Employee Name',
+        'Email',
+        'Date of Joining',
+        'Date of Leaving',
+        'Check In Time',
         'Check In Date & Time',
         'Check In Address',
-        'Late', 
-        'Check Out Time', 
+        'Late',
+        'Check Out Time',
         'Check Out Date & Time',
         'Check Out Address',
-        'Checkout Type', 
+        'Working Hours',
+        'Checkout Type',
         'Status'
       ],
       ...filteredAttendance.map(record => {
@@ -308,10 +399,54 @@ export default function AdminAttendance() {
           expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
           isLate = checkInTime > expectedCheckInTime;
         }
+        
+        // Get employee ID separately
+        const employeeId = record.employeeId || record.emp_id || 'N/A';
+        const employeeName = record.name || 'N/A';
+        
+        // Format dates of joining and leaving - fetch from record data
+        // Debug: Log what we're receiving (only for first record to avoid spam)
+        if (process.env.NODE_ENV === 'development' && filteredAttendance.indexOf(record) === 0) {
+          console.log('📅 First record data for CSV export:', {
+            email: record.email,
+            hireDate: record.hireDate,
+            dateOfJoining: record.dateOfJoining,
+            leaveDate: record.leaveDate,
+            dateOfLeaving: record.dateOfLeaving
+          });
+        }
+        
+        const dateOfJoining = (record.hireDate || record.dateOfJoining) ? formatDateForCSV(record.hireDate || record.dateOfJoining) : 'N/A';
+        const dateOfLeaving = (record.leaveDate || record.dateOfLeaving) ? formatDateForCSV(record.leaveDate || record.dateOfLeaving) : 'N/A';
+        
+        // Calculate working hours
+        const workingHours = calculateWorkingHours(record.checkIn, record.checkOut);
+        
+        // Format checkout type: Normal / Auto-checkout / Manual
+        let checkoutType = 'Normal';
+        if (record.checkoutType === 'auto-midnight') {
+          checkoutType = 'Auto-checkout';
+        } else if (record.checkoutType === 'manual') {
+          checkoutType = 'Manual';
+        } else if (record.checkoutType === 'normal' || !record.checkoutType) {
+          checkoutType = 'Normal';
+        } else if (record.checkoutType) {
+          // Map other values
+          const typeMap = {
+            'auto': 'Auto-checkout',
+            'auto-midnight': 'Auto-checkout',
+            'manual': 'Manual'
+          };
+          checkoutType = typeMap[record.checkoutType.toLowerCase()] || record.checkoutType;
+        }
+        
         return [
-          formatDate(record.date),
-          record.name || record.employeeId || record.email.split('@')[0] || 'N/A',
+          formatDateForCSV(record.date),
+          employeeId,
+          employeeName,
           record.email || 'N/A',
+          dateOfJoining,
+          dateOfLeaving,
           formatTime(record.checkIn),
           record.checkIn ? new Date(record.checkIn).toLocaleString() : 'N/A',
           record.checkInAddress || 'N/A',
@@ -319,7 +454,8 @@ export default function AdminAttendance() {
           formatTime(record.checkOut),
           record.checkOut ? new Date(record.checkOut).toLocaleString() : 'N/A',
           record.checkOutAddress || 'N/A',
-          record.checkoutType === 'auto-midnight' ? 'Auto (Midnight)' : (record.checkoutType || 'Manual'),
+          workingHours,
+          checkoutType,
           record.status || 'N/A'
         ];
       })

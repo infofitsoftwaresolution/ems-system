@@ -151,7 +151,7 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager', 'hr']), asyn
                 [Op.in]: emails
               }
             },
-            attributes: ['email', 'employeeId', 'name']
+            attributes: ['email', 'employeeId', 'name', 'hireDate', 'is_active', 'status', 'updatedAt']
           });
           
           console.log(`✅ Found ${employees?.length || 0} employees`);
@@ -160,10 +160,48 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager', 'hr']), asyn
             emailToEmployee = new Map(
               employees
                 .filter(e => e && e.email) // Filter out any null/undefined employees
-                .map(e => [String(e.email).toLowerCase(), { 
-                  employeeId: e.employeeId || null, 
-                  name: e.name || null 
-                }])
+                .map(e => {
+                  // Get employee data (handle both Sequelize instance and plain object)
+                  const empData = e.toJSON ? e.toJSON() : e;
+                  
+                  // Try multiple ways to access hireDate (camelCase, snake_case, dataValues)
+                  const hireDate = empData.hireDate || 
+                                   empData.hire_date || 
+                                   (e.dataValues && e.dataValues.hireDate) ||
+                                   (e.dataValues && e.dataValues.hire_date) ||
+                                   null;
+                  
+                  // Debug: Log hireDate to see what we're getting
+                  if (hireDate) {
+                    console.log(`📅 Employee ${empData.email} hireDate:`, hireDate);
+                  } else {
+                    console.log(`⚠️ No hireDate found for ${empData.email}. Available keys:`, Object.keys(empData));
+                  }
+                  
+                  // Calculate leaveDate: if employee is inactive or status is "Not Working",
+                  // use updatedAt as an approximation of when they left
+                  let leaveDate = null;
+                  if (empData.is_active === false || empData.status === 'Not Working') {
+                    // Use updatedAt as the leave date if available
+                    const updatedAt = empData.updatedAt || 
+                                     empData.updated_at || 
+                                     (e.dataValues && e.dataValues.updatedAt) ||
+                                     (e.dataValues && e.dataValues.updated_at) ||
+                                     null;
+                    if (updatedAt) {
+                      leaveDate = updatedAt;
+                    }
+                  }
+                  
+                  return [String(empData.email).toLowerCase(), { 
+                    employeeId: empData.employeeId || null, 
+                    name: empData.name || null,
+                    hireDate: hireDate,
+                    is_active: empData.is_active !== undefined ? empData.is_active : true,
+                    status: empData.status || null,
+                    leaveDate: leaveDate
+                  }];
+                })
             );
           }
         }
@@ -197,7 +235,27 @@ router.get('/', authenticateToken, requireRole(['admin', 'manager', 'hr']), asyn
             json.employeeId = emp.employeeId || null;
             // Optionally backfill name if missing
             if (!json.name && emp.name) json.name = emp.name;
+            // Add hireDate (Date of Joining) - fetch from employee data
+            json.hireDate = emp.hireDate || null;
+            // Add leaveDate (Date of Leaving) - calculated from employee status/updatedAt
+            json.leaveDate = emp.leaveDate || null;
+            
+            // Debug: Log if hireDate is being set
+            if (emp.hireDate) {
+              console.log(`✅ Set hireDate for ${emailKey}:`, emp.hireDate);
+            } else {
+              console.log(`⚠️ No hireDate found for ${emailKey}`);
+            }
+          } else {
+            // If employee not found in map, set dates to null
+            console.log(`⚠️ Employee not found in map for email: ${emailKey}`);
+            json.hireDate = json.hireDate || null;
+            json.leaveDate = json.leaveDate || null;
           }
+        } else {
+          // If no email key, set dates to null
+          json.hireDate = json.hireDate || null;
+          json.leaveDate = json.leaveDate || null;
         }
         
         // Calculate isLate if not set (for older records)
