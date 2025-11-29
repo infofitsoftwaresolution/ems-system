@@ -107,7 +107,7 @@ router.get('/', async (req, res) => {
       order: [['id', 'ASC']],
       attributes: [
         'id', 'emp_id', 'name', 'email', 'mobile_number', 
-        'location', 'designation', 'status', 'is_active',
+        'location', 'designation', 'status', 'is_active', 'can_access_system',
         // Legacy fields for backward compatibility
         'employeeId', 'department', 'position', 'role', 'hireDate', 'salary', 'kycStatus'
       ]
@@ -116,30 +116,38 @@ router.get('/', async (req, res) => {
     // Get all employee emails to fetch avatars
     const employeeEmails = employees.map(emp => emp.email);
     
-    // Fetch avatars from User table for all employees
+    // Fetch user data (avatar and role) from User table for all employees
     const users = await User.findAll({
       where: {
         email: {
           [Op.in]: employeeEmails
         }
       },
-      attributes: ['email', 'avatar']
+      attributes: ['email', 'avatar', 'role']
     });
     
-    // Create a map of email -> avatar for quick lookup
+    // Create maps for quick lookup
     const avatarMap = {};
+    const roleMap = {};
     users.forEach(user => {
       if (user.avatar) {
         avatarMap[user.email] = user.avatar;
       }
+      if (user.role) {
+        roleMap[user.email] = user.role;
+      }
     });
     
-    // Map employees and add avatar from User table
+    // Map employees and add avatar and role from User table
     const employeesWithAvatar = employees.map(emp => {
       const empData = emp.toJSON();
       // Add avatar from User table if available
       if (avatarMap[empData.email]) {
         empData.avatar = avatarMap[empData.email];
+      }
+      // Add role from User table if Employee role is not set
+      if (!empData.role && roleMap[empData.email]) {
+        empData.role = roleMap[empData.email];
       }
       return empData;
     });
@@ -402,11 +410,25 @@ router.put('/:id', async (req, res) => {
     if (req.body.mobile_number !== undefined) updateData.mobile_number = req.body.mobile_number;
     if (req.body.location !== undefined) {
       updateData.location = req.body.location;
-      updateData.department = req.body.location; // Update legacy field too
     }
     if (req.body.designation !== undefined) {
       updateData.designation = req.body.designation;
-      updateData.position = req.body.designation; // Update legacy field too
+    }
+    if (req.body.position !== undefined) {
+      updateData.position = req.body.position;
+    }
+    if (req.body.department !== undefined) {
+      updateData.department = req.body.department;
+      // Also update location if department is provided but location is not
+      if (req.body.location === undefined) {
+        updateData.location = req.body.department;
+      }
+    }
+    if (req.body.role !== undefined) {
+      updateData.role = req.body.role;
+    }
+    if (req.body.hireDate !== undefined && req.body.hireDate !== null) {
+      updateData.hireDate = req.body.hireDate;
     }
     if (req.body.status !== undefined) {
       updateData.status = req.body.status === 'Not Working' ? 'Not Working' : 'Working';

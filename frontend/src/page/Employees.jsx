@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -135,8 +135,8 @@ export default function Employees() {
   // KYC Approval State
   const [kycSubmissions, setKycSubmissions] = useState([]);
 
-  // Load employees from API
-  const loadEmployees = async () => {
+  // Load employees from API - memoized with useCallback
+  const loadEmployees = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -155,7 +155,7 @@ export default function Employees() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadEmployees();
@@ -185,118 +185,132 @@ export default function Employees() {
     }
   };
 
+  // Create department lookup maps for O(1) access (performance optimization)
+  const departmentMaps = useMemo(() => {
+    const byId = new Map();
+    const byName = new Map();
+    departments.forEach((dept) => {
+      byId.set(dept.id, dept.name);
+      byName.set(dept.name.toLowerCase(), dept.id);
+    });
+    return { byId, byName };
+  }, []);
+
   // Get department name (handles both string names and IDs)
-  // Must be defined before filteredEmployees uses it
-  const getDepartmentName = (department) => {
+  // Memoized to prevent unnecessary recalculations
+  const getDepartmentName = useCallback((department) => {
     if (!department) return "N/A";
+    const deptStr = String(department);
     // If it's an ID (starts with 'd' and a number like 'd1', 'd2', etc.), look it up
-    if (typeof department === "string" && /^d\d+$/.test(department)) {
-      const dept = departments.find((dept) => dept.id === department);
-      return dept ? dept.name : department;
+    if (/^d\d+$/.test(deptStr)) {
+      return departmentMaps.byId.get(deptStr) || deptStr;
     }
-    // If it's already a department name (not an ID), return it as-is
-    if (typeof department === "string") {
-      // Check if it's actually a department name by looking it up
-      const deptByName = departments.find((dept) => dept.name === department);
-      if (deptByName) {
-        return department; // It's a valid department name
-      }
-      // If not found by name, try as ID
-      const deptById = departments.find((dept) => dept.id === department);
-      return deptById ? deptById.name : department;
+    // Check if it's a known department name
+    if (departmentMaps.byName.has(deptStr.toLowerCase())) {
+      return deptStr; // It's a valid department name
     }
-    // If it's not a string, try to find by ID
-    const dept = departments.find((dept) => dept.id === department);
-    return dept ? dept.name : "N/A";
-  };
+    // If not found, return as-is (might be a location or unknown value)
+    return deptStr;
+  }, [departmentMaps]);
 
   // Filter employees based on search query, filters, and active tab
-  const filteredEmployees = employees.filter((employee) => {
-    // Search across all table fields. If there's no search query, default to true.
+  // Memoized to prevent unnecessary recalculations on every render
+  const filteredEmployees = useMemo(() => {
     const searchTerm = searchQuery.toLowerCase().trim();
+    const selectedDeptName = selectedDepartment 
+      ? getDepartmentName(selectedDepartment) 
+      : null;
 
-    const searchableFields = [
-      employee.name || "",
-      employee.email || "",
-      employee.emp_id || employee.employeeId || "",
-      employee.mobile_number || "",
-      employee.location || employee.department || "",
-      employee.designation || employee.position || "",
-      employee.status || "",
-      employee.role || "",
-    ];
+    return employees.filter((employee) => {
+      // Search across all table fields
+      if (searchTerm) {
+        const searchableFields = [
+          employee.name || "",
+          employee.email || "",
+          employee.emp_id || employee.employeeId || "",
+          employee.mobile_number || "",
+          employee.location || employee.department || "",
+          employee.designation || employee.position || "",
+          employee.status || "",
+          employee.role || "",
+        ];
+        const matchesSearch = searchableFields.some((field) =>
+          field.toLowerCase().includes(searchTerm)
+        );
+        if (!matchesSearch) return false;
+      }
 
-    const matchesSearch =
-      !searchTerm ||
-      searchableFields.some((field) =>
-        field.toLowerCase().includes(searchTerm)
-      );
+      // Department filter
+      if (selectedDeptName) {
+        const empDeptName = getDepartmentName(employee.department);
+        if (empDeptName !== selectedDeptName && employee.department !== selectedDepartment) {
+          return false;
+        }
+      }
 
-    const matchesDepartment =
-      selectedDepartment === null ||
-      employee.department === selectedDepartment ||
-      employee.department === getDepartmentName(selectedDepartment) ||
-      getDepartmentName(employee.department) ===
-        getDepartmentName(selectedDepartment);
+      // Status filter
+      if (selectedStatus) {
+        const isActive = employee.status === "active" || employee.status === "Working";
+        const isInactive = employee.status === "inactive" || employee.status === "Not Working";
+        if (selectedStatus === "active" && !isActive) return false;
+        if (selectedStatus === "inactive" && !isInactive) return false;
+      }
 
-    const matchesStatus =
-      selectedStatus === null ||
-      employee.status === selectedStatus ||
-      (selectedStatus === "active" &&
-        (employee.status === "active" || employee.status === "Working")) ||
-      (selectedStatus === "inactive" &&
-        (employee.status === "inactive" || employee.status === "Not Working"));
+      // Tab filtering
+      if (activeTab !== "all") {
+        const isActive = employee.status === "active" || employee.status === "Working";
+        const isInactive = employee.status === "inactive" || employee.status === "Not Working";
+        const isOnLeave = employee.status === "onLeave" || employee.status === "On Leave";
+        
+        if (activeTab === "active" && !isActive) return false;
+        if (activeTab === "inactive" && !isInactive) return false;
+        if (activeTab === "onLeave" && !isOnLeave) return false;
+      }
 
-    // Tab filtering - handle both old format (active/inactive) and new format (Working/Not Working)
-    const matchesTab =
-      activeTab === "all" ||
-      (activeTab === "active" &&
-        (employee.status === "active" || employee.status === "Working")) ||
-      (activeTab === "inactive" &&
-        (employee.status === "inactive" ||
-          employee.status === "Not Working")) ||
-      (activeTab === "onLeave" &&
-        (employee.status === "onLeave" || employee.status === "On Leave"));
+      return true;
+    });
+  }, [employees, searchQuery, selectedDepartment, selectedStatus, activeTab, getDepartmentName]);
 
-    return matchesSearch && matchesDepartment && matchesStatus && matchesTab;
-  });
-
-  // Sort employees
-  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
-    if (!sortConfig) return 0;
+  // Sort employees - memoized to prevent unnecessary recalculations
+  const sortedEmployees = useMemo(() => {
+    if (!sortConfig) return filteredEmployees;
 
     const { key, direction } = sortConfig;
-    let aValue, bValue;
+    const sorted = [...filteredEmployees].sort((a, b) => {
+      let aValue, bValue;
 
-    // Handle special cases for sorting
-    if (key === "emp_id") {
-      // Sort by emp_id, fallback to employeeId
-      aValue = a.emp_id || a.employeeId || "";
-      bValue = b.emp_id || b.employeeId || "";
-    } else {
-      aValue = a[key] || "";
-      bValue = b[key] || "";
-    }
+      // Handle special cases for sorting
+      if (key === "emp_id") {
+        // Sort by emp_id, fallback to employeeId
+        aValue = a.emp_id || a.employeeId || "";
+        bValue = b.emp_id || b.employeeId || "";
+      } else {
+        aValue = a[key] || "";
+        bValue = b[key] || "";
+      }
 
-    // Handle numeric sorting for emp_id (e.g., RST1001, RST1002)
-    if (key === "emp_id") {
-      const aNum = parseInt(aValue.replace(/\D/g, "")) || 0;
-      const bNum = parseInt(bValue.replace(/\D/g, "")) || 0;
-      return direction === "asc" ? aNum - bNum : bNum - aNum;
-    }
+      // Handle numeric sorting for emp_id (e.g., RST1001, RST1002)
+      if (key === "emp_id") {
+        const aNum = parseInt(aValue.replace(/\D/g, "")) || 0;
+        const bNum = parseInt(bValue.replace(/\D/g, "")) || 0;
+        return direction === "asc" ? aNum - bNum : bNum - aNum;
+      }
 
-    // String comparison for other fields
-    if (aValue < bValue) return direction === "asc" ? -1 : 1;
-    if (aValue > bValue) return direction === "asc" ? 1 : -1;
-    return 0;
-  });
+      // String comparison for other fields
+      if (aValue < bValue) return direction === "asc" ? -1 : 1;
+      if (aValue > bValue) return direction === "asc" ? 1 : -1;
+      return 0;
+    });
 
-  // Delete Employee Functions
-  const handleDeleteClick = (employee) => {
+    return sorted;
+  }, [filteredEmployees, sortConfig]);
+
+  // Delete Employee Functions - memoized with useCallback
+  const handleDeleteClick = useCallback((employee) => {
     setDeleteEmployeeId(employee.id);
     setDeleteEmployeeName(employee.name);
     setShowDeleteDialog(true);
-  };
+  }, []);
 
   const handleDeleteConfirm = async () => {
     if (!deleteEmployeeId) return;
@@ -354,77 +368,264 @@ export default function Employees() {
     setDeleteEmployeeName("");
   };
 
-  // Handle Edit Employee
-  const handleEditClick = (employee) => {
-    setEditingEmployee({
-      id: employee.id,
-      emp_id: employee.emp_id || employee.employeeId || "",
-      name: employee.name,
-      email: employee.email,
-      mobile_number: employee.mobile_number || "",
-      location: employee.location || employee.department || "",
-      designation: employee.designation || employee.position || "",
-      department: employee.department,
-      position: employee.position || "",
-      role: employee.role || "",
-      joinDate: employee.hireDate || "",
-      isActive:
-        (employee.is_active !== false &&
-          employee.can_access_system !== false) ||
-        employee.status === "active" ||
-        employee.status === "Working",
-    });
-    setShowEditDialog(true);
-  };
+  // Handle Edit Employee - memoized with useCallback
+  const handleEditClick = useCallback((employee) => {
+    // Helper function to find department ID from name or ID
+    const getDepartmentId = (deptValue) => {
+      if (!deptValue) return "";
+      
+      // Convert to string for comparison
+      const deptStr = String(deptValue).trim();
+      if (!deptStr) return "";
+      
+      // If it's already an ID (like "d1", "d2"), return it
+      if (/^d\d+$/.test(deptStr)) {
+        return deptStr;
+      }
+      
+      // Try to find by exact name match (case-insensitive)
+      const deptByName = departments.find(
+        (d) => d.name.toLowerCase() === deptStr.toLowerCase()
+      );
+      if (deptByName) return deptByName.id;
+      
+      // Try to find by ID match
+      const deptById = departments.find((d) => d.id === deptStr);
+      if (deptById) return deptById.id;
+      
+      // Try partial match (contains)
+      const deptPartial = departments.find(
+        (d) => d.name.toLowerCase().includes(deptStr.toLowerCase()) ||
+               deptStr.toLowerCase().includes(d.name.toLowerCase())
+      );
+      if (deptPartial) return deptPartial.id;
+      
+      // If no match found, return empty string (user can select department)
+      return "";
+    };
 
-  const handleUpdateEmployee = async () => {
-    if (!editingEmployee || !editingEmployee.name || !editingEmployee.email) {
-      toast.error("Please fill in required fields (Name and Email)");
+    // Helper function to find role ID from name or ID
+    const getRoleId = (roleValue) => {
+      if (!roleValue) return "";
+      
+      // Convert to string for comparison
+      const roleStr = String(roleValue).trim();
+      if (!roleStr) return "";
+      
+      // If it's already an ID (like "r1", "r2"), return it
+      if (/^r\d+$/.test(roleStr)) {
+        return roleStr;
+      }
+      
+      // Map database role values to frontend role IDs
+      // Database has: 'admin', 'manager', 'hr', 'employee'
+      // Frontend has: 'r1' (Employee), 'r2' (HR Manager), 'r3' (Department Head), 'r4' (Administrator)
+      const dbToFrontendRoleMap = {
+        "employee": "r1",
+        "hr": "r2",
+        "hr manager": "r2",
+        "manager": "r3",
+        "department head": "r3",
+        "admin": "r4",
+        "administrator": "r4",
+      };
+      
+      // First try direct mapping from database role values
+      const mappedRole = dbToFrontendRoleMap[roleStr.toLowerCase()];
+      if (mappedRole) return mappedRole;
+      
+      // Try to find by exact name match (case-insensitive) in roles array
+      const roleByName = roles.find(
+        (r) => r.name.toLowerCase() === roleStr.toLowerCase()
+      );
+      if (roleByName) return roleByName.id;
+      
+      // Try to find by ID match
+      const roleById = roles.find((r) => r.id === roleStr);
+      if (roleById) return roleById.id;
+      
+      // Try partial match
+      const rolePartial = roles.find(
+        (r) => r.name.toLowerCase().includes(roleStr.toLowerCase()) ||
+               roleStr.toLowerCase().includes(r.name.toLowerCase())
+      );
+      if (rolePartial) return rolePartial.id;
+      
+      // If no match found, return empty string (user can select role)
+      return "";
+    };
+
+    // Format date for date input (YYYY-MM-DD)
+    const formatDateForInput = (dateValue) => {
+      if (!dateValue) return "";
+      
+      try {
+        // Handle string dates
+        if (typeof dateValue === "string") {
+          // If it's already in YYYY-MM-DD format, return as-is
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+            return dateValue;
+          }
+          // Try to parse date strings in other formats
+          const trimmed = dateValue.trim();
+          if (trimmed) {
+            const date = new Date(trimmed);
+            if (!isNaN(date.getTime())) {
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, "0");
+              const day = String(date.getDate()).padStart(2, "0");
+              return `${year}-${month}-${day}`;
+            }
+          }
+        } else {
+          // Handle Date objects or timestamps
+          const date = new Date(dateValue);
+          if (!isNaN(date.getTime())) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+          }
+        }
+        return "";
+      } catch (e) {
+        return "";
+      }
+    };
+
+    // Determine active status - check all possible fields
+    const determineActiveStatus = () => {
+      // Explicitly check for false values
+      if (employee.is_active === false) return false;
+      if (employee.can_access_system === false) return false;
+      if (employee.status === "Not Working") return false;
+      if (employee.status === "inactive") return false;
+      
+      // If any active indicator is true, return true
+      if (employee.is_active === true) return true;
+      if (employee.can_access_system === true) return true;
+      if (employee.status === "Working") return true;
+      if (employee.status === "active") return true;
+      
+      // Default to true if no explicit false values found
+      return true;
+    };
+
+    // Get department value - try multiple sources
+    // Note: Don't use location as fallback since location is a place (Delhi NCR, Noida)
+    // and doesn't match department names (Engineering, HR, etc.)
+    const departmentValue = employee.department || "";
+
+    // Get role value - try multiple sources
+    // Role can come from Employee.role (legacy) or User.role (from backend)
+    const roleValue = employee.role || "";
+
+    // Get date value - try multiple sources
+    const dateValue = 
+      employee.hireDate || 
+      employee.joinDate || 
+      employee.startDate || 
+      employee.createdAt ||
+      "";
+
+    const editData = {
+      id: employee.id || "",
+      emp_id: employee.emp_id || employee.employeeId || "",
+      name: employee.name || "",
+      email: employee.email || "",
+      mobile_number: employee.mobile_number || employee.mobileNumber || "",
+      location: employee.location || "",
+      designation: employee.designation || employee.position || "",
+      department: getDepartmentId(departmentValue),
+      position: employee.position || employee.designation || "",
+      role: getRoleId(roleValue),
+      joinDate: formatDateForInput(dateValue),
+      isActive: determineActiveStatus(),
+    };
+
+    setEditingEmployee(editData);
+    setShowEditDialog(true);
+  }, [departmentMaps, departments, roles]);
+
+  const handleUpdateEmployee = useCallback(async () => {
+    // Validation
+    if (!editingEmployee) {
+      toast.error("No employee selected for editing");
+      return;
+    }
+    
+    if (!editingEmployee.name || !editingEmployee.name.trim()) {
+      toast.error("Full name is required");
+      return;
+    }
+    
+    if (!editingEmployee.email || !editingEmployee.email.trim()) {
+      toast.error("Email is required");
+      return;
+    }
+    
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editingEmployee.email.trim())) {
+      toast.error("Please enter a valid email address");
       return;
     }
 
     setIsUpdating(true);
     try {
+      // Get department name from ID if department is selected
+      const departmentName = editingEmployee.department && editingEmployee.department !== ""
+        ? departments.find((d) => d.id === editingEmployee.department)?.name || editingEmployee.department
+        : "";
+
+      // Get role name from ID if role is selected
+      const roleName = editingEmployee.role && editingEmployee.role !== ""
+        ? roles.find((r) => r.id === editingEmployee.role)?.name || editingEmployee.role
+        : "";
+
       const employeeData = {
         emp_id: editingEmployee.emp_id || "",
-        name: editingEmployee.name,
-        email: editingEmployee.email,
+        name: editingEmployee.name.trim(),
+        email: editingEmployee.email.trim().toLowerCase(),
         mobile_number: editingEmployee.mobile_number || "",
         location: editingEmployee.location || "",
         designation: editingEmployee.designation || "",
-        position: editingEmployee.position,
-        department: editingEmployee.department,
-        role: editingEmployee.role,
-        hireDate: editingEmployee.joinDate,
+        position: editingEmployee.position || editingEmployee.designation || "",
+        department: departmentName || editingEmployee.location || "", // Send department name to backend
+        role: roleName, // Send role name to backend
+        hireDate: editingEmployee.joinDate || null,
         status: editingEmployee.isActive ? "Working" : "Not Working",
-        is_active: editingEmployee.isActive, // Send is_active field
-        can_access_system: editingEmployee.isActive, // Send can_access_system field (same as isActive toggle)
+        is_active: editingEmployee.isActive,
+        can_access_system: editingEmployee.isActive,
       };
 
-      const updatedEmployee = await apiService.updateEmployee(
+      await apiService.updateEmployee(
         editingEmployee.id,
         employeeData
       );
 
-      // Update the employee in the list
-      setEmployees(
-        employees.map((emp) =>
-          emp.id === editingEmployee.id ? updatedEmployee : emp
-        )
-      );
+      // Reload employees list to get updated data
+      await loadEmployees();
 
       toast.success("Employee updated successfully!");
       setShowEditDialog(false);
       setEditingEmployee(null);
     } catch (err) {
       console.error("Error updating employee:", err);
-      toast.error(
-        `Failed to update employee: ${err.message || "Please try again."}`
-      );
+      const errorMessage = err.message || "Please try again.";
+      
+      // Handle specific error cases
+      if (errorMessage.includes("email") || errorMessage.includes("Email")) {
+        toast.error("Email already exists. Please use a different email.");
+      } else if (errorMessage.includes("Employee ID") || errorMessage.includes("emp_id")) {
+        toast.error("Employee ID already exists. Please use a different ID.");
+      } else {
+        toast.error(`Failed to update employee: ${errorMessage}`);
+      }
     } finally {
       setIsUpdating(false);
     }
-  };
+  }, [editingEmployee, departments, roles, loadEmployees]);
 
   // Handle Email Employee
   const handleEmailClick = (employee) => {
@@ -478,14 +679,16 @@ export default function Employees() {
     toast.success("Employees list refreshed!");
   };
 
-  // Handle sort
-  const handleSort = (key) => {
-    let direction = "asc";
-    if (sortConfig?.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
-    setSortConfig({ key, direction });
-  };
+  // Handle sort - memoized with useCallback
+  const handleSort = useCallback((key) => {
+    setSortConfig((prevConfig) => {
+      let direction = "asc";
+      if (prevConfig?.key === key && prevConfig.direction === "asc") {
+        direction = "desc";
+      }
+      return { key, direction };
+    });
+  }, []);
 
   // Validation functions
   const validateName = (name) => {
@@ -1100,7 +1303,7 @@ export default function Employees() {
                         <Input
                           id="edit-name"
                           placeholder="John Doe"
-                          value={editingEmployee.name}
+                          value={editingEmployee.name || ""}
                           onChange={(e) =>
                             setEditingEmployee({
                               ...editingEmployee,
@@ -1116,7 +1319,7 @@ export default function Employees() {
                           id="edit-email"
                           type="email"
                           placeholder="john.doe@company.com"
-                          value={editingEmployee.email}
+                          value={editingEmployee.email || ""}
                           onChange={(e) =>
                             setEditingEmployee({
                               ...editingEmployee,
@@ -1174,7 +1377,7 @@ export default function Employees() {
                       <div className="space-y-2">
                         <Label htmlFor="edit-department">Department</Label>
                         <Select
-                          value={editingEmployee.department}
+                          value={editingEmployee.department && editingEmployee.department !== "" ? editingEmployee.department : undefined}
                           onValueChange={(value) =>
                             setEditingEmployee({
                               ...editingEmployee,
@@ -1198,7 +1401,7 @@ export default function Employees() {
                         <Input
                           id="edit-position"
                           placeholder="Software Engineer"
-                          value={editingEmployee.position}
+                          value={editingEmployee.position || ""}
                           onChange={(e) =>
                             setEditingEmployee({
                               ...editingEmployee,
@@ -1210,7 +1413,7 @@ export default function Employees() {
                       <div className="space-y-2">
                         <Label htmlFor="edit-role">Role</Label>
                         <Select
-                          value={editingEmployee.role}
+                          value={editingEmployee.role && editingEmployee.role !== "" ? editingEmployee.role : undefined}
                           onValueChange={(value) =>
                             setEditingEmployee({
                               ...editingEmployee,
@@ -1234,7 +1437,7 @@ export default function Employees() {
                         <Input
                           id="edit-join-date"
                           type="date"
-                          value={editingEmployee.joinDate}
+                          value={editingEmployee.joinDate || ""}
                           onChange={(e) =>
                             setEditingEmployee({
                               ...editingEmployee,
@@ -1622,7 +1825,7 @@ export default function Employees() {
               </TableHeader>
               <TableBody>
                 {sortedEmployees.map((employee, index) => (
-                  <TableRow key={employee.id}>
+                  <TableRow key={employee.id || employee.emp_id || employee.email || `employee-${index}`}>
                     <TableCell className="w-12">{index + 1}</TableCell>
                     <TableCell className="font-medium">
                       {employee.emp_id || employee.employeeId || "N/A"}
