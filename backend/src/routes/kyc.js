@@ -830,6 +830,126 @@ router.get("/", authenticateToken, async (req, res) => {
   }
 });
 
+// Get rejected documents for employee - MUST be before /:id route
+router.get(
+  "/rejected-documents",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      console.log("📋 GET /rejected-documents - Request received");
+      console.log("📋 User from token:", req.user);
+      
+      // Get user email from User table using the user ID from token
+      const userId = req.user?.sub || req.user?.id;
+      if (!userId) {
+        console.error("❌ No user ID in token:", req.user);
+        return res.status(401).json({ message: "User ID not found in token" });
+      }
+
+      console.log("📋 Looking up user with ID:", userId);
+      const user = await User.findByPk(userId);
+      if (!user) {
+        console.error("❌ User not found for ID:", userId);
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      console.log("📋 User found:", user.email, "Role:", user.role);
+      const employee = await Employee.findOne({
+        where: { email: user.email },
+      });
+
+      if (!employee) {
+        console.warn("⚠️ Employee not found for email:", user.email);
+        // Return empty array instead of error - user might not be in employee table yet
+        return res.json({ rejectedDocuments: [] });
+      }
+
+      console.log("📋 Employee found:", employee.name, "Employee ID:", employee.emp_id || employee.employeeId);
+
+      // Try to find KYC by employeeId (emp_id) first, then by employeeId field
+      let kyc = await Kyc.findOne({
+        where: { employeeId: employee.emp_id || employee.employeeId },
+        order: [['createdAt', 'DESC']],
+      });
+
+      // If not found, try by employee name as fallback
+      if (!kyc && employee.name) {
+        kyc = await Kyc.findOne({
+          where: { fullName: employee.name },
+          order: [['createdAt', 'DESC']],
+        });
+      }
+
+      if (!kyc) {
+        console.log("📋 No KYC found for employee");
+        return res.json({ rejectedDocuments: [] });
+      }
+
+      console.log("📋 KYC found:", kyc.id, "Status:", kyc.status);
+
+      const rejectedDocuments = [];
+
+      const documentTypes = [
+        { key: 'salary_slip_month_1', name: 'Salary Slip - Month 1' },
+        { key: 'salary_slip_month_2', name: 'Salary Slip - Month 2' },
+        { key: 'salary_slip_month_3', name: 'Salary Slip - Month 3' },
+        { key: 'bank_proof', name: 'Bank Proof' },
+        { key: 'aadhaar_front', name: 'Aadhaar Card - Front' },
+        { key: 'aadhaar_back', name: 'Aadhaar Card - Back' },
+        { key: 'employee_photo', name: 'Employee Photo' },
+        { key: 'pan_card', name: 'PAN Card' },
+      ];
+
+      documentTypes.forEach(({ key, name }) => {
+        const statusField = `${key}_status`;
+        const remarkField = `${key}_remark`;
+        if (kyc[statusField] === 'rejected') {
+          rejectedDocuments.push({
+            documentType: key,
+            documentName: name,
+            remark: kyc[remarkField],
+            status: 'rejected',
+          });
+        }
+      });
+
+      if (kyc.education_documents_status) {
+        try {
+          const statuses = JSON.parse(kyc.education_documents_status);
+          const remarks = kyc.education_documents_remark
+            ? JSON.parse(kyc.education_documents_remark)
+            : [];
+
+          if (Array.isArray(statuses)) {
+            statuses.forEach((status, index) => {
+              if (status === 'rejected') {
+                rejectedDocuments.push({
+                  documentType: 'education',
+                  documentIndex: index,
+                  documentName: `Education Document ${index + 1}`,
+                  remark: remarks[index] || null,
+                  status: 'rejected',
+                });
+              }
+            });
+          }
+        } catch (e) {
+          console.error('Error parsing education documents:', e);
+        }
+      }
+
+      console.log("📋 Returning", rejectedDocuments.length, "rejected documents");
+      res.json({ rejectedDocuments });
+    } catch (error) {
+      console.error("Error fetching rejected documents:", error);
+      res.status(500).json({
+        message: "Error fetching rejected documents",
+        error: error.message,
+      });
+    }
+  }
+);
+
 // Get by id (admin/manager/hr)
 router.get(
   "/:id",
@@ -1087,6 +1207,611 @@ router.post(
     } catch (error) {
       console.error("Error reviewing KYC:", error);
       res.status(500).json({ message: "Error reviewing KYC request" });
+    }
+  }
+);
+
+// Helper function to calculate overall KYC status based on document statuses
+const calculateOverallKycStatus = (kyc) => {
+  const documentStatusFields = [
+    'salary_slip_month_1_status',
+    'salary_slip_month_2_status',
+    'salary_slip_month_3_status',
+    'bank_proof_status',
+    'aadhaar_front_status',
+    'aadhaar_back_status',
+    'employee_photo_status',
+    'pan_card_status',
+  ];
+
+  const statuses = documentStatusFields
+    .map(field => kyc[field])
+    .filter(status => status && status !== 'pending');
+
+  // Check education documents status (JSON array)
+  let educationStatuses = [];
+  if (kyc.education_documents_status) {
+    try {
+      educationStatuses = JSON.parse(kyc.education_documents_status);
+      if (!Array.isArray(educationStatuses)) {
+        educationStatuses = [educationStatuses];
+      }
+    } catch (e) {
+      if (kyc.education_documents_status !== 'pending') {
+        statuses.push(kyc.education_documents_status);
+      }
+    }
+  }
+
+  statuses.push(...educationStatuses.filter(s => s && s !== 'pending'));
+
+  if (statuses.length === 0) {
+    return 'pending';
+  }
+
+  const hasRejected = statuses.some(s => s === 'rejected');
+  const hasResubmitted = statuses.some(s => s === 'resubmitted');
+  const allApproved = statuses.every(s => s === 'approved');
+
+  if (hasRejected) {
+    return 'partially_rejected';
+  }
+  if (hasResubmitted) {
+    return 'pending';
+  }
+  if (allApproved) {
+    return 'approved';
+  }
+
+  return 'pending';
+};
+
+// Review specific document (approve/reject with remarks)
+router.post(
+  "/:id/document/:documentType/review",
+  authenticateToken,
+  requireRole(["admin", "manager", "hr"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { documentType } = req.params;
+      const { action, remark } = req.body;
+
+      if (!action || !['approve', 'reject'].includes(action)) {
+        return res.status(400).json({ message: "Action must be 'approve' or 'reject'" });
+      }
+
+      if (action === 'reject' && !remark?.trim()) {
+        return res.status(400).json({ message: "Remark is mandatory when rejecting a document" });
+      }
+
+      const kyc = await Kyc.findByPk(id);
+      if (!kyc) {
+        return res.status(404).json({ message: "KYC record not found" });
+      }
+
+      const documentFieldMap = {
+        'salary_slip_month_1': { status: 'salary_slip_month_1_status', remark: 'salary_slip_month_1_remark' },
+        'salary_slip_month_2': { status: 'salary_slip_month_2_status', remark: 'salary_slip_month_2_remark' },
+        'salary_slip_month_3': { status: 'salary_slip_month_3_status', remark: 'salary_slip_month_3_remark' },
+        'bank_proof': { status: 'bank_proof_status', remark: 'bank_proof_remark' },
+        'aadhaar_front': { status: 'aadhaar_front_status', remark: 'aadhaar_front_remark' },
+        'aadhaar_back': { status: 'aadhaar_back_status', remark: 'aadhaar_back_remark' },
+        'employee_photo': { status: 'employee_photo_status', remark: 'employee_photo_remark' },
+        'pan_card': { status: 'pan_card_status', remark: 'pan_card_remark' },
+      };
+
+      const fields = documentFieldMap[documentType];
+      if (!fields) {
+        return res.status(400).json({ message: `Invalid document type: ${documentType}` });
+      }
+
+      kyc[fields.status] = action === 'approve' ? 'approved' : 'rejected';
+      kyc[fields.remark] = action === 'reject' ? (remark || '') : null;
+
+      kyc.status = calculateOverallKycStatus(kyc);
+      kyc.reviewedAt = new Date();
+      kyc.reviewedBy = req.user?.email || req.user?.name || 'admin';
+
+      await kyc.save();
+
+      // Create notification for employee if document is rejected
+      if (action === 'reject') {
+        try {
+          const { Notification } = await import("../models/Notification.js");
+          
+          // Find employee by employeeId (emp_id) from KYC record
+          let employee = null;
+          if (kyc.employeeId) {
+            employee = await Employee.findOne({
+              where: {
+                [Op.or]: [
+                  { emp_id: kyc.employeeId },
+                  { employeeId: kyc.employeeId },
+                ],
+              },
+            });
+          }
+          
+          // If not found by employeeId, try by email
+          if (!employee && kyc.email) {
+            employee = await Employee.findOne({
+              where: { email: kyc.email },
+            });
+          }
+
+          if (employee) {
+            // Find User to get userId for notification
+            const user = await User.findOne({
+              where: { email: employee.email },
+            });
+
+            if (user) {
+              const documentName = documentType
+                .split('_')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+
+              await Notification.create({
+                userId: user.id,
+                userEmail: employee.email,
+                type: 'error', // Use 'error' type for rejections
+                title: 'KYC Document Rejected',
+                message: `Your ${documentName} was rejected. Remark: ${remark}. Please re-upload.`,
+                link: '/profile',
+                isRead: false,
+              });
+
+              const io = req.app.get('io');
+              if (io) {
+                io.to(`user_${user.id}`).emit('new-notification', {
+                  userId: user.id,
+                  notification: {
+                    type: 'error',
+                    title: 'KYC Document Rejected',
+                    message: `Your ${documentName} was rejected. Remark: ${remark}. Please re-upload.`,
+                  },
+                });
+              }
+              
+              console.log(`✅ Notification created for employee: ${employee.email}`);
+            } else {
+              console.warn(`⚠️ User not found for employee: ${employee.email}`);
+            }
+          } else {
+            console.warn(`⚠️ Employee not found for KYC: employeeId=${kyc.employeeId}, email=${kyc.email}`);
+          }
+        } catch (notifError) {
+          console.error('Error creating notification:', notifError);
+        }
+      }
+
+      res.json({
+        message: `Document ${action === 'approve' ? 'approved' : 'rejected'} successfully`,
+        kyc: kyc.toJSON(),
+      });
+    } catch (error) {
+      console.error("Error reviewing document:", error);
+      res.status(500).json({
+        message: "Error reviewing document",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// Review education document (array-based)
+router.post(
+  "/:id/document/education/:index/review",
+  authenticateToken,
+  requireRole(["admin", "manager", "hr"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const index = parseInt(req.params.index);
+      const { action, remark } = req.body;
+
+      if (isNaN(index) || index < 0) {
+        return res.status(400).json({ message: "Invalid education document index" });
+      }
+
+      if (!action || !['approve', 'reject'].includes(action)) {
+        return res.status(400).json({ message: "Action must be 'approve' or 'reject'" });
+      }
+
+      if (action === 'reject' && !remark?.trim()) {
+        return res.status(400).json({ message: "Remark is mandatory when rejecting a document" });
+      }
+
+      const kyc = await Kyc.findByPk(id);
+      if (!kyc) {
+        return res.status(404).json({ message: "KYC record not found" });
+      }
+
+      let statuses = [];
+      let remarks = [];
+
+      if (kyc.education_documents_status) {
+        try {
+          statuses = JSON.parse(kyc.education_documents_status);
+          if (!Array.isArray(statuses)) {
+            statuses = [statuses];
+          }
+        } catch (e) {
+          statuses = [];
+        }
+      }
+
+      if (kyc.education_documents_remark) {
+        try {
+          remarks = JSON.parse(kyc.education_documents_remark);
+          if (!Array.isArray(remarks)) {
+            remarks = [remarks];
+          }
+        } catch (e) {
+          remarks = [];
+        }
+      }
+
+      while (statuses.length <= index) {
+        statuses.push('pending');
+      }
+      while (remarks.length <= index) {
+        remarks.push(null);
+      }
+
+      statuses[index] = action === 'approve' ? 'approved' : 'rejected';
+      remarks[index] = action === 'reject' ? (remark || '') : null;
+
+      kyc.education_documents_status = JSON.stringify(statuses);
+      kyc.education_documents_remark = JSON.stringify(remarks);
+
+      kyc.status = calculateOverallKycStatus(kyc);
+      kyc.reviewedAt = new Date();
+      kyc.reviewedBy = req.user?.email || req.user?.name || 'admin';
+
+      await kyc.save();
+
+      if (action === 'reject') {
+        try {
+          const { Notification } = await import("../models/Notification.js");
+          
+          // Find employee by employeeId (emp_id) from KYC record
+          let employee = null;
+          if (kyc.employeeId) {
+            employee = await Employee.findOne({
+              where: {
+                [Op.or]: [
+                  { emp_id: kyc.employeeId },
+                  { employeeId: kyc.employeeId },
+                ],
+              },
+            });
+          }
+          
+          // If not found by employeeId, try by email
+          if (!employee && kyc.email) {
+            employee = await Employee.findOne({
+              where: { email: kyc.email },
+            });
+          }
+
+          if (employee) {
+            // Find User to get userId for notification
+            const user = await User.findOne({
+              where: { email: employee.email },
+            });
+
+            if (user) {
+              await Notification.create({
+                userId: user.id,
+                userEmail: employee.email,
+                type: 'error',
+                title: 'KYC Document Rejected',
+                message: `Your Education Document ${index + 1} was rejected. Remark: ${remark}. Please re-upload.`,
+                link: '/profile',
+                isRead: false,
+              });
+
+              const io = req.app.get('io');
+              if (io) {
+                io.to(`user_${user.id}`).emit('new-notification', {
+                  userId: user.id,
+                  notification: {
+                    type: 'error',
+                    title: 'KYC Document Rejected',
+                    message: `Your Education Document ${index + 1} was rejected. Remark: ${remark}. Please re-upload.`,
+                  },
+                });
+              }
+              
+              console.log(`✅ Notification created for employee: ${employee.email}`);
+            }
+          }
+        } catch (notifError) {
+          console.error('Error creating notification:', notifError);
+        }
+      }
+
+      res.json({
+        message: `Education document ${action === 'approve' ? 'approved' : 'rejected'} successfully`,
+        kyc: kyc.toJSON(),
+      });
+    } catch (error) {
+      console.error("Error reviewing education document:", error);
+      res.status(500).json({
+        message: "Error reviewing education document",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// Re-upload rejected document (employee)
+router.post(
+  "/:id/document/:documentType/reupload",
+  authenticateToken,
+  upload.fields([{ name: 'file', maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { documentType } = req.params;
+      
+      console.log("📤 Re-upload request:", { id, documentType, body: req.body, files: req.files });
+
+      const kyc = await Kyc.findByPk(id);
+      if (!kyc) {
+        console.error("❌ KYC not found for ID:", id);
+        return res.status(404).json({ message: "KYC record not found" });
+      }
+
+      // Check permissions - get user email from User table
+      if (req.user?.role !== 'admin' && req.user?.role !== 'hr' && req.user?.role !== 'manager') {
+        const userId = req.user?.sub || req.user?.id;
+        if (!userId) {
+          return res.status(401).json({ message: "User ID not found in token" });
+        }
+        
+        const user = await User.findByPk(userId);
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        
+        const employee = await Employee.findOne({
+          where: { email: user.email },
+        });
+        if (!employee || (kyc.employeeId !== employee.emp_id && kyc.employeeId !== employee.employeeId)) {
+          return res.status(403).json({ message: "You don't have permission to re-upload this document" });
+        }
+      }
+
+      // Handle education documents separately
+      if (documentType === 'education_documents') {
+        // Get documentIndex from body (multer parses form fields)
+        const documentIndex = req.body.documentIndex ? parseInt(req.body.documentIndex, 10) : null;
+        
+        console.log("📚 Education document re-upload:", { documentIndex, body: req.body });
+        
+        if (documentIndex === null || isNaN(documentIndex) || documentIndex < 0) {
+          console.error("❌ Invalid document index:", documentIndex);
+          return res.status(400).json({ message: "Document index is required for education documents" });
+        }
+
+        // Check if education document at this index is rejected
+        let educationStatuses = [];
+        if (kyc.education_documents_status) {
+          try {
+            educationStatuses = JSON.parse(kyc.education_documents_status);
+            if (!Array.isArray(educationStatuses)) {
+              educationStatuses = [educationStatuses];
+            }
+          } catch (e) {
+            educationStatuses = [];
+          }
+        }
+
+        if (documentIndex >= educationStatuses.length || educationStatuses[documentIndex] !== 'rejected') {
+          return res.status(400).json({ message: "This education document is not rejected or index is invalid" });
+        }
+
+        if (!req.files || !req.files.file || !req.files.file[0]) {
+          return res.status(400).json({ message: "No file uploaded" });
+        }
+
+        const uploadedFile = req.files.file[0];
+        const newFilePath = `/uploads/kyc/${path.basename(uploadedFile.path)}`;
+
+        // Parse documents JSON
+        let documents = {};
+        if (kyc.documents) {
+          try {
+            documents = JSON.parse(kyc.documents);
+            if (!documents.education_documents || !Array.isArray(documents.education_documents)) {
+              documents.education_documents = [];
+            }
+          } catch (e) {
+            documents = { education_documents: [] };
+          }
+        } else {
+          documents = { education_documents: [] };
+        }
+
+        // Update the specific education document
+        if (documentIndex < documents.education_documents.length) {
+          const oldPath = path.join(process.cwd(), documents.education_documents[documentIndex].path);
+          if (fs.existsSync(oldPath)) {
+            try {
+              fs.unlinkSync(oldPath);
+            } catch (e) {
+              console.warn("Could not delete old file:", e);
+            }
+          }
+          documents.education_documents[documentIndex] = {
+            type: 'Educational Certificate',
+            path: newFilePath,
+            originalName: uploadedFile.originalname,
+          };
+        } else {
+          // Add new document if index is out of bounds
+          documents.education_documents.push({
+            type: 'Educational Certificate',
+            path: newFilePath,
+            originalName: uploadedFile.originalname,
+          });
+        }
+
+        // Update status to resubmitted
+        educationStatuses[documentIndex] = 'resubmitted';
+        kyc.education_documents_status = JSON.stringify(educationStatuses);
+        kyc.education_documents_remark = JSON.stringify(
+          (() => {
+            let remarks = [];
+            if (kyc.education_documents_remark) {
+              try {
+                remarks = JSON.parse(kyc.education_documents_remark);
+                if (!Array.isArray(remarks)) {
+                  remarks = [remarks];
+                }
+              } catch (e) {
+                remarks = [];
+              }
+            }
+            while (remarks.length <= documentIndex) {
+              remarks.push(null);
+            }
+            remarks[documentIndex] = null; // Clear remark on resubmission
+            return remarks;
+          })()
+        );
+
+        kyc.documents = JSON.stringify(documents);
+        kyc.status = calculateOverallKycStatus(kyc);
+        await kyc.save();
+
+        return res.json({
+          message: "Education document re-uploaded successfully. Status changed to pending review.",
+          kyc: kyc.toJSON(),
+        });
+      }
+
+      // Handle regular documents
+      const documentFieldMap = {
+        'salary_slip_month_1': { status: 'salary_slip_month_1_status', remark: 'salary_slip_month_1_remark' },
+        'salary_slip_month_2': { status: 'salary_slip_month_2_status', remark: 'salary_slip_month_2_remark' },
+        'salary_slip_month_3': { status: 'salary_slip_month_3_status', remark: 'salary_slip_month_3_remark' },
+        'bank_proof': { status: 'bank_proof_status', remark: 'bank_proof_remark' },
+        'aadhaar_front': { status: 'aadhaar_front_status', remark: 'aadhaar_front_remark' },
+        'aadhaar_back': { status: 'aadhaar_back_status', remark: 'aadhaar_back_remark' },
+        'employee_photo': { status: 'employee_photo_status', remark: 'employee_photo_remark' },
+        'pan_card': { status: 'pan_card_status', remark: 'pan_card_remark' },
+      };
+
+      const fields = documentFieldMap[documentType];
+      if (!fields) {
+        return res.status(400).json({ message: `Invalid document type: ${documentType}` });
+      }
+
+      if (kyc[fields.status] !== 'rejected') {
+        return res.status(400).json({ message: "This document is not rejected. Cannot re-upload." });
+      }
+
+      if (!req.files || !req.files.file || !req.files.file[0]) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const uploadedFile = req.files.file[0];
+      const newFilePath = `/uploads/kyc/${path.basename(uploadedFile.path)}`;
+
+      // Parse documents - handle both old format (array) and new format (object)
+      let documents = [];
+      let documentsObj = {};
+      if (kyc.documents) {
+        try {
+          const parsed = JSON.parse(kyc.documents);
+          if (Array.isArray(parsed)) {
+            documents = parsed;
+          } else if (parsed.documents && Array.isArray(parsed.documents)) {
+            documents = parsed.documents;
+            documentsObj = parsed;
+          } else if (parsed.education_documents) {
+            documentsObj = parsed;
+            documents = [];
+          } else {
+            documents = [];
+          }
+        } catch (e) {
+          console.error("Error parsing documents:", e);
+          documents = [];
+        }
+      }
+
+      const docTypeMap = {
+        'salary_slip_month_1': 'Salary Slip - Month 1',
+        'salary_slip_month_2': 'Salary Slip - Month 2',
+        'salary_slip_month_3': 'Salary Slip - Month 3',
+        'bank_proof': 'Bank Proof (Cancelled Cheque/Passbook)',
+        'aadhaar_front': 'Aadhaar Card - Front',
+        'aadhaar_back': 'Aadhaar Card - Back',
+        'employee_photo': 'Employee Photo',
+        'pan_card': 'PAN Card',
+      };
+
+      const docTypeName = docTypeMap[documentType];
+      
+      // Find document in array or object structure
+      let docIndex = -1;
+      if (Array.isArray(documents)) {
+        docIndex = documents.findIndex(d => d.type === docTypeName);
+      } else if (documentsObj && documentsObj.documents && Array.isArray(documentsObj.documents)) {
+        docIndex = documentsObj.documents.findIndex(d => d.type === docTypeName);
+        documents = documentsObj.documents;
+      }
+
+      if (docIndex >= 0) {
+        const oldPath = path.join(process.cwd(), documents[docIndex].path);
+        if (fs.existsSync(oldPath)) {
+          try {
+            fs.unlinkSync(oldPath);
+          } catch (e) {
+            console.warn("Could not delete old file:", e);
+          }
+        }
+        documents[docIndex] = {
+          type: docTypeName,
+          path: newFilePath,
+          originalName: uploadedFile.originalname,
+        };
+      } else {
+        documents.push({
+          type: docTypeName,
+          path: newFilePath,
+          originalName: uploadedFile.originalname,
+        });
+      }
+
+      // Save documents in proper structure
+      if (documentsObj && Object.keys(documentsObj).length > 0) {
+        documentsObj.documents = documents;
+        kyc.documents = JSON.stringify(documentsObj);
+      } else {
+        kyc.documents = JSON.stringify(documents);
+      }
+      kyc[fields.status] = 'resubmitted';
+      kyc[fields.remark] = null;
+      kyc.status = calculateOverallKycStatus(kyc);
+
+      await kyc.save();
+
+      res.json({
+        message: "Document re-uploaded successfully. Status changed to pending review.",
+        kyc: kyc.toJSON(),
+      });
+    } catch (error) {
+      console.error("Error re-uploading document:", error);
+      res.status(500).json({
+        message: "Error re-uploading document",
+        error: error.message,
+      });
     }
   }
 );

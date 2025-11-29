@@ -45,8 +45,18 @@ class ApiService {
       if (!response.ok) {
         const errorData = await response
           .json()
-          .catch(() => ({ message: "Request failed" }));
-        throw new Error(errorData.message || `HTTP ${response.status}`);
+          .catch(() => ({ message: `HTTP ${response.status}: ${response.statusText}` }));
+        
+        // Provide more specific error messages for common status codes
+        if (response.status === 403) {
+          throw new Error(errorData.message || "Insufficient permissions");
+        } else if (response.status === 401) {
+          throw new Error(errorData.message || "Authentication required");
+        } else if (response.status === 404) {
+          throw new Error(errorData.message || "Resource not found");
+        }
+        
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
       }
 
       return await response.json();
@@ -329,6 +339,56 @@ class ApiService {
 
   async getKycStatus(email) {
     return this.request(`/api/kyc?email=${email}`);
+  }
+
+  // Document-level review endpoints
+  async reviewDocument(kycId, documentType, action, remark = null) {
+    return this.request(`/api/kyc/${kycId}/document/${documentType}/review`, {
+      method: "POST",
+      body: JSON.stringify({ action, remark }),
+    });
+  }
+
+  async reviewEducationDocument(kycId, index, action, remark = null) {
+    return this.request(`/api/kyc/${kycId}/document/education/${index}/review`, {
+      method: "POST",
+      body: JSON.stringify({ action, remark }),
+    });
+  }
+
+  async reuploadDocument(kycId, documentType, file, documentIndex = null) {
+    const formData = new FormData();
+    formData.append("file", file);
+    
+    // Add documentIndex for education documents
+    if (documentIndex !== null && documentIndex !== undefined) {
+      formData.append("documentIndex", documentIndex.toString());
+    }
+
+    const url = `${this.baseURL}/api/kyc/${kycId}/document/${documentType}/reupload`;
+    const token = this.getAuthToken();
+    const headers = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    // Don't set Content-Type for FormData - browser sets it automatically with boundary
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "Request failed" }));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  async getRejectedDocuments() {
+    return this.request("/api/kyc/rejected-documents");
   }
 
   // Attendance endpoints

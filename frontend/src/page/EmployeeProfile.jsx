@@ -33,6 +33,7 @@ import { useKycScroll } from "@/hooks/use-kyc-scroll";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
 import { Dropzone } from "@/components/ui/dropzone";
+import { cn } from "@/lib/utils";
 
 export default function EmployeeProfile() {
   const { user } = useAuth();
@@ -70,6 +71,9 @@ export default function EmployeeProfile() {
   const [submittingKyc, setSubmittingKyc] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
   const [uploadedFileUrls, setUploadedFileUrls] = useState({});
+  const [rejectedDocuments, setRejectedDocuments] = useState([]);
+  const [reuploading, setReuploading] = useState({});
+  const [selectedReuploadFiles, setSelectedReuploadFiles] = useState({}); // Track selected files for re-upload
 
   // Validation functions
   const validatePAN = (pan) => {
@@ -213,6 +217,79 @@ export default function EmployeeProfile() {
       return "File size must be less than 5MB";
     }
     return "";
+  };
+
+  // Helper to check if document type is rejected
+  const isDocumentRejected = (documentType) => {
+    if (!rejectedDocuments || rejectedDocuments.length === 0) return false;
+    return rejectedDocuments.some(d => d.documentType === documentType);
+  };
+
+  // Helper to check if any documents are rejected
+  const hasRejectedDocuments = rejectedDocuments && rejectedDocuments.length > 0;
+
+  // Handle re-upload of rejected document
+  const handleReuploadDocument = async (documentType, file, documentIndex = null) => {
+    if (!file) {
+      toast.error("Please select a file to re-upload");
+      return;
+    }
+
+    // Get kycId - try from kycData first, then fetch if needed
+    let kycId = kycData?.kycId || kycData?.id;
+    if (!kycId) {
+      try {
+        const kycInfo = await apiService.getKycStatus(user.email);
+        kycId = kycInfo.kycId || kycInfo.id || kycInfo.data?.id;
+        if (kycId) {
+          setKycData({ ...kycData, kycId });
+        }
+      } catch (err) {
+        toast.error("Unable to get KYC ID. Please refresh the page.");
+        return;
+      }
+    }
+
+    if (!kycId) {
+      toast.error("KYC ID not found. Please refresh the page.");
+      return;
+    }
+
+    const uploadKey = documentIndex !== null ? `${documentType}_${documentIndex}` : documentType;
+    setReuploading({ ...reuploading, [uploadKey]: true });
+    try {
+      await apiService.reuploadDocument(kycId, documentType, file, documentIndex);
+      toast.success("Document re-uploaded successfully. Status changed to pending review.");
+      
+      // Clear selected file after successful upload
+      const uploadKey = documentIndex !== null ? `${documentType}_${documentIndex}` : documentType;
+      setSelectedReuploadFiles(prev => {
+        const updated = { ...prev };
+        delete updated[uploadKey];
+        return updated;
+      });
+      
+      // Reload rejected documents
+      const rejected = await apiService.getRejectedDocuments();
+      setRejectedDocuments(rejected.rejectedDocuments || []);
+      
+      // Reload KYC status
+      const kycInfo = await apiService.getKycStatus(user.email);
+      setKycStatus(kycInfo.status);
+      setKycData({ ...(kycInfo.data || kycInfo), kycId: kycInfo.kycId || kycInfo.id });
+      
+      // If no more rejected documents, close the form
+      if (rejected.rejectedDocuments && rejected.rejectedDocuments.length === 0) {
+        toast.success("All documents have been re-uploaded. Waiting for review.");
+        setTimeout(() => {
+          setShowKycForm(false);
+        }, 2000);
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to re-upload document");
+    } finally {
+      setReuploading({ ...reuploading, [uploadKey]: false });
+    }
   };
 
   // Upload file to server
@@ -428,6 +505,53 @@ export default function EmployeeProfile() {
     return !Object.values(errors).some((error) => error !== "");
   };
 
+  // Check if form is valid (without side effects) - used for button disabled state
+  const isFormValid = () => {
+    // If there are rejected documents, form is valid for re-upload (no need to validate all fields)
+    if (hasRejectedDocuments) {
+      return true;
+    }
+
+    // Check validation errors first
+    const hasErrors = Object.values(validationErrors).some((error) => error !== "");
+    if (hasErrors) {
+      return false;
+    }
+
+    // Check required form fields
+    const requiredFields = [
+      kycFormData.panNumber,
+      kycFormData.aadharNumber,
+      kycFormData.dob,
+      kycFormData.address,
+      kycFormData.phoneNumber,
+      kycFormData.emergencyContactName,
+      kycFormData.emergencyContactPhone,
+      kycFormData.bankName,
+      kycFormData.accountNumber,
+      kycFormData.ifscCode,
+    ];
+
+    if (requiredFields.some(field => !field || field.trim() === "")) {
+      return false;
+    }
+
+    // Check required files
+    const requiredFiles = [
+      employeePhotoFile,
+      panCardFile,
+      aadhaarFrontFile,
+      aadhaarBackFile,
+      bankProofFile,
+    ];
+
+    if (requiredFiles.some(file => !file)) {
+      return false;
+    }
+
+    return true;
+  };
+
   // Load KYC status (only for non-admin users)
   useEffect(() => {
     const loadKycStatus = async () => {
@@ -462,6 +586,7 @@ export default function EmployeeProfile() {
               frontendStatus !== "approved" &&
               frontendStatus !== "rejected" &&
               frontendStatus !== "pending" &&
+              frontendStatus !== "partially_rejected" &&
               frontendStatus !== "not_submitted"
             ) {
               console.warn(
@@ -473,7 +598,19 @@ export default function EmployeeProfile() {
             }
 
             setKycStatus(frontendStatus);
-            setKycData(kycInfo.data || kycInfo);
+            // Store kycId from response
+            const kycId = kycInfo.kycId || kycInfo.id;
+            setKycData({ ...(kycInfo.data || kycInfo), kycId });
+            
+            // Load rejected documents if KYC exists
+            try {
+              const rejected = await apiService.getRejectedDocuments();
+              setRejectedDocuments(rejected.rejectedDocuments || []);
+              console.log("Rejected documents loaded:", rejected.rejectedDocuments);
+            } catch (err) {
+              console.error("Error loading rejected documents:", err);
+              setRejectedDocuments([]);
+            }
           }
         } else if (user?.role === "admin") {
           // Admin users don't need KYC
@@ -730,6 +867,13 @@ export default function EmployeeProfile() {
             Rejected
           </Badge>
         );
+      case "partially_rejected":
+        return (
+          <Badge variant="destructive" className="bg-orange-500">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Partially Rejected
+          </Badge>
+        );
       case "pending":
         return (
           <Badge variant="secondary">
@@ -760,6 +904,8 @@ export default function EmployeeProfile() {
         return "Your KYC has been approved! You now have access to all employee features.";
       case "rejected":
         return "Your KYC was rejected. Please review and resubmit your KYC information.";
+      case "partially_rejected":
+        return "Some of your documents were rejected. Please re-upload the rejected documents shown below.";
       case "pending":
         return "Your KYC is under review. You'll be notified once it's processed.";
       case "not_submitted":
@@ -876,6 +1022,19 @@ export default function EmployeeProfile() {
                     className="w-full">
                     <Edit className="h-4 w-4 mr-2" />
                     Resubmit KYC
+                  </Button>
+                )}
+
+                {(kycStatus === "partially_rejected" || hasRejectedDocuments) && (
+                  <Button
+                    onClick={() => {
+                      setShowKycForm(true);
+                      setTimeout(scrollToKycForm, 100);
+                    }}
+                    variant="outline"
+                    className="w-full bg-orange-50 hover:bg-orange-100 border-orange-300 text-orange-800">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Re-upload Rejected Documents
                   </Button>
                 )}
               </div>
@@ -1021,14 +1180,146 @@ export default function EmployeeProfile() {
             </div>
           )}
           <CardHeader>
-            <CardTitle>Complete Your KYC</CardTitle>
+            <CardTitle>
+              {hasRejectedDocuments ? "Re-upload Rejected Documents" : "Complete Your KYC"}
+            </CardTitle>
             <CardDescription>
-              Please provide your KYC information to complete your profile
-              setup.
+              {hasRejectedDocuments 
+                ? "Please re-upload only the rejected documents below. All other fields are locked."
+                : "Please provide your KYC information to complete your profile setup."}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleKycSubmit} className="space-y-4">
+              {/* Rejected Documents Section - Show at the top when there are rejected documents */}
+              {hasRejectedDocuments && (
+                <div className="space-y-4 border-b pb-6 mb-6">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-red-800 mb-4 flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5" />
+                      Rejected Documents - Please Re-upload Only These
+                    </h3>
+                    <p className="text-sm text-red-700 mb-4">
+                      Some of your documents were rejected. Please re-upload only the rejected documents below. 
+                      All other documents are locked and cannot be changed.
+                    </p>
+                    <div className="space-y-4">
+                      {rejectedDocuments.map((rejectedDoc, index) => {
+                        const documentTypeMap = {
+                          'salary_slip_month_1': 'salary_slip_month_1',
+                          'salary_slip_month_2': 'salary_slip_month_2',
+                          'salary_slip_month_3': 'salary_slip_month_3',
+                          'bank_proof': 'bank_proof',
+                          'aadhaar_front': 'aadhaar_front',
+                          'aadhaar_back': 'aadhaar_back',
+                          'employee_photo': 'employee_photo',
+                          'pan_card': 'pan_card',
+                          'education': 'education_documents',
+                        };
+                        
+                        const docType = documentTypeMap[rejectedDoc.documentType] || rejectedDoc.documentType;
+                        const uploadKey = (docType === 'education_documents' && rejectedDoc.documentIndex !== undefined) 
+                          ? `${docType}_${rejectedDoc.documentIndex}` 
+                          : docType;
+                        const isReuploading = reuploading[uploadKey] || reuploading[docType] || reuploading[rejectedDoc.documentType];
+                        const selectedFile = selectedReuploadFiles[uploadKey] || null;
+                        
+                        return (
+                          <div key={index} className="bg-white border border-red-300 rounded-lg p-4">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-red-800 mb-2">
+                                  {rejectedDoc.documentName || rejectedDoc.documentType.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase()) + (rejectedDoc.documentIndex !== undefined ? ` (Item ${rejectedDoc.documentIndex + 1})` : '')}
+                                </h4>
+                                {rejectedDoc.remark && (
+                                  <div className="bg-red-100 border border-red-300 rounded p-3 mb-3">
+                                    <p className="text-xs font-semibold text-red-800 mb-1">Rejection Remark:</p>
+                                    <p className="text-sm text-red-700">{rejectedDoc.remark}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <Dropzone
+                              label="Re-upload Document"
+                              placeholder="Drag & Drop file here or Click to Upload"
+                              acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
+                              acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
+                              maxFileSize={5 * 1024 * 1024}
+                              multiple={false}
+                              required={true}
+                              files={selectedFile}
+                              disabled={isReuploading}
+                              onFileSelect={(file) => {
+                                if (file) {
+                                  setSelectedReuploadFiles({
+                                    ...selectedReuploadFiles,
+                                    [uploadKey]: file,
+                                  });
+                                } else {
+                                  setSelectedReuploadFiles({
+                                    ...selectedReuploadFiles,
+                                    [uploadKey]: null,
+                                  });
+                                }
+                              }}
+                              onFileRemove={() => {
+                                setSelectedReuploadFiles({
+                                  ...selectedReuploadFiles,
+                                  [uploadKey]: null,
+                                });
+                              }}
+                              onUpload={async () => {
+                                // Not used when autoUpload is false
+                              }}
+                              autoUpload={false}
+                              className={isReuploading ? "opacity-50 pointer-events-none" : ""}
+                            />
+                            {selectedFile && !isReuploading && (
+                              <div className="mt-3 flex justify-end">
+                                <Button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (selectedFile && kycData?.kycId) {
+                                      if (docType === 'education_documents' && rejectedDoc.documentIndex !== undefined) {
+                                        await handleReuploadDocument(docType, selectedFile, rejectedDoc.documentIndex);
+                                      } else {
+                                        await handleReuploadDocument(docType, selectedFile);
+                                      }
+                                    } else if (!kycData?.kycId) {
+                                      toast.error("KYC ID not found. Please refresh the page.");
+                                    }
+                                  }}
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  disabled={!selectedFile || isReuploading}
+                                >
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  Re-upload Document
+                                </Button>
+                              </div>
+                            )}
+                            {isReuploading && (
+                              <div className="mt-3 flex items-center gap-2 text-sm text-blue-600">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                <p>Uploading document...</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Show info message when there are rejected documents */}
+              {hasRejectedDocuments && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> You have rejected documents above. All other document fields below are locked 
+                    and cannot be modified. Please re-upload only the rejected documents shown above.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="panNumber">PAN Number *</Label>
@@ -1391,54 +1682,96 @@ export default function EmployeeProfile() {
                 </div>
               </div>
 
-              {/* Document Upload Sections */}
+              {/* Document Upload Sections - Disabled if there are rejected documents */}
               <div className="space-y-6 border-t pt-6">
-                <h3 className="text-lg font-semibold mb-4">Document Upload</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Document Upload</h3>
+                  {rejectedDocuments.length > 0 && (
+                    <Badge variant="outline" className="bg-yellow-50 text-yellow-800 border-yellow-300">
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                      Only rejected documents can be re-uploaded
+                    </Badge>
+                  )}
+                </div>
+
+                {rejectedDocuments.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-blue-800">
+                      <strong>Note:</strong> You have rejected documents above. All other document fields are locked 
+                      and cannot be modified. Please re-upload only the rejected documents.
+                    </p>
+                  </div>
+                )}
 
                 {/* Section 1: Employee Photo */}
-                <div className="space-y-4 border-b pb-4">
+                <div className={cn(
+                  "space-y-4 border-b pb-4",
+                  hasRejectedDocuments && !isDocumentRejected('employee_photo') && "opacity-50 pointer-events-none"
+                )}>
                   <h4 className="text-md font-semibold text-gray-700">
                     Employee Photo
+                    {hasRejectedDocuments && !isDocumentRejected('employee_photo') && (
+                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
+                    )}
                   </h4>
-                  <Dropzone
-                    label="Employee Photo"
-                    placeholder="Drag & Drop employee photo here or Click to Upload"
-                    acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
-                    acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
-                    maxFileSize={5 * 1024 * 1024}
-                    multiple={false}
-                    required={true}
-                    error={validationErrors.employeePhoto}
-                    files={employeePhotoFile}
-                    onFileSelect={(file) => {
-                      if (file) {
-                        handleFileUpload(file, "employeePhoto");
-                      } else {
+                  {hasRejectedDocuments && !isDocumentRejected('employee_photo') ? (
+                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
+                      <p className="text-sm text-gray-500">This document is approved/locked and cannot be modified.</p>
+                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                    </div>
+                  ) : (
+                    <Dropzone
+                      label="Employee Photo"
+                      placeholder="Drag & Drop employee photo here or Click to Upload"
+                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
+                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
+                      maxFileSize={5 * 1024 * 1024}
+                      multiple={false}
+                      required={true}
+                      error={validationErrors.employeePhoto}
+                      files={employeePhotoFile}
+                      onFileSelect={(file) => {
+                        if (file) {
+                          handleFileUpload(file, "employeePhoto");
+                        } else {
+                          setEmployeePhotoFile(null);
+                          setValidationErrors({
+                            ...validationErrors,
+                            employeePhoto: "",
+                          });
+                        }
+                      }}
+                      onFileRemove={() => {
                         setEmployeePhotoFile(null);
                         setValidationErrors({
                           ...validationErrors,
                           employeePhoto: "",
                         });
-                      }
-                    }}
-                    onFileRemove={() => {
-                      setEmployeePhotoFile(null);
-                      setValidationErrors({
-                        ...validationErrors,
-                        employeePhoto: "",
-                      });
-                    }}
-                    onUpload={uploadFileToServer}
-                    autoUpload={true}
-                  />
+                      }}
+                      onUpload={uploadFileToServer}
+                      autoUpload={true}
+                    />
+                  )}
                 </div>
 
                 {/* Section 2: PAN Card Photo */}
-                <div className="space-y-4 border-b pb-4">
+                <div className={cn(
+                  "space-y-4 border-b pb-4",
+                  hasRejectedDocuments && !isDocumentRejected('pan_card') && "opacity-50 pointer-events-none"
+                )}>
                   <h4 className="text-md font-semibold text-gray-700">
                     PAN Card Photo
+                    {hasRejectedDocuments && !isDocumentRejected('pan_card') && (
+                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
+                    )}
                   </h4>
-                  <Dropzone
+                  {hasRejectedDocuments && !isDocumentRejected('pan_card') ? (
+                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
+                      <p className="text-sm text-gray-500">This document is approved/locked and cannot be modified.</p>
+                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                    </div>
+                  ) : (
+                    <Dropzone
                     label="PAN Card Photo"
                     placeholder="Drag & Drop PAN card photo here or Click to Upload"
                     acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
@@ -1469,95 +1802,124 @@ export default function EmployeeProfile() {
                     onUpload={uploadFileToServer}
                     autoUpload={true}
                   />
+                  )}
                 </div>
 
                 {/* Section 3: Aadhaar Card Photo (Front and Back) */}
-                <div className="space-y-4 border-b pb-4">
+                <div className={cn(
+                  "space-y-4 border-b pb-4",
+                  hasRejectedDocuments && !isDocumentRejected('aadhaar_front') && !isDocumentRejected('aadhaar_back') && "opacity-50 pointer-events-none"
+                )}>
                   <h4 className="text-md font-semibold text-gray-700">
                     Aadhaar Card Photo
+                    {hasRejectedDocuments && !isDocumentRejected('aadhaar_front') && !isDocumentRejected('aadhaar_back') && (
+                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
+                    )}
                   </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Dropzone
-                      label="Aadhaar Card - Front"
-                      placeholder="Drag & Drop Aadhaar front here or Click to Upload"
-                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
-                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
-                      maxFileSize={5 * 1024 * 1024}
-                      multiple={false}
-                      required={true}
-                      error={validationErrors.aadhaarFront}
-                      files={aadhaarFrontFile}
-                      onFileSelect={(file) => {
-                        if (file) {
-                          handleFileUpload(file, "aadhaarFront");
-                        } else {
+                  {hasRejectedDocuments && !isDocumentRejected('aadhaar_front') && !isDocumentRejected('aadhaar_back') ? (
+                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
+                      <p className="text-sm text-gray-500">This document is approved/locked and cannot be modified.</p>
+                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <Dropzone
+                        label="Aadhaar Card - Front"
+                        placeholder="Drag & Drop Aadhaar front here or Click to Upload"
+                        acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                        acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                        maxFileSize={5 * 1024 * 1024}
+                        multiple={false}
+                        required={true}
+                        error={validationErrors.aadhaarFront}
+                        files={aadhaarFrontFile}
+                        disabled={hasRejectedDocuments && !isDocumentRejected('aadhaar_front')}
+                        onFileSelect={(file) => {
+                          if (file) {
+                            handleFileUpload(file, "aadhaarFront");
+                          } else {
+                            setAadhaarFrontFile(null);
+                            setValidationErrors({
+                              ...validationErrors,
+                              aadhaarFront: "",
+                            });
+                          }
+                        }}
+                        onFileRemove={() => {
                           setAadhaarFrontFile(null);
                           setValidationErrors({
                             ...validationErrors,
                             aadhaarFront: "",
                           });
-                        }
-                      }}
-                      onFileRemove={() => {
-                        setAadhaarFrontFile(null);
-                        setValidationErrors({
-                          ...validationErrors,
-                          aadhaarFront: "",
-                        });
-                      }}
-                      onUpload={uploadFileToServer}
-                      autoUpload={true}
-                    />
-                    <Dropzone
-                      label="Aadhaar Card - Back"
-                      placeholder="Drag & Drop Aadhaar back here or Click to Upload"
-                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
-                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
-                      maxFileSize={5 * 1024 * 1024}
-                      multiple={false}
-                      required={true}
-                      error={validationErrors.aadhaarBack}
-                      files={aadhaarBackFile}
-                      onFileSelect={(file) => {
-                        if (file) {
-                          handleFileUpload(file, "aadhaarBack");
-                        } else {
+                        }}
+                        onUpload={uploadFileToServer}
+                        autoUpload={true}
+                      />
+                      <Dropzone
+                        label="Aadhaar Card - Back"
+                        placeholder="Drag & Drop Aadhaar back here or Click to Upload"
+                        acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                        acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                        maxFileSize={5 * 1024 * 1024}
+                        multiple={false}
+                        required={true}
+                        error={validationErrors.aadhaarBack}
+                        files={aadhaarBackFile}
+                        disabled={hasRejectedDocuments && !isDocumentRejected('aadhaar_back')}
+                        onFileSelect={(file) => {
+                          if (file) {
+                            handleFileUpload(file, "aadhaarBack");
+                          } else {
+                            setAadhaarBackFile(null);
+                            setValidationErrors({
+                              ...validationErrors,
+                              aadhaarBack: "",
+                            });
+                          }
+                        }}
+                        onFileRemove={() => {
                           setAadhaarBackFile(null);
                           setValidationErrors({
                             ...validationErrors,
                             aadhaarBack: "",
                           });
-                        }
-                      }}
-                      onFileRemove={() => {
-                        setAadhaarBackFile(null);
-                        setValidationErrors({
-                          ...validationErrors,
-                          aadhaarBack: "",
-                        });
-                      }}
-                      onUpload={uploadFileToServer}
-                      autoUpload={true}
-                    />
-                  </div>
+                        }}
+                        onUpload={uploadFileToServer}
+                        autoUpload={true}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Section 4: 3 Months Salary Slips */}
-                <div className="space-y-4 border-b pb-4">
+                <div className={cn(
+                  "space-y-4 border-b pb-4",
+                  hasRejectedDocuments && !isDocumentRejected('salary_slip_month_1') && !isDocumentRejected('salary_slip_month_2') && !isDocumentRejected('salary_slip_month_3') && "opacity-50 pointer-events-none"
+                )}>
                   <h4 className="text-md font-semibold text-gray-700">
                     3 Months Salary Slips
+                    {hasRejectedDocuments && !isDocumentRejected('salary_slip_month_1') && !isDocumentRejected('salary_slip_month_2') && !isDocumentRejected('salary_slip_month_3') && (
+                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
+                    )}
                   </h4>
-                  <div className="grid grid-cols-3 gap-4">
-                    <Dropzone
-                      label="Salary Slip - Month 1"
-                      placeholder="Drag & Drop salary slip here or Click to Upload"
-                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
-                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
-                      maxFileSize={5 * 1024 * 1024}
-                      multiple={false}
-                      required={false}
-                      error={validationErrors.salarySlipMonth1}
-                      files={salarySlipMonth1}
+                  {hasRejectedDocuments && !isDocumentRejected('salary_slip_month_1') && !isDocumentRejected('salary_slip_month_2') && !isDocumentRejected('salary_slip_month_3') ? (
+                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
+                      <p className="text-sm text-gray-500">These documents are approved/locked and cannot be modified.</p>
+                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-4">
+                      <Dropzone
+                        label="Salary Slip - Month 1"
+                        disabled={hasRejectedDocuments && !isDocumentRejected('salary_slip_month_1')}
+                        placeholder="Drag & Drop salary slip here or Click to Upload"
+                        acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                        acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                        maxFileSize={5 * 1024 * 1024}
+                        multiple={false}
+                        required={false}
+                        error={validationErrors.salarySlipMonth1}
+                        files={salarySlipMonth1}
                       onFileSelect={(file) => {
                         if (file) {
                           handleFileUpload(file, "salarySlipMonth1");
@@ -1579,8 +1941,9 @@ export default function EmployeeProfile() {
                       onUpload={uploadFileToServer}
                       autoUpload={true}
                     />
-                    <Dropzone
-                      label="Salary Slip - Month 2"
+                      <Dropzone
+                        label="Salary Slip - Month 2"
+                        disabled={hasRejectedDocuments && !isDocumentRejected('salary_slip_month_2')}
                       placeholder="Drag & Drop salary slip here or Click to Upload"
                       acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
                       acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
@@ -1610,8 +1973,9 @@ export default function EmployeeProfile() {
                       onUpload={uploadFileToServer}
                       autoUpload={true}
                     />
-                    <Dropzone
-                      label="Salary Slip - Month 3"
+                      <Dropzone
+                        label="Salary Slip - Month 3"
+                        disabled={hasRejectedDocuments && !isDocumentRejected('salary_slip_month_3')}
                       placeholder="Drag & Drop salary slip here or Click to Upload"
                       acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
                       acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
@@ -1640,55 +2004,83 @@ export default function EmployeeProfile() {
                       }}
                       onUpload={uploadFileToServer}
                       autoUpload={true}
+                      disabled={hasRejectedDocuments && !isDocumentRejected('salary_slip_month_3')}
                     />
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Section 5: Bank Proof */}
-                <div className="space-y-4 border-b pb-4">
+                <div className={cn(
+                  "space-y-4 border-b pb-4",
+                  hasRejectedDocuments && !isDocumentRejected('bank_proof') && "opacity-50 pointer-events-none"
+                )}>
                   <h4 className="text-md font-semibold text-gray-700">
                     Bank Proof (Cancelled Cheque/Passbook)
+                    {hasRejectedDocuments && !isDocumentRejected('bank_proof') && (
+                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
+                    )}
                   </h4>
-                  <Dropzone
-                    label="Bank Proof"
-                    placeholder="Drag & Drop cancelled cheque or passbook here or Click to Upload"
-                    acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
-                    acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
-                    maxFileSize={5 * 1024 * 1024}
-                    multiple={false}
-                    required={true}
-                    error={validationErrors.bankProof}
-                    files={bankProofFile}
-                    onFileSelect={(file) => {
-                      if (file) {
-                        handleFileUpload(file, "bankProof");
-                      } else {
+                  {hasRejectedDocuments && !isDocumentRejected('bank_proof') ? (
+                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
+                      <p className="text-sm text-gray-500">This document is approved/locked and cannot be modified.</p>
+                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                    </div>
+                  ) : (
+                    <Dropzone
+                      label="Bank Proof"
+                      placeholder="Drag & Drop cancelled cheque or passbook here or Click to Upload"
+                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                      maxFileSize={5 * 1024 * 1024}
+                      multiple={false}
+                      required={true}
+                      error={validationErrors.bankProof}
+                      files={bankProofFile}
+                      onFileSelect={(file) => {
+                        if (file) {
+                          handleFileUpload(file, "bankProof");
+                        } else {
+                          setBankProofFile(null);
+                          setValidationErrors({
+                            ...validationErrors,
+                            bankProof: "",
+                          });
+                        }
+                      }}
+                      onFileRemove={() => {
                         setBankProofFile(null);
                         setValidationErrors({
                           ...validationErrors,
                           bankProof: "",
                         });
-                      }
-                    }}
-                    onFileRemove={() => {
-                      setBankProofFile(null);
-                      setValidationErrors({
-                        ...validationErrors,
-                        bankProof: "",
-                      });
-                    }}
-                    onUpload={uploadFileToServer}
-                    autoUpload={true}
-                  />
+                      }}
+                      onUpload={uploadFileToServer}
+                      autoUpload={true}
+                    />
+                  )}
                 </div>
 
                 {/* Section 6: Educational Certificates */}
-                <div className="space-y-4 border-b pb-4">
+                <div className={cn(
+                  "space-y-4 border-b pb-4",
+                  hasRejectedDocuments && !rejectedDocuments.some(d => d.documentType === 'education') && "opacity-50 pointer-events-none"
+                )}>
                   <h4 className="text-md font-semibold text-gray-700">
                     Educational Certificates
+                    {hasRejectedDocuments && !rejectedDocuments.some(d => d.documentType === 'education') && (
+                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
+                    )}
                   </h4>
-                  <Dropzone
-                    label="Educational Certificates"
+                  {hasRejectedDocuments && !rejectedDocuments.some(d => d.documentType === 'education') ? (
+                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
+                      <p className="text-sm text-gray-500">These documents are approved/locked and cannot be modified.</p>
+                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                    </div>
+                  ) : (
+                    <Dropzone
+                      label="Educational Certificates"
+                      disabled={hasRejectedDocuments && !rejectedDocuments.some(d => d.documentType === 'education')}
                     placeholder="Drag & Drop educational certificates here or Click to Upload (Multiple files allowed)"
                     acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
                     acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
@@ -1720,6 +2112,7 @@ export default function EmployeeProfile() {
                     onUpload={uploadFileToServer}
                     autoUpload={true}
                   />
+                  )}
                 </div>
               </div>
 
@@ -1730,9 +2123,21 @@ export default function EmployeeProfile() {
                   onClick={() => setShowKycForm(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submittingKyc}>
-                  {submittingKyc ? "Submitting..." : "Submit KYC"}
-                </Button>
+                {!hasRejectedDocuments && (
+                  <Button
+                    type="submit"
+                    onClick={handleKycSubmit}
+                    disabled={submittingKyc || !isFormValid()}
+                  >
+                    {submittingKyc ? "Submitting..." : "Submit KYC"}
+                  </Button>
+                )}
+                {hasRejectedDocuments && (
+                  <div className="text-sm text-gray-600 flex items-center px-4">
+                    <AlertCircle className="h-4 w-4 mr-2 text-orange-500" />
+                    Re-upload rejected documents above to submit
+                  </div>
+                )}
               </div>
             </form>
           </CardContent>

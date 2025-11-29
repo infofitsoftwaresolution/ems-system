@@ -38,6 +38,7 @@ import {
   FileImage,
   User,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
@@ -51,6 +52,10 @@ export default function KycManagement() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState(null);
+  const [rejectRemark, setRejectRemark] = useState("");
+  const [rejecting, setRejecting] = useState(false);
 
   // Load KYC submissions
   useEffect(() => {
@@ -135,6 +140,167 @@ export default function KycManagement() {
     } catch (err) {
       console.error("Error updating KYC status:", err);
       toast.error(`Failed to update status: ${err.message}`);
+    }
+  };
+
+  // Reload KYC submissions after review
+  const reloadSubmissions = async () => {
+    try {
+      const data = await apiService.getKycSubmissions();
+      setKycSubmissions(data);
+      // Update selected submission if it exists
+      if (selectedSubmission) {
+        const updated = data.find(s => s.id === selectedSubmission.id);
+        if (updated) setSelectedSubmission(updated);
+      }
+    } catch (err) {
+      console.error("Error reloading submissions:", err);
+    }
+  };
+
+  // Map document type to API document type
+  const getDocumentTypeForAPI = (docType) => {
+    if (!docType) return null;
+    
+    const normalizedType = docType.toLowerCase().trim();
+    
+    // Direct mapping
+    const typeMap = {
+      'employee photo': 'employee_photo',
+      'selfie': 'employee_photo',
+      'pan card': 'pan_card',
+      'pan card photo': 'pan_card',
+      'aadhaar card - front': 'aadhaar_front',
+      'aadhaar front': 'aadhaar_front',
+      'aadhaar card - back': 'aadhaar_back',
+      'aadhaar back': 'aadhaar_back',
+      'aadhar card': 'aadhaar_front',
+      'salary slip - month 1': 'salary_slip_month_1',
+      'salary slip month 1': 'salary_slip_month_1',
+      'salary slip - month 2': 'salary_slip_month_2',
+      'salary slip month 2': 'salary_slip_month_2',
+      'salary slip - month 3': 'salary_slip_month_3',
+      'salary slip month 3': 'salary_slip_month_3',
+      'bank proof (cancelled cheque/passbook)': 'bank_proof',
+      'bank proof': 'bank_proof',
+      'cancelled cheque': 'bank_proof',
+      'passbook': 'bank_proof',
+    };
+    
+    // Check direct match first
+    if (typeMap[normalizedType]) {
+      return typeMap[normalizedType];
+    }
+    
+    // Check partial matches
+    if (normalizedType.includes('employee photo') || normalizedType.includes('selfie')) {
+      return 'employee_photo';
+    }
+    if (normalizedType.includes('pan')) {
+      return 'pan_card';
+    }
+    if (normalizedType.includes('aadhaar front') || (normalizedType.includes('aadhaar') && normalizedType.includes('front'))) {
+      return 'aadhaar_front';
+    }
+    if (normalizedType.includes('aadhaar back') || (normalizedType.includes('aadhaar') && normalizedType.includes('back'))) {
+      return 'aadhaar_back';
+    }
+    if (normalizedType.includes('salary slip') && normalizedType.includes('1')) {
+      return 'salary_slip_month_1';
+    }
+    if (normalizedType.includes('salary slip') && normalizedType.includes('2')) {
+      return 'salary_slip_month_2';
+    }
+    if (normalizedType.includes('salary slip') && normalizedType.includes('3')) {
+      return 'salary_slip_month_3';
+    }
+    if (normalizedType.includes('bank proof') || normalizedType.includes('cancelled cheque') || normalizedType.includes('passbook')) {
+      return 'bank_proof';
+    }
+    
+    return null;
+  };
+
+  // Handle document rejection
+  const handleRejectDocument = async () => {
+    if (!rejectRemark.trim()) {
+      toast.error("Please provide a remark for rejection");
+      return;
+    }
+
+    if (!selectedDocument || !selectedSubmission) {
+      toast.error("Document or submission not selected");
+      return;
+    }
+
+    setRejecting(true);
+    try {
+      // Parse documents array to find education documents if needed
+      let documentsArray = [];
+      if (selectedSubmission.documents) {
+        if (typeof selectedSubmission.documents === "string") {
+          try {
+            const parsed = JSON.parse(selectedSubmission.documents);
+            documentsArray = parsed.documents || (Array.isArray(parsed) ? parsed : []);
+          } catch (e) {
+            documentsArray = [];
+          }
+        } else if (selectedSubmission.documents.documents && Array.isArray(selectedSubmission.documents.documents)) {
+          documentsArray = selectedSubmission.documents.documents;
+        } else if (Array.isArray(selectedSubmission.documents)) {
+          documentsArray = selectedSubmission.documents;
+        }
+      }
+
+      // Get document type - try from documentType field first, then type field
+      const docType = selectedDocument.documentType || selectedDocument.type;
+      const documentType = getDocumentTypeForAPI(docType);
+      
+      if (!documentType) {
+        // Check if it's an education document
+        if (docType?.toLowerCase().includes('education') || docType?.toLowerCase().includes('educational')) {
+          // For education documents, we need to find the index
+          const educationDocs = documentsArray.filter(d => 
+            d.type?.toLowerCase().includes('education') || d.type?.toLowerCase().includes('educational')
+          );
+          const index = educationDocs.findIndex(d => 
+            (d.path === selectedDocument.path || d.originalName === selectedDocument.originalName) && 
+            (d.type === selectedDocument.type || d.type === docType)
+          );
+          if (index >= 0) {
+            await apiService.reviewEducationDocument(
+              selectedSubmission.id,
+              index,
+              'reject',
+              rejectRemark
+            );
+          } else {
+            toast.error("Could not determine education document index. Please try again.");
+            return;
+          }
+        } else {
+          toast.error(`Could not determine document type for: ${docType || 'Unknown'}. Please contact support.`);
+          console.error("Document type mapping failed:", { docType, selectedDocument });
+          return;
+        }
+      } else {
+        await apiService.reviewDocument(
+          selectedSubmission.id,
+          documentType,
+          'reject',
+          rejectRemark
+        );
+      }
+
+      toast.success("Document rejected successfully. Employee will be notified.");
+      setRejectDialogOpen(false);
+      setRejectRemark("");
+      setSelectedDocument(null);
+      await reloadSubmissions();
+    } catch (error) {
+      toast.error(error.message || "Failed to reject document");
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -675,29 +841,69 @@ export default function KycManagement() {
                                 // Helper function to render a document card
                                 const renderDocumentCard = (doc, index) => {
                                   const filename =
-                                    doc.originalName || doc.path || "";
+                                    doc.originalName || doc.path?.split('/').pop() || "Unknown file";
                                   return (
                                     <div
                                       key={index}
                                       className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                                       <div className="flex items-center justify-between mb-2">
-                                        <span className="font-medium text-sm">
-                                          {filename || "Unknown file"}
-                                        </span>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => {
-                                            const url = getDocumentUrl(doc);
-                                            console.log(
-                                              "📥 Downloading document:",
-                                              url
-                                            );
-                                            window.open(url, "_blank");
-                                          }}>
-                                          <Download className="h-4 w-4 mr-1" />
-                                          Download
-                                        </Button>
+                                        <div className="flex-1 min-w-0">
+                                          <span className="font-medium text-sm block truncate">
+                                            {filename}
+                                          </span>
+                                          {doc.type && (
+                                            <span className="text-xs text-gray-500 block mt-1">
+                                              {doc.type}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex gap-2 flex-shrink-0">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              const url = getDocumentUrl(doc);
+                                              if (url) {
+                                                window.open(url, "_blank");
+                                              } else {
+                                                toast.error("Document URL not available");
+                                              }
+                                            }}>
+                                            <Eye className="h-4 w-4 mr-1" />
+                                            View
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              const url = getDocumentUrl(doc);
+                                              if (url) {
+                                                const link = document.createElement('a');
+                                                link.href = url;
+                                                link.download = filename;
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                document.body.removeChild(link);
+                                              } else {
+                                                toast.error("Document URL not available");
+                                              }
+                                            }}>
+                                            <Download className="h-4 w-4 mr-1" />
+                                            Download
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              setSelectedDocument({ ...doc, documentType: doc.type });
+                                              setRejectRemark("");
+                                              setRejectDialogOpen(true);
+                                            }}
+                                            className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                                            <XCircle className="h-4 w-4 mr-1" />
+                                            Reject
+                                          </Button>
+                                        </div>
                                       </div>
                                     </div>
                                   );
@@ -940,6 +1146,65 @@ export default function KycManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Reject Document Dialog */}
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Document</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for rejecting this document. The employee will be notified and can re-upload it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedDocument && (
+              <div>
+                <Label>Document</Label>
+                <p className="text-sm text-gray-700 font-medium">{selectedDocument.type}</p>
+                {selectedDocument.originalName && (
+                  <p className="text-xs text-gray-500 mt-1">{selectedDocument.originalName}</p>
+                )}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="rejectRemark">
+                Rejection Remark <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                id="rejectRemark"
+                placeholder="Enter reason for rejection (e.g., Document is unclear, Wrong document uploaded, etc.)"
+                value={rejectRemark}
+                onChange={(e) => setRejectRemark(e.target.value)}
+                rows={4}
+                required
+              />
+              <p className="text-xs text-gray-500">
+                This remark will be shown to the employee. They will receive a notification and can re-upload the document.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setRejectDialogOpen(false);
+                  setRejectRemark("");
+                  setSelectedDocument(null);
+                }}
+                disabled={rejecting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleRejectDocument}
+                disabled={!rejectRemark.trim() || rejecting}
+              >
+                {rejecting ? "Rejecting..." : "Reject Document"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
