@@ -70,7 +70,7 @@ export default function EmployeeProfile() {
   const [educationDocuments, setEducationDocuments] = useState([]);
   const [submittingKyc, setSubmittingKyc] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
-  const [uploadedFileUrls, setUploadedFileUrls] = useState({});
+  const [_uploadedFileUrls, setUploadedFileUrls] = useState({});
   const [rejectedDocuments, setRejectedDocuments] = useState([]);
   const [reuploading, setReuploading] = useState({});
   const [selectedReuploadFiles, setSelectedReuploadFiles] = useState({}); // Track selected files for re-upload
@@ -222,14 +222,19 @@ export default function EmployeeProfile() {
   // Helper to check if document type is rejected
   const isDocumentRejected = (documentType) => {
     if (!rejectedDocuments || rejectedDocuments.length === 0) return false;
-    return rejectedDocuments.some(d => d.documentType === documentType);
+    return rejectedDocuments.some((d) => d.documentType === documentType);
   };
 
   // Helper to check if any documents are rejected
-  const hasRejectedDocuments = rejectedDocuments && rejectedDocuments.length > 0;
+  const hasRejectedDocuments =
+    rejectedDocuments && rejectedDocuments.length > 0;
 
   // Handle re-upload of rejected document
-  const handleReuploadDocument = async (documentType, file, documentIndex = null) => {
+  const handleReuploadDocument = async (
+    documentType,
+    file,
+    documentIndex = null
+  ) => {
     if (!file) {
       toast.error("Please select a file to re-upload");
       return;
@@ -244,7 +249,7 @@ export default function EmployeeProfile() {
         if (kycId) {
           setKycData({ ...kycData, kycId });
         }
-      } catch (err) {
+      } catch {
         toast.error("Unable to get KYC ID. Please refresh the page.");
         return;
       }
@@ -255,32 +260,53 @@ export default function EmployeeProfile() {
       return;
     }
 
-    const uploadKey = documentIndex !== null ? `${documentType}_${documentIndex}` : documentType;
+    const uploadKey =
+      documentIndex !== null
+        ? `${documentType}_${documentIndex}`
+        : documentType;
     setReuploading({ ...reuploading, [uploadKey]: true });
     try {
-      await apiService.reuploadDocument(kycId, documentType, file, documentIndex);
-      toast.success("Document re-uploaded successfully. Status changed to pending review.");
-      
+      await apiService.reuploadDocument(
+        kycId,
+        documentType,
+        file,
+        documentIndex
+      );
+      toast.success(
+        "Document re-uploaded successfully. Status changed to pending review."
+      );
+
       // Clear selected file after successful upload
-      const uploadKey = documentIndex !== null ? `${documentType}_${documentIndex}` : documentType;
-      setSelectedReuploadFiles(prev => {
+      const uploadKey =
+        documentIndex !== null
+          ? `${documentType}_${documentIndex}`
+          : documentType;
+      setSelectedReuploadFiles((prev) => {
         const updated = { ...prev };
         delete updated[uploadKey];
         return updated;
       });
-      
+
       // Reload rejected documents
       const rejected = await apiService.getRejectedDocuments();
       setRejectedDocuments(rejected.rejectedDocuments || []);
-      
+
       // Reload KYC status
       const kycInfo = await apiService.getKycStatus(user.email);
       setKycStatus(kycInfo.status);
-      setKycData({ ...(kycInfo.data || kycInfo), kycId: kycInfo.kycId || kycInfo.id });
-      
+      setKycData({
+        ...(kycInfo.data || kycInfo),
+        kycId: kycInfo.kycId || kycInfo.id,
+      });
+
       // If no more rejected documents, close the form
-      if (rejected.rejectedDocuments && rejected.rejectedDocuments.length === 0) {
-        toast.success("All documents have been re-uploaded. Waiting for review.");
+      if (
+        rejected.rejectedDocuments &&
+        rejected.rejectedDocuments.length === 0
+      ) {
+        toast.success(
+          "All documents have been re-uploaded. Waiting for review."
+        );
         setTimeout(() => {
           setShowKycForm(false);
         }, 2000);
@@ -316,9 +342,10 @@ export default function EmployeeProfile() {
         if (xhr.status === 200 || xhr.status === 201) {
           try {
             const response = JSON.parse(xhr.responseText);
-            const url = response.data?.url || response.url || response.data?.path;
+            const url =
+              response.data?.url || response.url || response.data?.path;
             resolve(url);
-          } catch (error) {
+          } catch {
             reject(new Error("Failed to parse upload response"));
           }
         } else {
@@ -513,7 +540,9 @@ export default function EmployeeProfile() {
     }
 
     // Check validation errors first
-    const hasErrors = Object.values(validationErrors).some((error) => error !== "");
+    const hasErrors = Object.values(validationErrors).some(
+      (error) => error !== ""
+    );
     if (hasErrors) {
       return false;
     }
@@ -532,7 +561,7 @@ export default function EmployeeProfile() {
       kycFormData.ifscCode,
     ];
 
-    if (requiredFields.some(field => !field || field.trim() === "")) {
+    if (requiredFields.some((field) => !field || field.trim() === "")) {
       return false;
     }
 
@@ -545,7 +574,7 @@ export default function EmployeeProfile() {
       bankProofFile,
     ];
 
-    if (requiredFiles.some(file => !file)) {
+    if (requiredFiles.some((file) => !file)) {
       return false;
     }
 
@@ -601,12 +630,15 @@ export default function EmployeeProfile() {
             // Store kycId from response
             const kycId = kycInfo.kycId || kycInfo.id;
             setKycData({ ...(kycInfo.data || kycInfo), kycId });
-            
+
             // Load rejected documents if KYC exists
             try {
               const rejected = await apiService.getRejectedDocuments();
               setRejectedDocuments(rejected.rejectedDocuments || []);
-              console.log("Rejected documents loaded:", rejected.rejectedDocuments);
+              console.log(
+                "Rejected documents loaded:",
+                rejected.rejectedDocuments
+              );
             } catch (err) {
               console.error("Error loading rejected documents:", err);
               setRejectedDocuments([]);
@@ -855,43 +887,47 @@ export default function EmployeeProfile() {
     switch (status) {
       case "approved":
         return (
-          <Badge variant="default" className="bg-primary">
-            <CheckCircle className="h-3 w-3 mr-1" />
+          <Badge
+            variant="default"
+            className="bg-primary text-[10px] sm:text-xs">
+            <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />
             Approved
           </Badge>
         );
       case "rejected":
         return (
-          <Badge variant="destructive">
-            <XCircle className="h-3 w-3 mr-1" />
+          <Badge variant="destructive" className="text-[10px] sm:text-xs">
+            <XCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />
             Rejected
           </Badge>
         );
       case "partially_rejected":
         return (
-          <Badge variant="destructive" className="bg-orange-500">
-            <AlertCircle className="h-3 w-3 mr-1" />
+          <Badge
+            variant="destructive"
+            className="bg-orange-500 text-[10px] sm:text-xs">
+            <AlertCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />
             Partially Rejected
           </Badge>
         );
       case "pending":
         return (
-          <Badge variant="secondary">
-            <Clock className="h-3 w-3 mr-1" />
+          <Badge variant="secondary" className="text-[10px] sm:text-xs">
+            <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />
             Pending Review
           </Badge>
         );
       case "not_submitted":
         return (
-          <Badge variant="outline">
-            <AlertCircle className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="text-[10px] sm:text-xs">
+            <AlertCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />
             Not Submitted
           </Badge>
         );
       default:
         return (
-          <Badge variant="outline">
-            <AlertCircle className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="text-[10px] sm:text-xs">
+            <AlertCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />
             Unknown
           </Badge>
         );
@@ -917,22 +953,26 @@ export default function EmployeeProfile() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-48 sm:h-64 md:h-80">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading profile...</p>
+          <div className="animate-spin rounded-full h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 sm:mt-3 text-xs sm:text-sm md:text-base text-gray-600">
+            Loading profile...
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-5 md:space-y-6 lg:space-y-8 px-2 sm:px-4 md:px-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Profile</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">
+            My Profile
+          </h1>
+          <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1 sm:mt-2">
             {user?.role === "admin"
               ? "Manage your personal information and account settings"
               : "Manage your personal information and KYC status"}
@@ -940,36 +980,44 @@ export default function EmployeeProfile() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 sm:gap-5 md:gap-6 grid-cols-1 md:grid-cols-2">
         {/* Personal Information */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <User className="h-5 w-5 mr-2" />
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center text-lg sm:text-xl md:text-2xl">
+              <User className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
               Personal Information
             </CardTitle>
-            <CardDescription>Your basic profile information</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
+              Your basic profile information
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <Mail className="h-4 w-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium">Email</p>
-                <p className="text-sm text-gray-600">{user?.email}</p>
+          <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6">
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium">Email</p>
+                <p className="text-xs sm:text-sm text-gray-600 truncate">
+                  {user?.email}
+                </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <User className="h-4 w-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium">Full Name</p>
-                <p className="text-sm text-gray-600">{user?.name}</p>
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <User className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium">Full Name</p>
+                <p className="text-xs sm:text-sm text-gray-600 truncate">
+                  {user?.name}
+                </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <Calendar className="h-4 w-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium">Role</p>
-                <p className="text-sm text-gray-600 capitalize">{user?.role}</p>
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium">Role</p>
+                <p className="text-xs sm:text-sm text-gray-600 capitalize">
+                  {user?.role}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -978,25 +1026,27 @@ export default function EmployeeProfile() {
         {/* KYC Status - Only show for non-admin users */}
         {user?.role !== "admin" && (
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <FileText className="h-5 w-5 mr-2" />
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center text-lg sm:text-xl md:text-2xl">
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                 KYC Status
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Know Your Customer verification status
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Status:</span>
-                {getKycStatusBadge(kycStatus)}
+            <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+                <span className="text-xs sm:text-sm font-medium">Status:</span>
+                <div className="flex-shrink-0">
+                  {getKycStatusBadge(kycStatus)}
+                </div>
               </div>
 
               <Separator />
 
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">
+              <div className="space-y-2 sm:space-y-3">
+                <p className="text-xs sm:text-sm text-gray-600">
                   {getKycStatusMessage(kycStatus)}
                 </p>
 
@@ -1006,8 +1056,8 @@ export default function EmployeeProfile() {
                       setShowKycForm(true);
                       setTimeout(scrollToKycForm, 100);
                     }}
-                    className="w-full">
-                    <Edit className="h-4 w-4 mr-2" />
+                    className="w-full text-xs sm:text-sm h-9 sm:h-10">
+                    <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                     Complete KYC
                   </Button>
                 )}
@@ -1019,58 +1069,61 @@ export default function EmployeeProfile() {
                       setTimeout(scrollToKycForm, 100);
                     }}
                     variant="outline"
-                    className="w-full">
-                    <Edit className="h-4 w-4 mr-2" />
+                    className="w-full text-xs sm:text-sm h-9 sm:h-10">
+                    <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                     Resubmit KYC
                   </Button>
                 )}
 
-                {(kycStatus === "partially_rejected" || hasRejectedDocuments) && (
+                {(kycStatus === "partially_rejected" ||
+                  hasRejectedDocuments) && (
                   <Button
                     onClick={() => {
                       setShowKycForm(true);
                       setTimeout(scrollToKycForm, 100);
                     }}
                     variant="outline"
-                    className="w-full bg-orange-50 hover:bg-orange-100 border-orange-300 text-orange-800">
-                    <Upload className="h-4 w-4 mr-2" />
+                    className="w-full bg-orange-50 hover:bg-orange-100 border-orange-300 text-orange-800 text-xs sm:text-sm h-9 sm:h-10">
+                    <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                     Re-upload Rejected Documents
                   </Button>
                 )}
               </div>
 
               {kycData && (kycData.panNumber || kycData.aadharNumber) && (
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <h4 className="text-sm font-medium mb-2">
+                <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                  <h4 className="text-xs sm:text-sm font-medium mb-2 sm:mb-3">
                     Submitted KYC Information
                   </h4>
-                  <div className="space-y-2 text-sm text-gray-600">
+                  <div className="space-y-2 text-xs sm:text-sm text-gray-600">
                     {kycData.panNumber && (
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-gray-400" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <FileText className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
                         <span className="font-medium">PAN Number:</span>
-                        <span>{kycData.panNumber}</span>
+                        <span className="break-all">{kycData.panNumber}</span>
                       </div>
                     )}
                     {kycData.aadharNumber && (
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-gray-400" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <FileText className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
                         <span className="font-medium">Aadhar Number:</span>
-                        <span>{kycData.aadharNumber}</span>
+                        <span className="break-all">
+                          {kycData.aadharNumber}
+                        </span>
                       </div>
                     )}
                     {kycData.address && (
                       <div className="flex items-start gap-2">
-                        <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
-                        <div>
+                        <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
                           <span className="font-medium">Address: </span>
-                          <span>{kycData.address}</span>
+                          <span className="break-words">{kycData.address}</span>
                         </div>
                       </div>
                     )}
                     {kycData.submittedAt && (
-                      <div className="flex items-center gap-2 pt-2 border-t">
-                        <Calendar className="h-4 w-4 text-gray-400" />
+                      <div className="flex items-center gap-2 pt-2 border-t flex-wrap">
+                        <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
                         <span className="font-medium">Submitted:</span>
                         <span>
                           {new Date(kycData.submittedAt).toLocaleDateString()}
@@ -1088,30 +1141,32 @@ export default function EmployeeProfile() {
       {/* Feature Access Status - Only show for non-admin users */}
       {user?.role !== "admin" && (
         <Card>
-          <CardHeader>
-            <CardTitle>Feature Access</CardTitle>
-            <CardDescription>
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-lg sm:text-xl md:text-2xl">
+              Feature Access
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
               Your access to different employee features based on KYC status
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="flex items-center space-x-3 p-3 border rounded-lg">
+          <CardContent className="p-4 sm:p-6">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 p-3 sm:p-4 border rounded-lg">
                 <div
-                  className={`p-2 rounded-full ${
+                  className={`p-2 rounded-full flex-shrink-0 ${
                     kycStatus === "approved" ? "bg-primary/20" : "bg-muted"
                   }`}>
                   <Calendar
-                    className={`h-4 w-4 ${
+                    className={`h-3 w-3 sm:h-4 sm:w-4 ${
                       kycStatus === "approved"
                         ? "text-primary"
                         : "text-gray-400"
                     }`}
                   />
                 </div>
-                <div>
-                  <p className="text-sm font-medium">Attendance</p>
-                  <p className="text-xs text-gray-500">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium">Attendance</p>
+                  <p className="text-[10px] sm:text-xs text-gray-500">
                     {kycStatus === "approved"
                       ? "Available"
                       : "Requires KYC approval"}
@@ -1119,22 +1174,22 @@ export default function EmployeeProfile() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3 p-3 border rounded-lg">
+              <div className="flex items-center space-x-2 sm:space-x-3 p-3 sm:p-4 border rounded-lg">
                 <div
-                  className={`p-2 rounded-full ${
+                  className={`p-2 rounded-full flex-shrink-0 ${
                     kycStatus === "approved" ? "bg-primary/20" : "bg-muted"
                   }`}>
                   <FileText
-                    className={`h-4 w-4 ${
+                    className={`h-3 w-3 sm:h-4 sm:w-4 ${
                       kycStatus === "approved"
                         ? "text-primary"
                         : "text-gray-400"
                     }`}
                   />
                 </div>
-                <div>
-                  <p className="text-sm font-medium">Payslip</p>
-                  <p className="text-xs text-gray-500">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium">Payslip</p>
+                  <p className="text-[10px] sm:text-xs text-gray-500">
                     {kycStatus === "approved"
                       ? "Available"
                       : "Requires KYC approval"}
@@ -1142,22 +1197,24 @@ export default function EmployeeProfile() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3 p-3 border rounded-lg">
+              <div className="flex items-center space-x-2 sm:space-x-3 p-3 sm:p-4 border rounded-lg">
                 <div
-                  className={`p-2 rounded-full ${
+                  className={`p-2 rounded-full flex-shrink-0 ${
                     kycStatus === "approved" ? "bg-primary/20" : "bg-muted"
                   }`}>
                   <Clock
-                    className={`h-4 w-4 ${
+                    className={`h-3 w-3 sm:h-4 sm:w-4 ${
                       kycStatus === "approved"
                         ? "text-primary"
                         : "text-gray-400"
                     }`}
                   />
                 </div>
-                <div>
-                  <p className="text-sm font-medium">Leave Application</p>
-                  <p className="text-xs text-gray-500">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium">
+                    Leave Application
+                  </p>
+                  <p className="text-[10px] sm:text-xs text-gray-500">
                     {kycStatus === "approved"
                       ? "Available"
                       : "Requires KYC approval"}
@@ -1173,68 +1230,103 @@ export default function EmployeeProfile() {
       {showKycForm && user?.role !== "admin" && (
         <Card id="kyc-form" data-testid="kyc-form" className="kyc-form">
           {/* Debug: Ensure Dropzone is available */}
-          {typeof Dropzone === 'undefined' && (
-            <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded mb-4">
-              <p className="font-bold">Error: Dropzone component not loaded!</p>
-              <p className="text-sm">Please refresh the page or contact support.</p>
+          {typeof Dropzone === "undefined" && (
+            <div className="p-3 sm:p-4 bg-red-100 border border-red-400 text-red-700 rounded mb-3 sm:mb-4">
+              <p className="font-bold text-xs sm:text-sm">
+                Error: Dropzone component not loaded!
+              </p>
+              <p className="text-xs sm:text-sm mt-1">
+                Please refresh the page or contact support.
+              </p>
             </div>
           )}
-          <CardHeader>
-            <CardTitle>
-              {hasRejectedDocuments ? "Re-upload Rejected Documents" : "Complete Your KYC"}
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-lg sm:text-xl md:text-2xl">
+              {hasRejectedDocuments
+                ? "Re-upload Rejected Documents"
+                : "Complete Your KYC"}
             </CardTitle>
-            <CardDescription>
-              {hasRejectedDocuments 
+            <CardDescription className="text-xs sm:text-sm">
+              {hasRejectedDocuments
                 ? "Please re-upload only the rejected documents below. All other fields are locked."
                 : "Please provide your KYC information to complete your profile setup."}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleKycSubmit} className="space-y-4">
+          <CardContent className="p-4 sm:p-6">
+            <form
+              onSubmit={handleKycSubmit}
+              className="space-y-4 sm:space-y-5 md:space-y-6">
               {/* Rejected Documents Section - Show at the top when there are rejected documents */}
               {hasRejectedDocuments && (
-                <div className="space-y-4 border-b pb-6 mb-6">
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-red-800 mb-4 flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5" />
-                      Rejected Documents - Please Re-upload Only These
+                <div className="space-y-3 sm:space-y-4 border-b pb-4 sm:pb-6 mb-4 sm:mb-6">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 md:p-5">
+                    <h3 className="text-base sm:text-lg md:text-xl font-semibold text-red-800 mb-3 sm:mb-4 flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                      <span>
+                        Rejected Documents - Please Re-upload Only These
+                      </span>
                     </h3>
-                    <p className="text-sm text-red-700 mb-4">
-                      Some of your documents were rejected. Please re-upload only the rejected documents below. 
-                      All other documents are locked and cannot be changed.
+                    <p className="text-xs sm:text-sm text-red-700 mb-3 sm:mb-4">
+                      Some of your documents were rejected. Please re-upload
+                      only the rejected documents below. All other documents are
+                      locked and cannot be changed.
                     </p>
-                    <div className="space-y-4">
+                    <div className="space-y-3 sm:space-y-4">
                       {rejectedDocuments.map((rejectedDoc, index) => {
                         const documentTypeMap = {
-                          'salary_slip_month_1': 'salary_slip_month_1',
-                          'salary_slip_month_2': 'salary_slip_month_2',
-                          'salary_slip_month_3': 'salary_slip_month_3',
-                          'bank_proof': 'bank_proof',
-                          'aadhaar_front': 'aadhaar_front',
-                          'aadhaar_back': 'aadhaar_back',
-                          'employee_photo': 'employee_photo',
-                          'pan_card': 'pan_card',
-                          'education': 'education_documents',
+                          salary_slip_month_1: "salary_slip_month_1",
+                          salary_slip_month_2: "salary_slip_month_2",
+                          salary_slip_month_3: "salary_slip_month_3",
+                          bank_proof: "bank_proof",
+                          aadhaar_front: "aadhaar_front",
+                          aadhaar_back: "aadhaar_back",
+                          employee_photo: "employee_photo",
+                          pan_card: "pan_card",
+                          education: "education_documents",
                         };
-                        
-                        const docType = documentTypeMap[rejectedDoc.documentType] || rejectedDoc.documentType;
-                        const uploadKey = (docType === 'education_documents' && rejectedDoc.documentIndex !== undefined) 
-                          ? `${docType}_${rejectedDoc.documentIndex}` 
-                          : docType;
-                        const isReuploading = reuploading[uploadKey] || reuploading[docType] || reuploading[rejectedDoc.documentType];
-                        const selectedFile = selectedReuploadFiles[uploadKey] || null;
-                        
+
+                        const docType =
+                          documentTypeMap[rejectedDoc.documentType] ||
+                          rejectedDoc.documentType;
+                        const uploadKey =
+                          docType === "education_documents" &&
+                          rejectedDoc.documentIndex !== undefined
+                            ? `${docType}_${rejectedDoc.documentIndex}`
+                            : docType;
+                        const isReuploading =
+                          reuploading[uploadKey] ||
+                          reuploading[docType] ||
+                          reuploading[rejectedDoc.documentType];
+                        const selectedFile =
+                          selectedReuploadFiles[uploadKey] || null;
+
                         return (
-                          <div key={index} className="bg-white border border-red-300 rounded-lg p-4">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1">
-                                <h4 className="font-semibold text-red-800 mb-2">
-                                  {rejectedDoc.documentName || rejectedDoc.documentType.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase()) + (rejectedDoc.documentIndex !== undefined ? ` (Item ${rejectedDoc.documentIndex + 1})` : '')}
+                          <div
+                            key={index}
+                            className="bg-white border border-red-300 rounded-lg p-3 sm:p-4">
+                            <div className="flex items-start justify-between mb-2 sm:mb-3">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold text-red-800 mb-2 text-sm sm:text-base break-words">
+                                  {rejectedDoc.documentName ||
+                                    rejectedDoc.documentType
+                                      .replace(/_/g, " ")
+                                      .replace(/\b\w/g, (char) =>
+                                        char.toUpperCase()
+                                      ) +
+                                      (rejectedDoc.documentIndex !== undefined
+                                        ? ` (Item ${
+                                            rejectedDoc.documentIndex + 1
+                                          })`
+                                        : "")}
                                 </h4>
                                 {rejectedDoc.remark && (
-                                  <div className="bg-red-100 border border-red-300 rounded p-3 mb-3">
-                                    <p className="text-xs font-semibold text-red-800 mb-1">Rejection Remark:</p>
-                                    <p className="text-sm text-red-700">{rejectedDoc.remark}</p>
+                                  <div className="bg-red-100 border border-red-300 rounded p-2 sm:p-3 mb-2 sm:mb-3">
+                                    <p className="text-[10px] sm:text-xs font-semibold text-red-800 mb-1">
+                                      Rejection Remark:
+                                    </p>
+                                    <p className="text-xs sm:text-sm text-red-700 break-words">
+                                      {rejectedDoc.remark}
+                                    </p>
                                   </div>
                                 )}
                               </div>
@@ -1242,8 +1334,20 @@ export default function EmployeeProfile() {
                             <Dropzone
                               label="Re-upload Document"
                               placeholder="Drag & Drop file here or Click to Upload"
-                              acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
-                              acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
+                              acceptedFileTypes={[
+                                "image/jpeg",
+                                "image/jpg",
+                                "image/png",
+                                "image/webp",
+                                "application/pdf",
+                              ]}
+                              acceptedExtensions={[
+                                ".jpg",
+                                ".jpeg",
+                                ".png",
+                                ".webp",
+                                ".pdf",
+                              ]}
                               maxFileSize={5 * 1024 * 1024}
                               multiple={false}
                               required={true}
@@ -1272,34 +1376,49 @@ export default function EmployeeProfile() {
                                 // Not used when autoUpload is false
                               }}
                               autoUpload={false}
-                              className={isReuploading ? "opacity-50 pointer-events-none" : ""}
+                              className={
+                                isReuploading
+                                  ? "opacity-50 pointer-events-none"
+                                  : ""
+                              }
                             />
                             {selectedFile && !isReuploading && (
-                              <div className="mt-3 flex justify-end">
+                              <div className="mt-2 sm:mt-3 flex justify-end">
                                 <Button
                                   type="button"
                                   onClick={async () => {
                                     if (selectedFile && kycData?.kycId) {
-                                      if (docType === 'education_documents' && rejectedDoc.documentIndex !== undefined) {
-                                        await handleReuploadDocument(docType, selectedFile, rejectedDoc.documentIndex);
+                                      if (
+                                        docType === "education_documents" &&
+                                        rejectedDoc.documentIndex !== undefined
+                                      ) {
+                                        await handleReuploadDocument(
+                                          docType,
+                                          selectedFile,
+                                          rejectedDoc.documentIndex
+                                        );
                                       } else {
-                                        await handleReuploadDocument(docType, selectedFile);
+                                        await handleReuploadDocument(
+                                          docType,
+                                          selectedFile
+                                        );
                                       }
                                     } else if (!kycData?.kycId) {
-                                      toast.error("KYC ID not found. Please refresh the page.");
+                                      toast.error(
+                                        "KYC ID not found. Please refresh the page."
+                                      );
                                     }
                                   }}
-                                  className="bg-green-600 hover:bg-green-700 text-white"
-                                  disabled={!selectedFile || isReuploading}
-                                >
-                                  <Upload className="h-4 w-4 mr-2" />
+                                  className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm h-8 sm:h-9 px-3 sm:px-4"
+                                  disabled={!selectedFile || isReuploading}>
+                                  <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                                   Re-upload Document
                                 </Button>
                               </div>
                             )}
                             {isReuploading && (
-                              <div className="mt-3 flex items-center gap-2 text-sm text-blue-600">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                              <div className="mt-2 sm:mt-3 flex items-center gap-2 text-xs sm:text-sm text-blue-600">
+                                <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-blue-600"></div>
                                 <p>Uploading document...</p>
                               </div>
                             )}
@@ -1313,16 +1432,20 @@ export default function EmployeeProfile() {
 
               {/* Show info message when there are rejected documents */}
               {hasRejectedDocuments && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-blue-800">
-                    <strong>Note:</strong> You have rejected documents above. All other document fields below are locked 
-                    and cannot be modified. Please re-upload only the rejected documents shown above.
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+                  <p className="text-xs sm:text-sm text-blue-800">
+                    <strong>Note:</strong> You have rejected documents above.
+                    All other document fields below are locked and cannot be
+                    modified. Please re-upload only the rejected documents shown
+                    above.
                   </p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="panNumber">PAN Number *</Label>
+                  <Label htmlFor="panNumber" className="text-xs sm:text-sm">
+                    PAN Number *
+                  </Label>
                   <Input
                     id="panNumber"
                     placeholder="Enter PAN number (e.g., ABCDE1234F)"
@@ -1334,19 +1457,21 @@ export default function EmployeeProfile() {
                       )
                     }
                     onBlur={(e) => handleFieldBlur("panNumber", e.target.value)}
-                    className={
+                    className={`text-xs sm:text-sm h-9 sm:h-10 ${
                       validationErrors.panNumber ? "border-red-500" : ""
-                    }
+                    }`}
                     required
                   />
                   {validationErrors.panNumber && (
-                    <p className="text-sm text-red-500">
+                    <p className="text-xs sm:text-sm text-red-500">
                       {validationErrors.panNumber}
                     </p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="aadharNumber">Aadhar Number *</Label>
+                  <Label htmlFor="aadharNumber" className="text-xs sm:text-sm">
+                    Aadhar Number *
+                  </Label>
                   <Input
                     id="aadharNumber"
                     placeholder="Enter Aadhar number (12 digits)"
@@ -1360,14 +1485,14 @@ export default function EmployeeProfile() {
                     onBlur={(e) =>
                       handleFieldBlur("aadharNumber", e.target.value)
                     }
-                    className={
+                    className={`text-xs sm:text-sm h-9 sm:h-10 ${
                       validationErrors.aadharNumber ? "border-red-500" : ""
-                    }
+                    }`}
                     maxLength={12}
                     required
                   />
                   {validationErrors.aadharNumber && (
-                    <p className="text-sm text-red-500">
+                    <p className="text-xs sm:text-sm text-red-500">
                       {validationErrors.aadharNumber}
                     </p>
                   )}
@@ -1375,42 +1500,54 @@ export default function EmployeeProfile() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dob">Date of Birth *</Label>
+                <Label htmlFor="dob" className="text-xs sm:text-sm">
+                  Date of Birth *
+                </Label>
                 <Input
                   id="dob"
                   type="date"
                   value={kycFormData.dob}
                   onChange={(e) => handleFieldChange("dob", e.target.value)}
                   onBlur={(e) => handleFieldBlur("dob", e.target.value)}
-                  className={validationErrors.dob ? "border-red-500" : ""}
+                  className={`text-xs sm:text-sm h-9 sm:h-10 ${
+                    validationErrors.dob ? "border-red-500" : ""
+                  }`}
                   max={new Date().toISOString().split("T")[0]}
                   required
                 />
                 {validationErrors.dob && (
-                  <p className="text-sm text-red-500">{validationErrors.dob}</p>
+                  <p className="text-xs sm:text-sm text-red-500">
+                    {validationErrors.dob}
+                  </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Address *</Label>
+                <Label htmlFor="address" className="text-xs sm:text-sm">
+                  Address *
+                </Label>
                 <Textarea
                   id="address"
                   placeholder="Enter your complete address"
                   value={kycFormData.address}
                   onChange={(e) => handleFieldChange("address", e.target.value)}
                   onBlur={(e) => handleFieldBlur("address", e.target.value)}
-                  className={validationErrors.address ? "border-red-500" : ""}
+                  className={`text-xs sm:text-sm min-h-[80px] sm:min-h-[100px] ${
+                    validationErrors.address ? "border-red-500" : ""
+                  }`}
                   required
                 />
                 {validationErrors.address && (
-                  <p className="text-sm text-red-500">
+                  <p className="text-xs sm:text-sm text-red-500">
                     {validationErrors.address}
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phoneNumber">Phone Number</Label>
+                <Label htmlFor="phoneNumber" className="text-xs sm:text-sm">
+                  Phone Number
+                </Label>
                 <Input
                   id="phoneNumber"
                   placeholder="Enter phone number (10 digits)"
@@ -1422,27 +1559,29 @@ export default function EmployeeProfile() {
                     )
                   }
                   onBlur={(e) => handleFieldBlur("phoneNumber", e.target.value)}
-                  className={
+                  className={`text-xs sm:text-sm h-9 sm:h-10 ${
                     validationErrors.phoneNumber ? "border-red-500" : ""
-                  }
+                  }`}
                   maxLength={10}
                 />
                 {validationErrors.phoneNumber && (
-                  <p className="text-sm text-red-500">
+                  <p className="text-xs sm:text-sm text-red-500">
                     {validationErrors.phoneNumber}
                   </p>
                 )}
               </div>
 
               {/* Emergency Contact Section */}
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-semibold">
+              <div className="space-y-3 sm:space-y-4 border-t pt-3 sm:pt-4">
+                <h3 className="text-base sm:text-lg md:text-xl font-semibold">
                   Emergency Contact Details
                 </h3>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="emergencyContactName">
+                    <Label
+                      htmlFor="emergencyContactName"
+                      className="text-xs sm:text-sm">
                       Emergency Contact Name *
                     </Label>
                     <Input
@@ -1458,21 +1597,23 @@ export default function EmployeeProfile() {
                       onBlur={(e) =>
                         handleFieldBlur("emergencyContactName", e.target.value)
                       }
-                      className={
+                      className={`text-xs sm:text-sm h-9 sm:h-10 ${
                         validationErrors.emergencyContactName
                           ? "border-red-500"
                           : ""
-                      }
+                      }`}
                       required
                     />
                     {validationErrors.emergencyContactName && (
-                      <p className="text-sm text-red-500">
+                      <p className="text-xs sm:text-sm text-red-500">
                         {validationErrors.emergencyContactName}
                       </p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="emergencyContactPhone">
+                    <Label
+                      htmlFor="emergencyContactPhone"
+                      className="text-xs sm:text-sm">
                       Emergency Contact Phone *
                     </Label>
                     <Input
@@ -1488,25 +1629,29 @@ export default function EmployeeProfile() {
                       onBlur={(e) =>
                         handleFieldBlur("emergencyContactPhone", e.target.value)
                       }
-                      className={
+                      className={`text-xs sm:text-sm h-9 sm:h-10 ${
                         validationErrors.emergencyContactPhone
                           ? "border-red-500"
                           : ""
-                      }
+                      }`}
                       maxLength={10}
                       required
                     />
                     {validationErrors.emergencyContactPhone && (
-                      <p className="text-sm text-red-500">
+                      <p className="text-xs sm:text-sm text-red-500">
                         {validationErrors.emergencyContactPhone}
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="emergencyContactRelation">Relation *</Label>
+                    <Label
+                      htmlFor="emergencyContactRelation"
+                      className="text-xs sm:text-sm">
+                      Relation *
+                    </Label>
                     <Input
                       id="emergencyContactRelation"
                       placeholder="e.g., Father, Mother, Spouse, Sibling"
@@ -1523,21 +1668,23 @@ export default function EmployeeProfile() {
                           e.target.value
                         )
                       }
-                      className={
+                      className={`text-xs sm:text-sm h-9 sm:h-10 ${
                         validationErrors.emergencyContactRelation
                           ? "border-red-500"
                           : ""
-                      }
+                      }`}
                       required
                     />
                     {validationErrors.emergencyContactRelation && (
-                      <p className="text-sm text-red-500">
+                      <p className="text-xs sm:text-sm text-red-500">
                         {validationErrors.emergencyContactRelation}
                       </p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="emergencyContactAddress">
+                    <Label
+                      htmlFor="emergencyContactAddress"
+                      className="text-xs sm:text-sm">
                       Emergency Contact Address
                     </Label>
                     <Input
@@ -1556,14 +1703,14 @@ export default function EmployeeProfile() {
                           e.target.value
                         )
                       }
-                      className={
+                      className={`text-xs sm:text-sm h-9 sm:h-10 ${
                         validationErrors.emergencyContactAddress
                           ? "border-red-500"
                           : ""
-                      }
+                      }`}
                     />
                     {validationErrors.emergencyContactAddress && (
-                      <p className="text-sm text-red-500">
+                      <p className="text-xs sm:text-sm text-red-500">
                         {validationErrors.emergencyContactAddress}
                       </p>
                     )}
@@ -1572,12 +1719,16 @@ export default function EmployeeProfile() {
               </div>
 
               {/* Bank Account Details Section */}
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-semibold">Bank Account Details</h3>
+              <div className="space-y-3 sm:space-y-4 border-t pt-3 sm:pt-4">
+                <h3 className="text-base sm:text-lg md:text-xl font-semibold">
+                  Bank Account Details
+                </h3>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="bankName">Bank Name *</Label>
+                    <Label htmlFor="bankName" className="text-xs sm:text-sm">
+                      Bank Name *
+                    </Label>
                     <Input
                       id="bankName"
                       placeholder="Enter bank name"
@@ -1588,19 +1739,21 @@ export default function EmployeeProfile() {
                       onBlur={(e) =>
                         handleFieldBlur("bankName", e.target.value)
                       }
-                      className={
+                      className={`text-xs sm:text-sm h-9 sm:h-10 ${
                         validationErrors.bankName ? "border-red-500" : ""
-                      }
+                      }`}
                       required
                     />
                     {validationErrors.bankName && (
-                      <p className="text-sm text-red-500">
+                      <p className="text-xs sm:text-sm text-red-500">
                         {validationErrors.bankName}
                       </p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="bankBranch">Bank Branch *</Label>
+                    <Label htmlFor="bankBranch" className="text-xs sm:text-sm">
+                      Bank Branch *
+                    </Label>
                     <Input
                       id="bankBranch"
                       placeholder="Enter bank branch"
@@ -1611,22 +1764,26 @@ export default function EmployeeProfile() {
                       onBlur={(e) =>
                         handleFieldBlur("bankBranch", e.target.value)
                       }
-                      className={
+                      className={`text-xs sm:text-sm h-9 sm:h-10 ${
                         validationErrors.bankBranch ? "border-red-500" : ""
-                      }
+                      }`}
                       required
                     />
                     {validationErrors.bankBranch && (
-                      <p className="text-sm text-red-500">
+                      <p className="text-xs sm:text-sm text-red-500">
                         {validationErrors.bankBranch}
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="accountNumber">Account Number *</Label>
+                    <Label
+                      htmlFor="accountNumber"
+                      className="text-xs sm:text-sm">
+                      Account Number *
+                    </Label>
                     <Input
                       id="accountNumber"
                       placeholder="Enter account number (9-18 digits)"
@@ -1640,20 +1797,22 @@ export default function EmployeeProfile() {
                       onBlur={(e) =>
                         handleFieldBlur("accountNumber", e.target.value)
                       }
-                      className={
+                      className={`text-xs sm:text-sm h-9 sm:h-10 ${
                         validationErrors.accountNumber ? "border-red-500" : ""
-                      }
+                      }`}
                       maxLength={18}
                       required
                     />
                     {validationErrors.accountNumber && (
-                      <p className="text-sm text-red-500">
+                      <p className="text-xs sm:text-sm text-red-500">
                         {validationErrors.accountNumber}
                       </p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="ifscCode">IFSC Code *</Label>
+                    <Label htmlFor="ifscCode" className="text-xs sm:text-sm">
+                      IFSC Code *
+                    </Label>
                     <Input
                       id="ifscCode"
                       placeholder="Enter IFSC code (e.g., ABCD0123456)"
@@ -1667,14 +1826,14 @@ export default function EmployeeProfile() {
                       onBlur={(e) =>
                         handleFieldBlur("ifscCode", e.target.value)
                       }
-                      className={
+                      className={`text-xs sm:text-sm h-9 sm:h-10 ${
                         validationErrors.ifscCode ? "border-red-500" : ""
-                      }
+                      }`}
                       maxLength={11}
                       required
                     />
                     {validationErrors.ifscCode && (
-                      <p className="text-sm text-red-500">
+                      <p className="text-xs sm:text-sm text-red-500">
                         {validationErrors.ifscCode}
                       </p>
                     )}
@@ -1683,11 +1842,15 @@ export default function EmployeeProfile() {
               </div>
 
               {/* Document Upload Sections - Disabled if there are rejected documents */}
-              <div className="space-y-6 border-t pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Document Upload</h3>
+              <div className="space-y-4 sm:space-y-5 md:space-y-6 border-t pt-4 sm:pt-5 md:pt-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
+                  <h3 className="text-base sm:text-lg md:text-xl font-semibold">
+                    Document Upload
+                  </h3>
                   {rejectedDocuments.length > 0 && (
-                    <Badge variant="outline" className="bg-yellow-50 text-yellow-800 border-yellow-300">
+                    <Badge
+                      variant="outline"
+                      className="bg-yellow-50 text-yellow-800 border-yellow-300 text-[10px] sm:text-xs w-fit">
                       <AlertCircle className="h-3 w-3 mr-1" />
                       Only rejected documents can be re-uploaded
                     </Badge>
@@ -1695,36 +1858,62 @@ export default function EmployeeProfile() {
                 </div>
 
                 {rejectedDocuments.length > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                    <p className="text-sm text-blue-800">
-                      <strong>Note:</strong> You have rejected documents above. All other document fields are locked 
-                      and cannot be modified. Please re-upload only the rejected documents.
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+                    <p className="text-xs sm:text-sm text-blue-800">
+                      <strong>Note:</strong> You have rejected documents above.
+                      All other document fields are locked and cannot be
+                      modified. Please re-upload only the rejected documents.
                     </p>
                   </div>
                 )}
 
                 {/* Section 1: Employee Photo */}
-                <div className={cn(
-                  "space-y-4 border-b pb-4",
-                  hasRejectedDocuments && !isDocumentRejected('employee_photo') && "opacity-50 pointer-events-none"
-                )}>
-                  <h4 className="text-md font-semibold text-gray-700">
-                    Employee Photo
-                    {hasRejectedDocuments && !isDocumentRejected('employee_photo') && (
-                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
-                    )}
+                <div
+                  className={cn(
+                    "space-y-3 sm:space-y-4 border-b pb-3 sm:pb-4",
+                    hasRejectedDocuments &&
+                      !isDocumentRejected("employee_photo") &&
+                      "opacity-50 pointer-events-none"
+                  )}>
+                  <h4 className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2 flex-wrap">
+                    <span>Employee Photo</span>
+                    {hasRejectedDocuments &&
+                      !isDocumentRejected("employee_photo") && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] sm:text-xs">
+                          Locked
+                        </Badge>
+                      )}
                   </h4>
-                  {hasRejectedDocuments && !isDocumentRejected('employee_photo') ? (
-                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
-                      <p className="text-sm text-gray-500">This document is approved/locked and cannot be modified.</p>
-                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                  {hasRejectedDocuments &&
+                  !isDocumentRejected("employee_photo") ? (
+                    <div className="bg-gray-50 border rounded-lg p-3 sm:p-4 text-center">
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        This document is approved/locked and cannot be modified.
+                      </p>
+                      <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
+                        Re-upload only rejected documents shown above.
+                      </p>
                     </div>
                   ) : (
                     <Dropzone
                       label="Employee Photo"
                       placeholder="Drag & Drop employee photo here or Click to Upload"
-                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
-                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
+                      acceptedFileTypes={[
+                        "image/jpeg",
+                        "image/jpg",
+                        "image/png",
+                        "image/webp",
+                        "application/pdf",
+                      ]}
+                      acceptedExtensions={[
+                        ".jpg",
+                        ".jpeg",
+                        ".png",
+                        ".webp",
+                        ".pdf",
+                      ]}
                       maxFileSize={5 * 1024 * 1024}
                       multiple={false}
                       required={true}
@@ -1755,85 +1944,133 @@ export default function EmployeeProfile() {
                 </div>
 
                 {/* Section 2: PAN Card Photo */}
-                <div className={cn(
-                  "space-y-4 border-b pb-4",
-                  hasRejectedDocuments && !isDocumentRejected('pan_card') && "opacity-50 pointer-events-none"
-                )}>
-                  <h4 className="text-md font-semibold text-gray-700">
-                    PAN Card Photo
-                    {hasRejectedDocuments && !isDocumentRejected('pan_card') && (
-                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
-                    )}
+                <div
+                  className={cn(
+                    "space-y-3 sm:space-y-4 border-b pb-3 sm:pb-4",
+                    hasRejectedDocuments &&
+                      !isDocumentRejected("pan_card") &&
+                      "opacity-50 pointer-events-none"
+                  )}>
+                  <h4 className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2 flex-wrap">
+                    <span>PAN Card Photo</span>
+                    {hasRejectedDocuments &&
+                      !isDocumentRejected("pan_card") && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] sm:text-xs">
+                          Locked
+                        </Badge>
+                      )}
                   </h4>
-                  {hasRejectedDocuments && !isDocumentRejected('pan_card') ? (
-                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
-                      <p className="text-sm text-gray-500">This document is approved/locked and cannot be modified.</p>
-                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                  {hasRejectedDocuments && !isDocumentRejected("pan_card") ? (
+                    <div className="bg-gray-50 border rounded-lg p-3 sm:p-4 text-center">
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        This document is approved/locked and cannot be modified.
+                      </p>
+                      <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
+                        Re-upload only rejected documents shown above.
+                      </p>
                     </div>
                   ) : (
                     <Dropzone
-                    label="PAN Card Photo"
-                    placeholder="Drag & Drop PAN card photo here or Click to Upload"
-                    acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
-                    acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
-                    maxFileSize={5 * 1024 * 1024}
-                    multiple={false}
-                    required={true}
-                    error={validationErrors.panCard}
-                    files={panCardFile}
-                    onFileSelect={(file) => {
-                      if (file) {
-                        handleFileUpload(file, "panCard");
-                      } else {
+                      label="PAN Card Photo"
+                      placeholder="Drag & Drop PAN card photo here or Click to Upload"
+                      acceptedFileTypes={[
+                        "image/jpeg",
+                        "image/jpg",
+                        "image/png",
+                        "image/webp",
+                        "application/pdf",
+                      ]}
+                      acceptedExtensions={[
+                        ".jpg",
+                        ".jpeg",
+                        ".png",
+                        ".webp",
+                        ".pdf",
+                      ]}
+                      maxFileSize={5 * 1024 * 1024}
+                      multiple={false}
+                      required={true}
+                      error={validationErrors.panCard}
+                      files={panCardFile}
+                      onFileSelect={(file) => {
+                        if (file) {
+                          handleFileUpload(file, "panCard");
+                        } else {
+                          setPanCardFile(null);
+                          setValidationErrors({
+                            ...validationErrors,
+                            panCard: "",
+                          });
+                        }
+                      }}
+                      onFileRemove={() => {
                         setPanCardFile(null);
                         setValidationErrors({
                           ...validationErrors,
                           panCard: "",
                         });
-                      }
-                    }}
-                    onFileRemove={() => {
-                      setPanCardFile(null);
-                      setValidationErrors({
-                        ...validationErrors,
-                        panCard: "",
-                      });
-                    }}
-                    onUpload={uploadFileToServer}
-                    autoUpload={true}
-                  />
+                      }}
+                      onUpload={uploadFileToServer}
+                      autoUpload={true}
+                    />
                   )}
                 </div>
 
                 {/* Section 3: Aadhaar Card Photo (Front and Back) */}
-                <div className={cn(
-                  "space-y-4 border-b pb-4",
-                  hasRejectedDocuments && !isDocumentRejected('aadhaar_front') && !isDocumentRejected('aadhaar_back') && "opacity-50 pointer-events-none"
-                )}>
-                  <h4 className="text-md font-semibold text-gray-700">
-                    Aadhaar Card Photo
-                    {hasRejectedDocuments && !isDocumentRejected('aadhaar_front') && !isDocumentRejected('aadhaar_back') && (
-                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
-                    )}
+                <div
+                  className={cn(
+                    "space-y-3 sm:space-y-4 border-b pb-3 sm:pb-4",
+                    hasRejectedDocuments &&
+                      !isDocumentRejected("aadhaar_front") &&
+                      !isDocumentRejected("aadhaar_back") &&
+                      "opacity-50 pointer-events-none"
+                  )}>
+                  <h4 className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2 flex-wrap">
+                    <span>Aadhaar Card Photo</span>
+                    {hasRejectedDocuments &&
+                      !isDocumentRejected("aadhaar_front") &&
+                      !isDocumentRejected("aadhaar_back") && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] sm:text-xs">
+                          Locked
+                        </Badge>
+                      )}
                   </h4>
-                  {hasRejectedDocuments && !isDocumentRejected('aadhaar_front') && !isDocumentRejected('aadhaar_back') ? (
-                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
-                      <p className="text-sm text-gray-500">This document is approved/locked and cannot be modified.</p>
-                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                  {hasRejectedDocuments &&
+                  !isDocumentRejected("aadhaar_front") &&
+                  !isDocumentRejected("aadhaar_back") ? (
+                    <div className="bg-gray-50 border rounded-lg p-3 sm:p-4 text-center">
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        This document is approved/locked and cannot be modified.
+                      </p>
+                      <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
+                        Re-upload only rejected documents shown above.
+                      </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <Dropzone
                         label="Aadhaar Card - Front"
                         placeholder="Drag & Drop Aadhaar front here or Click to Upload"
-                        acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                        acceptedFileTypes={[
+                          "image/jpeg",
+                          "image/jpg",
+                          "image/png",
+                          "application/pdf",
+                        ]}
                         acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
                         maxFileSize={5 * 1024 * 1024}
                         multiple={false}
                         required={true}
                         error={validationErrors.aadhaarFront}
                         files={aadhaarFrontFile}
-                        disabled={hasRejectedDocuments && !isDocumentRejected('aadhaar_front')}
+                        disabled={
+                          hasRejectedDocuments &&
+                          !isDocumentRejected("aadhaar_front")
+                        }
                         onFileSelect={(file) => {
                           if (file) {
                             handleFileUpload(file, "aadhaarFront");
@@ -1858,14 +2095,22 @@ export default function EmployeeProfile() {
                       <Dropzone
                         label="Aadhaar Card - Back"
                         placeholder="Drag & Drop Aadhaar back here or Click to Upload"
-                        acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                        acceptedFileTypes={[
+                          "image/jpeg",
+                          "image/jpg",
+                          "image/png",
+                          "application/pdf",
+                        ]}
                         acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
                         maxFileSize={5 * 1024 * 1024}
                         multiple={false}
                         required={true}
                         error={validationErrors.aadhaarBack}
                         files={aadhaarBackFile}
-                        disabled={hasRejectedDocuments && !isDocumentRejected('aadhaar_back')}
+                        disabled={
+                          hasRejectedDocuments &&
+                          !isDocumentRejected("aadhaar_back")
+                        }
                         onFileSelect={(file) => {
                           if (file) {
                             handleFileUpload(file, "aadhaarBack");
@@ -1892,145 +2137,205 @@ export default function EmployeeProfile() {
                 </div>
 
                 {/* Section 4: 3 Months Salary Slips */}
-                <div className={cn(
-                  "space-y-4 border-b pb-4",
-                  hasRejectedDocuments && !isDocumentRejected('salary_slip_month_1') && !isDocumentRejected('salary_slip_month_2') && !isDocumentRejected('salary_slip_month_3') && "opacity-50 pointer-events-none"
-                )}>
-                  <h4 className="text-md font-semibold text-gray-700">
-                    3 Months Salary Slips
-                    {hasRejectedDocuments && !isDocumentRejected('salary_slip_month_1') && !isDocumentRejected('salary_slip_month_2') && !isDocumentRejected('salary_slip_month_3') && (
-                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
-                    )}
+                <div
+                  className={cn(
+                    "space-y-3 sm:space-y-4 border-b pb-3 sm:pb-4",
+                    hasRejectedDocuments &&
+                      !isDocumentRejected("salary_slip_month_1") &&
+                      !isDocumentRejected("salary_slip_month_2") &&
+                      !isDocumentRejected("salary_slip_month_3") &&
+                      "opacity-50 pointer-events-none"
+                  )}>
+                  <h4 className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2 flex-wrap">
+                    <span>3 Months Salary Slips</span>
+                    {hasRejectedDocuments &&
+                      !isDocumentRejected("salary_slip_month_1") &&
+                      !isDocumentRejected("salary_slip_month_2") &&
+                      !isDocumentRejected("salary_slip_month_3") && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] sm:text-xs">
+                          Locked
+                        </Badge>
+                      )}
                   </h4>
-                  {hasRejectedDocuments && !isDocumentRejected('salary_slip_month_1') && !isDocumentRejected('salary_slip_month_2') && !isDocumentRejected('salary_slip_month_3') ? (
-                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
-                      <p className="text-sm text-gray-500">These documents are approved/locked and cannot be modified.</p>
-                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                  {hasRejectedDocuments &&
+                  !isDocumentRejected("salary_slip_month_1") &&
+                  !isDocumentRejected("salary_slip_month_2") &&
+                  !isDocumentRejected("salary_slip_month_3") ? (
+                    <div className="bg-gray-50 border rounded-lg p-3 sm:p-4 text-center">
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        These documents are approved/locked and cannot be
+                        modified.
+                      </p>
+                      <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
+                        Re-upload only rejected documents shown above.
+                      </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       <Dropzone
                         label="Salary Slip - Month 1"
-                        disabled={hasRejectedDocuments && !isDocumentRejected('salary_slip_month_1')}
+                        disabled={
+                          hasRejectedDocuments &&
+                          !isDocumentRejected("salary_slip_month_1")
+                        }
                         placeholder="Drag & Drop salary slip here or Click to Upload"
-                        acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                        acceptedFileTypes={[
+                          "image/jpeg",
+                          "image/jpg",
+                          "image/png",
+                          "application/pdf",
+                        ]}
                         acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
                         maxFileSize={5 * 1024 * 1024}
                         multiple={false}
                         required={false}
                         error={validationErrors.salarySlipMonth1}
                         files={salarySlipMonth1}
-                      onFileSelect={(file) => {
-                        if (file) {
-                          handleFileUpload(file, "salarySlipMonth1");
-                        } else {
+                        onFileSelect={(file) => {
+                          if (file) {
+                            handleFileUpload(file, "salarySlipMonth1");
+                          } else {
+                            setSalarySlipMonth1(null);
+                            setValidationErrors({
+                              ...validationErrors,
+                              salarySlipMonth1: "",
+                            });
+                          }
+                        }}
+                        onFileRemove={() => {
                           setSalarySlipMonth1(null);
                           setValidationErrors({
                             ...validationErrors,
                             salarySlipMonth1: "",
                           });
-                        }
-                      }}
-                      onFileRemove={() => {
-                        setSalarySlipMonth1(null);
-                        setValidationErrors({
-                          ...validationErrors,
-                          salarySlipMonth1: "",
-                        });
-                      }}
-                      onUpload={uploadFileToServer}
-                      autoUpload={true}
-                    />
+                        }}
+                        onUpload={uploadFileToServer}
+                        autoUpload={true}
+                      />
                       <Dropzone
                         label="Salary Slip - Month 2"
-                        disabled={hasRejectedDocuments && !isDocumentRejected('salary_slip_month_2')}
-                      placeholder="Drag & Drop salary slip here or Click to Upload"
-                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
-                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
-                      maxFileSize={5 * 1024 * 1024}
-                      multiple={false}
-                      required={false}
-                      error={validationErrors.salarySlipMonth2}
-                      files={salarySlipMonth2}
-                      onFileSelect={(file) => {
-                        if (file) {
-                          handleFileUpload(file, "salarySlipMonth2");
-                        } else {
+                        disabled={
+                          hasRejectedDocuments &&
+                          !isDocumentRejected("salary_slip_month_2")
+                        }
+                        placeholder="Drag & Drop salary slip here or Click to Upload"
+                        acceptedFileTypes={[
+                          "image/jpeg",
+                          "image/jpg",
+                          "image/png",
+                          "application/pdf",
+                        ]}
+                        acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                        maxFileSize={5 * 1024 * 1024}
+                        multiple={false}
+                        required={false}
+                        error={validationErrors.salarySlipMonth2}
+                        files={salarySlipMonth2}
+                        onFileSelect={(file) => {
+                          if (file) {
+                            handleFileUpload(file, "salarySlipMonth2");
+                          } else {
+                            setSalarySlipMonth2(null);
+                            setValidationErrors({
+                              ...validationErrors,
+                              salarySlipMonth2: "",
+                            });
+                          }
+                        }}
+                        onFileRemove={() => {
                           setSalarySlipMonth2(null);
                           setValidationErrors({
                             ...validationErrors,
                             salarySlipMonth2: "",
                           });
-                        }
-                      }}
-                      onFileRemove={() => {
-                        setSalarySlipMonth2(null);
-                        setValidationErrors({
-                          ...validationErrors,
-                          salarySlipMonth2: "",
-                        });
-                      }}
-                      onUpload={uploadFileToServer}
-                      autoUpload={true}
-                    />
+                        }}
+                        onUpload={uploadFileToServer}
+                        autoUpload={true}
+                      />
                       <Dropzone
                         label="Salary Slip - Month 3"
-                        disabled={hasRejectedDocuments && !isDocumentRejected('salary_slip_month_3')}
-                      placeholder="Drag & Drop salary slip here or Click to Upload"
-                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
-                      acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
-                      maxFileSize={5 * 1024 * 1024}
-                      multiple={false}
-                      required={false}
-                      error={validationErrors.salarySlipMonth3}
-                      files={salarySlipMonth3}
-                      onFileSelect={(file) => {
-                        if (file) {
-                          handleFileUpload(file, "salarySlipMonth3");
-                        } else {
+                        disabled={
+                          hasRejectedDocuments &&
+                          !isDocumentRejected("salary_slip_month_3")
+                        }
+                        placeholder="Drag & Drop salary slip here or Click to Upload"
+                        acceptedFileTypes={[
+                          "image/jpeg",
+                          "image/jpg",
+                          "image/png",
+                          "application/pdf",
+                        ]}
+                        acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
+                        maxFileSize={5 * 1024 * 1024}
+                        multiple={false}
+                        required={false}
+                        error={validationErrors.salarySlipMonth3}
+                        files={salarySlipMonth3}
+                        onFileSelect={(file) => {
+                          if (file) {
+                            handleFileUpload(file, "salarySlipMonth3");
+                          } else {
+                            setSalarySlipMonth3(null);
+                            setValidationErrors({
+                              ...validationErrors,
+                              salarySlipMonth3: "",
+                            });
+                          }
+                        }}
+                        onFileRemove={() => {
                           setSalarySlipMonth3(null);
                           setValidationErrors({
                             ...validationErrors,
                             salarySlipMonth3: "",
                           });
-                        }
-                      }}
-                      onFileRemove={() => {
-                        setSalarySlipMonth3(null);
-                        setValidationErrors({
-                          ...validationErrors,
-                          salarySlipMonth3: "",
-                        });
-                      }}
-                      onUpload={uploadFileToServer}
-                      autoUpload={true}
-                      disabled={hasRejectedDocuments && !isDocumentRejected('salary_slip_month_3')}
-                    />
+                        }}
+                        onUpload={uploadFileToServer}
+                        autoUpload={true}
+                      />
                     </div>
                   )}
                 </div>
 
                 {/* Section 5: Bank Proof */}
-                <div className={cn(
-                  "space-y-4 border-b pb-4",
-                  hasRejectedDocuments && !isDocumentRejected('bank_proof') && "opacity-50 pointer-events-none"
-                )}>
-                  <h4 className="text-md font-semibold text-gray-700">
-                    Bank Proof (Cancelled Cheque/Passbook)
-                    {hasRejectedDocuments && !isDocumentRejected('bank_proof') && (
-                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
-                    )}
+                <div
+                  className={cn(
+                    "space-y-3 sm:space-y-4 border-b pb-3 sm:pb-4",
+                    hasRejectedDocuments &&
+                      !isDocumentRejected("bank_proof") &&
+                      "opacity-50 pointer-events-none"
+                  )}>
+                  <h4 className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2 flex-wrap">
+                    <span>Bank Proof (Cancelled Cheque/Passbook)</span>
+                    {hasRejectedDocuments &&
+                      !isDocumentRejected("bank_proof") && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] sm:text-xs">
+                          Locked
+                        </Badge>
+                      )}
                   </h4>
-                  {hasRejectedDocuments && !isDocumentRejected('bank_proof') ? (
-                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
-                      <p className="text-sm text-gray-500">This document is approved/locked and cannot be modified.</p>
-                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                  {hasRejectedDocuments && !isDocumentRejected("bank_proof") ? (
+                    <div className="bg-gray-50 border rounded-lg p-3 sm:p-4 text-center">
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        This document is approved/locked and cannot be modified.
+                      </p>
+                      <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
+                        Re-upload only rejected documents shown above.
+                      </p>
                     </div>
                   ) : (
                     <Dropzone
                       label="Bank Proof"
                       placeholder="Drag & Drop cancelled cheque or passbook here or Click to Upload"
-                      acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "application/pdf"]}
+                      acceptedFileTypes={[
+                        "image/jpeg",
+                        "image/jpg",
+                        "image/png",
+                        "application/pdf",
+                      ]}
                       acceptedExtensions={[".jpg", ".jpeg", ".png", ".pdf"]}
                       maxFileSize={5 * 1024 * 1024}
                       multiple={false}
@@ -2062,65 +2367,107 @@ export default function EmployeeProfile() {
                 </div>
 
                 {/* Section 6: Educational Certificates */}
-                <div className={cn(
-                  "space-y-4 border-b pb-4",
-                  hasRejectedDocuments && !rejectedDocuments.some(d => d.documentType === 'education') && "opacity-50 pointer-events-none"
-                )}>
-                  <h4 className="text-md font-semibold text-gray-700">
-                    Educational Certificates
-                    {hasRejectedDocuments && !rejectedDocuments.some(d => d.documentType === 'education') && (
-                      <Badge variant="outline" className="ml-2 text-xs">Locked</Badge>
-                    )}
+                <div
+                  className={cn(
+                    "space-y-3 sm:space-y-4 border-b pb-3 sm:pb-4",
+                    hasRejectedDocuments &&
+                      !rejectedDocuments.some(
+                        (d) => d.documentType === "education"
+                      ) &&
+                      "opacity-50 pointer-events-none"
+                  )}>
+                  <h4 className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2 flex-wrap">
+                    <span>Educational Certificates</span>
+                    {hasRejectedDocuments &&
+                      !rejectedDocuments.some(
+                        (d) => d.documentType === "education"
+                      ) && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] sm:text-xs">
+                          Locked
+                        </Badge>
+                      )}
                   </h4>
-                  {hasRejectedDocuments && !rejectedDocuments.some(d => d.documentType === 'education') ? (
-                    <div className="bg-gray-50 border rounded-lg p-4 text-center">
-                      <p className="text-sm text-gray-500">These documents are approved/locked and cannot be modified.</p>
-                      <p className="text-xs text-gray-400 mt-1">Re-upload only rejected documents shown above.</p>
+                  {hasRejectedDocuments &&
+                  !rejectedDocuments.some(
+                    (d) => d.documentType === "education"
+                  ) ? (
+                    <div className="bg-gray-50 border rounded-lg p-3 sm:p-4 text-center">
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        These documents are approved/locked and cannot be
+                        modified.
+                      </p>
+                      <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
+                        Re-upload only rejected documents shown above.
+                      </p>
                     </div>
                   ) : (
                     <Dropzone
                       label="Educational Certificates"
-                      disabled={hasRejectedDocuments && !rejectedDocuments.some(d => d.documentType === 'education')}
-                    placeholder="Drag & Drop educational certificates here or Click to Upload (Multiple files allowed)"
-                    acceptedFileTypes={["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]}
-                    acceptedExtensions={[".jpg", ".jpeg", ".png", ".webp", ".pdf"]}
-                    maxFileSize={5 * 1024 * 1024}
-                    multiple={true}
-                    required={false}
-                    error={validationErrors.educationDocuments}
-                    files={educationDocuments}
-                    onFileSelect={(files) => {
-                      if (files) {
-                        const fileArray = Array.isArray(files) ? files : [files];
-                        setEducationDocuments(fileArray);
-                        setValidationErrors({
-                          ...validationErrors,
-                          educationDocuments: "",
-                        });
-                      } else {
-                        setEducationDocuments([]);
-                        setValidationErrors({
-                          ...validationErrors,
-                          educationDocuments: "",
-                        });
+                      disabled={
+                        hasRejectedDocuments &&
+                        !rejectedDocuments.some(
+                          (d) => d.documentType === "education"
+                        )
                       }
-                    }}
-                    onFileRemove={(index) => {
-                      const newFiles = educationDocuments.filter((_, i) => i !== index);
-                      setEducationDocuments(newFiles);
-                    }}
-                    onUpload={uploadFileToServer}
-                    autoUpload={true}
-                  />
+                      placeholder="Drag & Drop educational certificates here or Click to Upload (Multiple files allowed)"
+                      acceptedFileTypes={[
+                        "image/jpeg",
+                        "image/jpg",
+                        "image/png",
+                        "image/webp",
+                        "application/pdf",
+                      ]}
+                      acceptedExtensions={[
+                        ".jpg",
+                        ".jpeg",
+                        ".png",
+                        ".webp",
+                        ".pdf",
+                      ]}
+                      maxFileSize={5 * 1024 * 1024}
+                      multiple={true}
+                      required={false}
+                      error={validationErrors.educationDocuments}
+                      files={educationDocuments}
+                      onFileSelect={(files) => {
+                        if (files) {
+                          const fileArray = Array.isArray(files)
+                            ? files
+                            : [files];
+                          setEducationDocuments(fileArray);
+                          setValidationErrors({
+                            ...validationErrors,
+                            educationDocuments: "",
+                          });
+                        } else {
+                          setEducationDocuments([]);
+                          setValidationErrors({
+                            ...validationErrors,
+                            educationDocuments: "",
+                          });
+                        }
+                      }}
+                      onFileRemove={(index) => {
+                        const newFiles = educationDocuments.filter(
+                          (_, i) => i !== index
+                        );
+                        setEducationDocuments(newFiles);
+                      }}
+                      onUpload={uploadFileToServer}
+                      autoUpload={true}
+                    />
                   )}
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-2">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 sm:space-x-2">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setShowKycForm(false)}>
+                  onClick={() => setShowKycForm(false)}
+                  className="w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
                   Cancel
                 </Button>
                 {!hasRejectedDocuments && (
@@ -2128,14 +2475,14 @@ export default function EmployeeProfile() {
                     type="submit"
                     onClick={handleKycSubmit}
                     disabled={submittingKyc || !isFormValid()}
-                  >
+                    className="w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
                     {submittingKyc ? "Submitting..." : "Submit KYC"}
                   </Button>
                 )}
                 {hasRejectedDocuments && (
-                  <div className="text-sm text-gray-600 flex items-center px-4">
-                    <AlertCircle className="h-4 w-4 mr-2 text-orange-500" />
-                    Re-upload rejected documents above to submit
+                  <div className="text-xs sm:text-sm text-gray-600 flex items-center px-3 sm:px-4 py-2">
+                    <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-orange-500 flex-shrink-0" />
+                    <span>Re-upload rejected documents above to submit</span>
                   </div>
                 )}
               </div>

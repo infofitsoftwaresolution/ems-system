@@ -918,17 +918,17 @@ export default function Employees() {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">Employees</h1>
-          <p className="text-muted-foreground">
+      <div className="flex flex-col gap-4 sm:gap-5 md:gap-6 px-2 sm:px-4 md:px-6">
+        <div className="flex flex-col gap-1 sm:gap-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">Employees</h1>
+          <p className="text-sm sm:text-base md:text-lg text-muted-foreground">
             Manage and organize your company's workforce
           </p>
         </div>
-        <div className="flex items-center justify-center h-64">
+        <div className="flex items-center justify-center h-64 sm:h-80 md:h-96">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading employees...</p>
+            <div className="animate-spin rounded-full h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 border-b-2 border-primary mx-auto mb-3 sm:mb-4"></div>
+            <p className="text-sm sm:text-base md:text-lg text-muted-foreground">Loading employees...</p>
           </div>
         </div>
       </div>
@@ -937,17 +937,17 @@ export default function Employees() {
 
   if (error) {
     return (
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">Employees</h1>
-          <p className="text-muted-foreground">
+      <div className="flex flex-col gap-4 sm:gap-5 md:gap-6 px-2 sm:px-4 md:px-6">
+        <div className="flex flex-col gap-1 sm:gap-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">Employees</h1>
+          <p className="text-sm sm:text-base md:text-lg text-muted-foreground">
             Manage and organize your company's workforce
           </p>
         </div>
-        <div className="flex items-center justify-center h-64">
+        <div className="flex items-center justify-center h-64 sm:h-80 md:h-96">
           <div className="text-center">
-            <p className="text-red-500 mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>Try Again</Button>
+            <p className="text-sm sm:text-base md:text-lg text-red-500 mb-3 sm:mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()} className="text-xs sm:text-sm">Try Again</Button>
           </div>
         </div>
       </div>
@@ -955,10 +955,10 @@ export default function Employees() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Employees</h1>
-        <p className="text-muted-foreground">
+    <div className="flex flex-col gap-4 sm:gap-5 md:gap-6 lg:gap-8 px-2 sm:px-4 md:px-6">
+      <div className="flex flex-col gap-1 sm:gap-2 mb-2 sm:mb-4">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">Employees</h1>
+        <p className="text-sm sm:text-base md:text-lg text-muted-foreground">
           Manage and organize your company's workforce
         </p>
       </div>
@@ -973,29 +973,30 @@ export default function Employees() {
           else if (value === "inactive") setSelectedStatus("inactive");
           else if (value === "onLeave") setSelectedStatus("onLeave");
         }}
-        className="space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between gap-4">
-          <TabsList>
-            <TabsTrigger value="all">All Employees</TabsTrigger>
-            <TabsTrigger value="active">Working</TabsTrigger>
-            <TabsTrigger value="onLeave">On Leave</TabsTrigger>
-            <TabsTrigger value="inactive">Not Working</TabsTrigger>
+        className="space-y-3 sm:space-y-4 md:space-y-5">
+        <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-4">
+          <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:grid-cols-4">
+            <TabsTrigger value="all" className="text-xs sm:text-sm">All Employees</TabsTrigger>
+            <TabsTrigger value="active" className="text-xs sm:text-sm">Working</TabsTrigger>
+            <TabsTrigger value="onLeave" className="text-xs sm:text-sm">On Leave</TabsTrigger>
+            <TabsTrigger value="inactive" className="text-xs sm:text-sm">Not Working</TabsTrigger>
           </TabsList>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Dialog
               open={showAddEmployeeDialog}
               onOpenChange={setShowAddEmployeeDialog}>
               <DialogTrigger asChild>
                 <Button
-                  className="gap-2"
+                  className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4"
                   onClick={() => setShowAddEmployeeDialog(true)}>
-                  <UserPlus className="h-4 w-4" />
-                  Add Employee
+                  <UserPlus className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Add Employee</span>
+                  <span className="sm:hidden">Add</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto no-scrollbar">
+              <DialogContent className="w-[95vw] sm:max-w-[625px] max-h-[90vh] overflow-y-auto no-scrollbar p-4 sm:p-6">
                 <DialogHeader>
-                  <DialogTitle>Add New Employee</DialogTitle>
+                  <DialogTitle className="text-lg sm:text-xl">Add New Employee</DialogTitle>
                   <DialogDescription>
                     Create a new employee record in the system.
                   </DialogDescription>
@@ -1005,9 +1006,9 @@ export default function Employees() {
                     e.preventDefault();
                     handleAddEmployee();
                   }}>
-                  <div className="grid grid-cols-2 gap-4 py-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 py-3 sm:py-4">
                     <div className="space-y-2">
-                      <Label htmlFor="emp_id">Employee ID</Label>
+                      <Label htmlFor="emp_id" className="text-xs sm:text-sm">Employee ID</Label>
                       <Input
                         id="emp_id"
                         placeholder="Leave empty for auto-generation (e.g., RST1001)"
@@ -1030,7 +1031,7 @@ export default function Employees() {
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="name">Full Name *</Label>
+                      <Label htmlFor="name" className="text-xs sm:text-sm">Full Name *</Label>
                       <Input
                         id="name"
                         placeholder="John Doe"
@@ -1309,9 +1310,9 @@ export default function Employees() {
 
             {/* Edit Employee Dialog */}
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-              <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto no-scrollbar">
+              <DialogContent className="w-[95vw] sm:max-w-[625px] max-h-[90vh] overflow-y-auto no-scrollbar p-4 sm:p-6">
                 <DialogHeader>
-                  <DialogTitle>Edit Employee</DialogTitle>
+                  <DialogTitle className="text-lg sm:text-xl">Edit Employee</DialogTitle>
                   <DialogDescription>
                     Update employee information in the system.
                   </DialogDescription>
@@ -1525,10 +1526,10 @@ export default function Employees() {
 
             {/* Delete Employee Confirmation Dialog */}
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-              <DialogContent className="sm:max-w-[500px] max-h-[70vh] overflow-y-auto no-scrollbar">
+              <DialogContent className="w-[95vw] sm:max-w-[500px] max-h-[70vh] overflow-y-auto no-scrollbar p-4 sm:p-6">
                 <DialogHeader>
                   <DialogTitle
-                    className={isAdmin ? "text-red-600" : "text-orange-600"}>
+                    className={`text-lg sm:text-xl ${isAdmin ? "text-red-600" : "text-orange-600"}`}>
                     {isAdmin
                       ? "Permanently Delete Employee"
                       : "Soft Delete Employee"}
@@ -1627,21 +1628,21 @@ export default function Employees() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreHorizontal className="h-4 w-4" />
+                <Button variant="outline" size="icon" className="h-8 w-8 sm:h-10 sm:w-10">
+                  <MoreHorizontal className="h-3 w-3 sm:h-4 sm:w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem className="gap-2" onClick={handleExportCSV}>
-                  <Download className="h-4 w-4" /> Export to CSV
+              <DropdownMenuContent align="end" className="w-40 sm:w-48">
+                <DropdownMenuLabel className="text-xs sm:text-sm">Actions</DropdownMenuLabel>
+                <DropdownMenuItem className="gap-2 text-xs sm:text-sm" onClick={handleExportCSV}>
+                  <Download className="h-3 w-3 sm:h-4 sm:w-4" /> Export to CSV
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2" onClick={handleRefresh}>
-                  <RefreshCcw className="h-4 w-4" /> Refresh
+                <DropdownMenuItem className="gap-2 text-xs sm:text-sm" onClick={handleRefresh}>
+                  <RefreshCcw className="h-3 w-3 sm:h-4 sm:w-4" /> Refresh
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="gap-2">
-                  <Trash2 className="h-4 w-4" /> Bulk Delete
+                <DropdownMenuItem className="gap-2 text-xs sm:text-sm">
+                  <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" /> Bulk Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1725,24 +1726,25 @@ export default function Employees() {
           </Card>
         )}
 
-        <Card>
-          <CardHeader className="px-6 py-4">
-            <div className="flex flex-col sm:flex-row gap-4 justify-between">
-              <div className="flex items-center gap-2 relative">
+        <Card className="rounded-xl shadow-lg">
+          <CardHeader className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-between">
+              <div className="flex items-center gap-2 relative w-full sm:w-auto">
                 <Search className="h-4 w-4 absolute left-3 text-muted-foreground" />
                 <Input
                   placeholder="Search employees..."
-                  className="w-full sm:w-[250px] pl-9"
+                  className="w-full sm:w-[200px] md:w-[250px] lg:w-[300px] pl-9 text-sm sm:text-base h-9 sm:h-10"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Filter className="h-4 w-4" />
-                      Department
+                    <Button variant="outline" size="sm" className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3">
+                      <Filter className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <span className="hidden sm:inline">Department</span>
+                      <span className="sm:hidden">Dept</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -1765,8 +1767,8 @@ export default function Employees() {
                 </DropdownMenu>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Filter className="h-4 w-4" />
+                    <Button variant="outline" size="sm" className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3">
+                      <Filter className="h-3 w-3 sm:h-4 sm:w-4" />
                       Status
                     </Button>
                   </DropdownMenuTrigger>
@@ -1814,67 +1816,82 @@ export default function Employees() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="px-6">
-            <Table>
+          <CardContent className="px-2 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+            <div className="overflow-x-auto -mx-2 sm:-mx-4 md:-mx-6 px-2 sm:px-4 md:px-6">
+              <Table className="min-w-[800px] sm:min-w-0">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">No</TableHead>
+                  <TableHead className="w-8 sm:w-12 text-xs sm:text-sm font-semibold">No</TableHead>
                   <TableHead
                     onClick={() => handleSort("emp_id")}
-                    className="cursor-pointer hover:text-primary select-none">
+                    className="cursor-pointer hover:text-primary select-none text-xs sm:text-sm font-semibold min-w-[80px]">
                     <div className="flex items-center gap-1">
-                      Emp Id
+                      <span className="hidden sm:inline">Emp Id</span>
+                      <span className="sm:hidden">ID</span>
                       {sortConfig?.key === "emp_id" ? (
                         sortConfig.direction === "asc" ? (
-                          <ChevronUp className="h-4 w-4 text-primary" />
+                          <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
                         ) : (
-                          <ChevronDown className="h-4 w-4 text-primary" />
+                          <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
                         )
                       ) : (
-                        <div className="flex flex-col h-4 w-4 opacity-30">
-                          <ChevronUp className="h-2 w-4 -mb-1" />
-                          <ChevronDown className="h-2 w-4" />
+                        <div className="flex flex-col h-3 w-3 sm:h-4 sm:w-4 opacity-30">
+                          <ChevronUp className="h-1.5 w-3 sm:h-2 sm:w-4 -mb-0.5 sm:-mb-1" />
+                          <ChevronDown className="h-1.5 w-3 sm:h-2 sm:w-4" />
                         </div>
                       )}
                     </div>
                   </TableHead>
                   <TableHead
                     onClick={() => handleSort("name")}
-                    className="cursor-pointer hover:text-primary">
+                    className="cursor-pointer hover:text-primary text-xs sm:text-sm font-semibold min-w-[120px]">
                     <div className="flex items-center gap-1">
-                      Name of Employee
+                      <span className="hidden sm:inline">Name of Employee</span>
+                      <span className="sm:hidden">Name</span>
                       {sortConfig?.key === "name" &&
                         (sortConfig.direction === "asc" ? (
-                          <ChevronUp className="h-4 w-4" />
+                          <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4" />
                         ) : (
-                          <ChevronDown className="h-4 w-4" />
+                          <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
                         ))}
                     </div>
                   </TableHead>
-                  <TableHead className="hidden md:table-cell">
+                  <TableHead className="hidden md:table-cell text-xs sm:text-sm font-semibold">
                     Mobile Number
                   </TableHead>
-                  <TableHead>Mail Id</TableHead>
-                  <TableHead className="hidden md:table-cell">
+                  <TableHead className="text-xs sm:text-sm font-semibold min-w-[150px]">
+                    <span className="hidden sm:inline">Mail Id</span>
+                    <span className="sm:hidden">Email</span>
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell text-xs sm:text-sm font-semibold">
                     Location
                   </TableHead>
-                  <TableHead className="hidden md:table-cell">
+                  <TableHead className="hidden md:table-cell text-xs sm:text-sm font-semibold">
                     Designation
                   </TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-xs sm:text-sm font-semibold min-w-[80px]">Status</TableHead>
+                  <TableHead className="text-right text-xs sm:text-sm font-semibold min-w-[60px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedEmployees.map((employee, index) => (
-                  <TableRow key={employee.id || employee.emp_id || employee.email || `employee-${index}`}>
-                    <TableCell className="w-12">{index + 1}</TableCell>
-                    <TableCell className="font-medium">
-                      {employee.emp_id || employee.employeeId || "N/A"}
+                {sortedEmployees.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className="text-center py-8 text-sm sm:text-base text-muted-foreground">
+                      No employees found
                     </TableCell>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-8 w-8">
+                  </TableRow>
+                ) : (
+                  sortedEmployees.map((employee, index) => (
+                    <TableRow key={employee.id || employee.emp_id || employee.email || `employee-${index}`} className="hover:bg-muted/50">
+                      <TableCell className="text-xs sm:text-sm">{index + 1}</TableCell>
+                      <TableCell className="font-medium text-xs sm:text-sm">
+                        <span className="break-all">{employee.emp_id || employee.employeeId || "N/A"}</span>
+                      </TableCell>
+                      <TableCell className="min-w-[120px]">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-6 w-6 sm:h-8 sm:w-8">
                           <AvatarImage
                             key={employee.avatar || `no-avatar-${employee.id}`}
                             src={getAvatarUrl(employee.avatar)}
@@ -1895,17 +1912,19 @@ export default function Employees() {
                               : "N/A"}
                           </AvatarFallback>
                         </Avatar>
-                        <div>{employee.name}</div>
+                        <span className="text-xs sm:text-sm truncate max-w-[100px] sm:max-w-none">{employee.name || "N/A"}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
+                    <TableCell className="hidden md:table-cell text-xs sm:text-sm">
                       {employee.mobile_number || "N/A"}
                     </TableCell>
-                    <TableCell>{employee.email}</TableCell>
-                    <TableCell className="hidden md:table-cell">
+                    <TableCell className="text-xs sm:text-sm">
+                      <span className="break-all">{employee.email}</span>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-xs sm:text-sm">
                       {employee.location || employee.department || "N/A"}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
+                    <TableCell className="hidden md:table-cell text-xs sm:text-sm">
                       {employee.designation || employee.position || "N/A"}
                     </TableCell>
                     <TableCell>
@@ -1918,14 +1937,14 @@ export default function Employees() {
                             ? "outline"
                             : "secondary"
                         }
-                        className={
+                        className={`text-[10px] sm:text-xs ${
                           employee.is_active === false
                             ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/30"
                             : employee.status === "Not Working" ||
                               employee.status === "inactive"
                             ? "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700"
                             : ""
-                        }>
+                        }`}>
                         {employee.status === "active" ||
                         employee.status === "Working"
                           ? "Working"
@@ -1938,33 +1957,33 @@ export default function Employees() {
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-9 sm:w-9">
+                            <MoreHorizontal className="h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuContent align="end" className="w-40 sm:w-48">
+                          <DropdownMenuLabel className="text-xs sm:text-sm">Actions</DropdownMenuLabel>
                           <DropdownMenuItem
-                            className="gap-2"
+                            className="gap-2 text-xs sm:text-sm"
                             onClick={() => handleEditClick(employee)}>
-                            <PencilLine className="h-4 w-4" /> Edit
+                            <PencilLine className="h-3 w-3 sm:h-4 sm:w-4" /> Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            className="gap-2"
+                            className="gap-2 text-xs sm:text-sm"
                             onClick={() => handleEmailClick(employee)}>
-                            <MailIcon className="h-4 w-4" /> Email
+                            <MailIcon className="h-3 w-3 sm:h-4 sm:w-4" /> Email
                           </DropdownMenuItem>
                           {canDelete && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                className={
+                                className={`text-xs sm:text-sm gap-2 ${
                                   isAdmin
-                                    ? "text-red-600 gap-2"
-                                    : "text-orange-600 gap-2"
-                                }
+                                    ? "text-red-600"
+                                    : "text-orange-600"
+                                }`}
                                 onClick={() => handleDeleteClick(employee)}>
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                                 {isAdmin ? "Permanently Delete" : "Soft Delete"}
                               </DropdownMenuItem>
                             </>
@@ -1973,9 +1992,11 @@ export default function Employees() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       </Tabs>

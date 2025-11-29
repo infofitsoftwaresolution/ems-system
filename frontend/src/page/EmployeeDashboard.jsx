@@ -505,18 +505,18 @@ export default function EmployeeDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-5 md:space-y-6 lg:space-y-8 px-2 sm:px-4 md:px-6">
       {/* Welcome Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="flex-1">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">
             Welcome back, {user?.name || "Employee"}!
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base md:text-lg text-muted-foreground mt-1 sm:mt-2">
             Here's what's happening with your work today.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2 sm:space-x-2">
           <Button
             variant="outline"
             size="sm"
@@ -528,11 +528,12 @@ export default function EmployeeDashboard() {
               loadTasks();
             }}
             disabled={loading}
-            className="flex items-center space-x-1">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            <span>Refresh</span>
+            className="flex items-center space-x-1 text-xs sm:text-sm">
+            <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 ${loading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
+            <span className="sm:hidden">Refresh</span>
           </Button>
-          <Badge variant="outline" className="text-sm">
+          <Badge variant="outline" className="text-xs sm:text-sm">
             {user?.role || "Employee"}
           </Badge>
           {getKycStatusBadge(kycStatus)}
@@ -541,19 +542,19 @@ export default function EmployeeDashboard() {
 
       {/* KYC Status Alert */}
       {kycStatus !== "approved" && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-3">
-              <AlertCircle className="h-5 w-5 text-yellow-600" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-yellow-800">
+        <Card className="border-yellow-200 bg-yellow-50 rounded-xl shadow-lg">
+          <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6 pb-4 sm:pb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:space-x-3">
+              <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs sm:text-sm md:text-base font-medium text-yellow-800">
                   {kycStatus === "not_submitted"
                     ? "Complete your KYC to access all features"
                     : kycStatus === "pending"
                     ? "Your KYC is under review"
                     : "Your KYC needs attention"}
                 </p>
-                <p className="text-sm text-yellow-700 mt-1">
+                <p className="text-xs sm:text-sm text-yellow-700 mt-1 sm:mt-2">
                   {kycStatus === "not_submitted"
                     ? "Submit your KYC documents to unlock attendance, payslip, and leave features."
                     : kycStatus === "pending"
@@ -561,12 +562,19 @@ export default function EmployeeDashboard() {
                     : "Please contact HR for assistance."}
                 </p>
               </div>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/profile">
-                  <User className="h-4 w-4 mr-2" />
-                  {kycStatus === "not_submitted"
-                    ? "Complete KYC"
-                    : "View Profile"}
+              <Button asChild variant="outline" size="sm" className="self-start sm:self-auto text-xs sm:text-sm">
+                <Link to="/profile" className="flex items-center">
+                  <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">
+                    {kycStatus === "not_submitted"
+                      ? "Complete KYC"
+                      : "View Profile"}
+                  </span>
+                  <span className="sm:hidden">
+                    {kycStatus === "not_submitted"
+                      ? "KYC"
+                      : "Profile"}
+                  </span>
                 </Link>
               </Button>
             </div>
@@ -575,69 +583,69 @@ export default function EmployeeDashboard() {
       )}
 
       {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
+        <Card className="rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm md:text-base font-medium">
               Today's Status
             </CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{attendance.today}</div>
-            <p className="text-xs text-muted-foreground">
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <div className="text-xl sm:text-2xl md:text-3xl font-bold">{attendance.today}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 sm:mt-2">
               Last updated: 9:00 AM
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Week</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+        <Card className="rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm md:text-base font-medium">This Week</CardTitle>
+            <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{attendance.thisWeek}/5</div>
-            <p className="text-xs text-muted-foreground">
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <div className="text-xl sm:text-2xl md:text-3xl font-bold">{attendance.thisWeek}/5</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 sm:mt-2">
               Days present this week
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month</CardTitle>
-            <User className="h-4 w-4 text-muted-foreground" />
+        <Card className="rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm md:text-base font-medium">This Month</CardTitle>
+            <User className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{attendance.thisMonth}/22</div>
-            <p className="text-xs text-muted-foreground">
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <div className="text-xl sm:text-2xl md:text-3xl font-bold">{attendance.thisMonth}/22</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 sm:mt-2">
               Days present this month
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tasks</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+        <Card className="rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm md:text-base font-medium">Tasks</CardTitle>
+            <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{upcomingTasks.length}</div>
-            <p className="text-xs text-muted-foreground">Pending tasks</p>
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <div className="text-xl sm:text-2xl md:text-3xl font-bold">{upcomingTasks.length}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 sm:mt-2">Pending tasks</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
         {/* Upcoming Tasks */}
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle>Upcoming Tasks</CardTitle>
-            <CardDescription>Your pending tasks and deadlines</CardDescription>
+        <Card className="flex flex-col rounded-xl shadow-lg">
+          <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4">
+            <CardTitle className="text-base sm:text-lg md:text-xl">Upcoming Tasks</CardTitle>
+            <CardDescription className="text-xs sm:text-sm md:text-base">Your pending tasks and deadlines</CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto max-h-[400px]">
+          <CardContent className="flex-1 overflow-y-auto max-h-[300px] sm:max-h-[400px] md:max-h-[500px] px-4 sm:px-6 pb-4 sm:pb-6">
             <div className="space-y-4">
               {upcomingTasks.length > 0 ? (
                 upcomingTasks.map((task) => (

@@ -574,10 +574,14 @@ export default function Dashboard() {
   const COLORS = ["#16763a", "#f97316", "#2d9f52", "#fb923c", "#0f5a28"];
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome back, {user?.name}!</p>
+    <div className="flex flex-col gap-4 sm:gap-5 md:gap-6 lg:gap-8 px-2 sm:px-4 md:px-6">
+      <div className="flex flex-col gap-1 sm:gap-2 mb-2 sm:mb-4">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">
+          Dashboard
+        </h1>
+        <p className="text-sm sm:text-base md:text-lg text-muted-foreground">
+          Welcome back, {user?.name}!
+        </p>
       </div>
 
       {isLoading ? (
@@ -587,103 +591,106 @@ export default function Dashboard() {
       ) : (
         <>
           {/* Overview Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
+            <Card className="rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm md:text-base font-medium">
                   Total Employees
                 </CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+              <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">
                   {stats?.totalEmployees}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground mt-1 sm:mt-2">
                   {stats?.activeEmployees} active
                 </p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
+            <Card className="rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm md:text-base font-medium">
                   Departments
                 </CardTitle>
-                <Building2 className="h-4 w-4 text-muted-foreground" />
+                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+              <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">
                   {stats?.departmentsCount}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground mt-1 sm:mt-2">
                   Across organization
                 </p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">New Hires</CardTitle>
-                <UserPlus className="h-4 w-4 text-muted-foreground" />
+            <Card className="rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm md:text-base font-medium">New Hires</CardTitle>
+                <UserPlus className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats?.newHires}</div>
-                <p className="text-xs text-muted-foreground">This month</p>
+              <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">{stats?.newHires}</div>
+                <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground mt-1 sm:mt-2">This month</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
+            <Card className="rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm md:text-base font-medium">
                   Upcoming Reviews
                 </CardTitle>
-                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                <ClipboardCheck className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+              <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">
                   {stats?.upcomingReviews}
                 </div>
-                <p className="text-xs text-muted-foreground">Next 30 days</p>
+                <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground mt-1 sm:mt-2">Next 30 days</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Charts */}
-          <Tabs defaultValue="activity" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <TabsList>
-                <TabsTrigger value="activity">Team Activity</TabsTrigger>
-                <TabsTrigger value="departments">Departments</TabsTrigger>
-                <TabsTrigger value="training">Training</TabsTrigger>
+          <Tabs defaultValue="activity" className="space-y-3 sm:space-y-4 md:space-y-5 lg:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+              <TabsList className="w-full sm:w-auto grid grid-cols-3">
+                <TabsTrigger value="activity" className="text-xs sm:text-sm">Team Activity</TabsTrigger>
+                <TabsTrigger value="departments" className="text-xs sm:text-sm">Departments</TabsTrigger>
+                <TabsTrigger value="training" className="text-xs sm:text-sm">Training</TabsTrigger>
               </TabsList>
-              <div className="space-x-2">
+              <div className="flex flex-wrap gap-2 sm:space-x-2">
                 <Button
                   variant={timeRange === "week" ? "default" : "outline"}
                   size="sm"
+                  className="text-xs sm:text-sm flex-1 sm:flex-none"
                   onClick={() => setTimeRange("week")}>
                   Week
                 </Button>
                 <Button
                   variant={timeRange === "month" ? "default" : "outline"}
                   size="sm"
+                  className="text-xs sm:text-sm flex-1 sm:flex-none"
                   onClick={() => setTimeRange("month")}>
                   Month
                 </Button>
                 <Button
                   variant={timeRange === "year" ? "default" : "outline"}
                   size="sm"
+                  className="text-xs sm:text-sm flex-1 sm:flex-none"
                   onClick={() => setTimeRange("year")}>
                   Year
                 </Button>
               </div>
             </div>
-            <TabsContent value="activity" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Team Activity</CardTitle>
-                  <CardDescription>
+            <TabsContent value="activity" className="space-y-3 sm:space-y-4">
+              <Card className="rounded-xl shadow-lg">
+                <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4">
+                  <CardTitle className="text-base sm:text-lg md:text-xl">Team Activity</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm md:text-base">
                     Overview of team activity for the past {timeRange}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="h-[300px]">
+                <CardContent className="h-[250px] sm:h-[300px] md:h-[350px] lg:h-[400px] px-4 sm:px-6 pb-4 sm:pb-6">
                   {activity.length === 0 ? (
                     <div className="flex h-full items-center justify-center text-muted-foreground">
                       <div className="text-center">
@@ -857,19 +864,19 @@ export default function Dashboard() {
           </Tabs>
 
           {/* Bottom row */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
             {/* Recent Employees */}
-            <Card className="col-span-1 flex flex-col">
-              <CardHeader className="flex flex-row items-center justify-between">
+            <Card className="col-span-1 flex flex-col rounded-xl shadow-lg">
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4">
                 <div>
-                  <CardTitle>Recent Employees</CardTitle>
-                  <CardDescription>Latest team members</CardDescription>
+                  <CardTitle className="text-base sm:text-lg md:text-xl">Recent Employees</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm md:text-base">Latest team members</CardDescription>
                 </div>
-                <Button asChild size="sm" variant="ghost">
+                <Button asChild size="sm" variant="ghost" className="text-xs sm:text-sm self-start sm:self-auto">
                   <Link to="/employees">View all</Link>
                 </Button>
               </CardHeader>
-              <CardContent className="flex-1 overflow-y-auto max-h-[400px]">
+              <CardContent className="flex-1 overflow-y-auto max-h-[300px] sm:max-h-[400px] md:max-h-[500px] px-4 sm:px-6 pb-4 sm:pb-6">
                 <div className="space-y-4">
                   {Array.isArray(employees) && employees.length > 0 ? (
                     (employees || []).slice(0, 5).map((employee) => (
