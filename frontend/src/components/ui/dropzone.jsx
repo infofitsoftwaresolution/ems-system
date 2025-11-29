@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { Upload, X, FileImage, File, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -40,6 +40,11 @@ export function Dropzone({
   uploadEndpoint = "/api/documents/upload",
   className,
 }) {
+  // Production debug logging (only in development)
+  if (import.meta.env.DEV) {
+    console.log('Dropzone component rendered:', { label, files: files?.length || 0, multiple });
+  }
+
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [uploading, setUploading] = useState({});
@@ -287,9 +292,13 @@ export function Dropzone({
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
   };
 
-  const displayFiles = multiple && Array.isArray(files) 
-    ? (files || []) 
-    : (files ? [files] : []);
+  // Safely handle files prop - handle null, undefined, single file, or array
+  const displayFiles = useMemo(() => {
+    if (!files) return [];
+    if (multiple && Array.isArray(files)) return files;
+    if (multiple && !Array.isArray(files)) return [files];
+    return files ? [files] : [];
+  }, [files, multiple]);
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -354,27 +363,35 @@ export function Dropzone({
         ) : (
           <div className="space-y-2">
             {displayFiles.map((file, index) => {
-              const preview = getFilePreview(file);
-              const isUploading = uploading[index];
-              const progress = uploadProgress[index] || 0;
-              const uploadedUrl = uploadedUrls[index];
+              if (!file) return null; // Safety check for production
+              
+              try {
+                const preview = getFilePreview(file);
+                const isUploading = uploading[index];
+                const progress = uploadProgress[index] || 0;
+                const uploadedUrl = uploadedUrls[index];
 
-              return (
-                <div
-                  key={index}
-                  className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50"
-                >
-                  {preview ? (
-                    <img
-                      src={preview}
-                      alt={file.name}
-                      className="h-16 w-16 object-cover rounded"
-                    />
-                  ) : (
-                    <div className="h-16 w-16 flex items-center justify-center bg-gray-100 rounded">
-                      {getFileIcon(file)}
-                    </div>
-                  )}
+                return (
+                  <div
+                    key={`file-${index}-${file.name || index}`}
+                    className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50"
+                  >
+                    {preview ? (
+                      <img
+                        src={preview}
+                        alt={file.name || 'Uploaded file'}
+                        className="h-16 w-16 object-cover rounded"
+                        onError={(e) => {
+                          // Fallback if image preview fails to load
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    ) : null}
+                    {!preview && (
+                      <div className="h-16 w-16 flex items-center justify-center bg-gray-100 rounded">
+                        {getFileIcon(file)}
+                      </div>
+                    )}
                   
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{file.name}</p>
@@ -414,6 +431,35 @@ export function Dropzone({
                   </Button>
                 </div>
               );
+              } catch (err) {
+                // Production error handling - show file info even if preview fails
+                console.error('Error rendering file preview:', err);
+                return (
+                  <div
+                    key={`file-error-${index}`}
+                    className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50"
+                  >
+                    <div className="h-16 w-16 flex items-center justify-center bg-gray-100 rounded">
+                      {getFileIcon(file)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{file?.name || 'File'}</p>
+                      <p className="text-xs text-gray-500">Error loading preview</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove(index);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              }
             })}
 
             {multiple && (
@@ -441,4 +487,7 @@ export function Dropzone({
     </div>
   );
 }
+
+// Default export for production compatibility
+export default Dropzone;
 

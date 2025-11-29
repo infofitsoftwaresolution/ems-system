@@ -1013,6 +1013,13 @@ export default function EmployeeProfile() {
       {/* KYC Form - Only show for non-admin users */}
       {showKycForm && user?.role !== "admin" && (
         <Card id="kyc-form" data-testid="kyc-form" className="kyc-form">
+          {/* Debug: Ensure Dropzone is available */}
+          {typeof Dropzone === 'undefined' && (
+            <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded mb-4">
+              <p className="font-bold">Error: Dropzone component not loaded!</p>
+              <p className="text-sm">Please refresh the page or contact support.</p>
+            </div>
+          )}
           <CardHeader>
             <CardTitle>Complete Your KYC</CardTitle>
             <CardDescription>

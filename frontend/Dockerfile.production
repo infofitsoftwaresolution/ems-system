@@ -13,8 +13,16 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
+# Verify critical component files exist
+RUN test -f src/components/ui/dropzone.jsx || (echo "ERROR: dropzone.jsx missing!" && exit 1)
+RUN test -f src/page/EmployeeProfile.jsx || (echo "ERROR: EmployeeProfile.jsx missing!" && exit 1)
+
+# Build the application with error output
+RUN npm run build 2>&1 | tee build.log || (echo "Build failed! Check build.log" && cat build.log && exit 1)
+
+# Verify build output exists
+RUN test -d dist || (echo "ERROR: dist directory not created!" && exit 1)
+RUN test -f dist/index.html || (echo "ERROR: index.html not in dist!" && exit 1)
 
 # Production stage
 FROM node:18-alpine
