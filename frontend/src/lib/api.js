@@ -121,6 +121,12 @@ class ApiService {
     });
   }
 
+  async resendWelcomeEmail(id) {
+    return this.request(`/api/employees/${id}/resend-welcome-email`, {
+      method: "POST",
+    });
+  }
+
   // Export employees as CSV
   async exportEmployeesCSV() {
     const url = `${this.baseURL}/api/employees/export/csv`;

@@ -53,6 +53,7 @@ import {
   Trash2,
   PencilLine,
   CheckCircle,
+  Send,
 } from "lucide-react";
 import { apiService } from "@/lib/api";
 import { departments, roles } from "@/lib/data";
@@ -637,6 +638,24 @@ export default function Employees() {
   // Handle Email Employee
   const handleEmailClick = (employee) => {
     window.location.href = `mailto:${employee.email}`;
+  };
+
+  // Handle Resend Welcome Email
+  const handleResendWelcomeEmail = async (employee) => {
+    try {
+      const response = await apiService.resendWelcomeEmail(employee.id);
+      if (response.success) {
+        toast.success(`Welcome email resent successfully to ${employee.email}`);
+        if (response.data?.tempPassword) {
+          console.log(`New temporary password: ${response.data.tempPassword}`);
+        }
+      } else {
+        toast.error(response.message || 'Failed to resend welcome email');
+      }
+    } catch (error) {
+      console.error('Error resending welcome email:', error);
+      toast.error(error.message || 'Failed to resend welcome email');
+    }
   };
 
   // Handle Export to CSV
@@ -1973,6 +1992,13 @@ export default function Employees() {
                             onClick={() => handleEmailClick(employee)}>
                             <MailIcon className="h-3 w-3 sm:h-4 sm:w-4" /> Email
                           </DropdownMenuItem>
+                          {(isAdmin || isHR) && (
+                            <DropdownMenuItem
+                              className="gap-2 text-xs sm:text-sm"
+                              onClick={() => handleResendWelcomeEmail(employee)}>
+                              <Send className="h-3 w-3 sm:h-4 sm:w-4" /> Resend Welcome Email
+                            </DropdownMenuItem>
+                          )}
                           {canDelete && (
                             <>
                               <DropdownMenuSeparator />

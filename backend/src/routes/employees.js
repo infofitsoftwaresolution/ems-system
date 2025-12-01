@@ -515,6 +515,103 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// POST /api/employees/:id/resend-welcome-email - Resend welcome email (Admin/HR only)
+router.post('/:id/resend-welcome-email', authenticateToken, requireRole(['admin', 'hr']), async (req, res) => {
+  try {
+    const emp = await Employee.findByPk(req.params.id);
+    if (!emp) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Employee not found' 
+      });
+    }
+
+    // Check if employee is active and can access system
+    if (!emp.is_active || !emp.can_access_system) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot resend welcome email to inactive employee or employee without system access',
+        error: 'EMPLOYEE_INACTIVE'
+      });
+    }
+
+    // Find or create user account
+    let user = await User.findOne({ where: { email: emp.email } });
+    const tempPassword = generateTempPassword();
+    const hash = await bcrypt.hash(tempPassword, 10);
+
+    if (!user) {
+      // Create user account if it doesn't exist
+      user = await User.create({
+        email: emp.email,
+        name: emp.name,
+        role: 'employee',
+        passwordHash: hash,
+        mustChangePassword: true,
+        active: emp.is_active
+      });
+    } else {
+      // Update password to new temporary password
+      await user.update({
+        passwordHash: hash,
+        mustChangePassword: true,
+        active: emp.is_active
+      });
+    }
+
+    // Send welcome email
+    try {
+      const emailData = {
+        fullName: emp.name,
+        email: emp.email,
+        tempEmployeeId: emp.emp_id,
+        employeeId: emp.emp_id,
+        tempPassword: tempPassword
+      };
+      
+      const emailResult = await sendNewEmployeeEmail(emailData);
+      
+      if (emailResult.success) {
+        console.log('✅ Welcome email resent successfully to:', emp.email);
+        return res.status(200).json({
+          success: true,
+          message: 'Welcome email resent successfully',
+          data: {
+            email: emp.email,
+            tempPassword: tempPassword // Include temp password in response for admin reference
+          }
+        });
+      } else if (emailResult.blocked) {
+        return res.status(400).json({
+          success: false,
+          message: `Email blocked: ${emailResult.reason}`,
+          error: 'EMAIL_BLOCKED'
+        });
+      } else {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send email',
+          error: emailResult.error || 'EMAIL_SEND_FAILED'
+        });
+      }
+    } catch (emailError) {
+      console.error('📧 Email sending failed:', emailError);
+      return res.status(500).json({
+        success: false,
+        message: 'Error sending email',
+        error: emailError.message
+      });
+    }
+  } catch (error) {
+    console.error('Error resending welcome email:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error resending welcome email', 
+      error: error.message 
+    });
+  }
+});
+
 // DELETE /api/employees/:id - Delete employee (Admin: hard delete, HR: soft delete)
 router.delete('/:id', authenticateToken, requireRole(['admin', 'hr']), async (req, res) => {
   try {
