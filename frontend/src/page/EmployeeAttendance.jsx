@@ -735,7 +735,7 @@ export default function EmployeeAttendance() {
                     </p>
                     {attendance.isLate && attendance.checkIn && (
                       <p className="text-xs text-red-600 mt-1">
-                        Expected: 10:00 AM
+                        Expected: 11:00 AM
                       </p>
                     )}
                     {attendance.checkInPhoto && (

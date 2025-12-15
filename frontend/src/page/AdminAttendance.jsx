@@ -48,6 +48,43 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiService } from "@/lib/api";
 import { toast } from "sonner";
 
+// Late check-in rule: after 11:00 AM (Asia/Kolkata) is late; at/before 11:00 AM is on-time.
+const LATE_TIMEZONE = "Asia/Kolkata";
+const LATE_CUTOFF_HOUR = 11;
+
+const toTimeZoneDate = (date, timeZone = LATE_TIMEZONE) => {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  const parts = formatter.formatToParts(date).reduce((acc, part) => {
+    if (part.type !== "literal") {
+      acc[part.type] = part.value;
+    }
+    return acc;
+  }, {});
+
+  const isoLike = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
+  return new Date(isoLike);
+};
+
+const isLateCheckInClient = (checkIn) => {
+  if (!checkIn) return false;
+  const checkInDate = new Date(checkIn);
+  if (Number.isNaN(checkInDate.getTime())) return false;
+  const localCheckIn = toTimeZoneDate(checkInDate);
+  const cutoff = new Date(localCheckIn);
+  cutoff.setHours(LATE_CUTOFF_HOUR, 0, 0, 0);
+  return localCheckIn > cutoff;
+};
+
 export default function AdminAttendance() {
   const { user } = useAuth();
 
@@ -295,11 +332,8 @@ export default function AdminAttendance() {
   const exportSingleEmployeeAttendance = (record) => {
     // Calculate isLate if not present (for older records)
     let isLate = record.isLate;
-    if (record.checkIn && (isLate === null || isLate === undefined)) {
-      const checkInTime = new Date(record.checkIn);
-      const expectedCheckInTime = new Date(checkInTime);
-      expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
-      isLate = checkInTime > expectedCheckInTime;
+    if (isLate === null || isLate === undefined) {
+      isLate = isLateCheckInClient(record.checkIn);
     }
 
     // Helper function to escape CSV values
@@ -457,11 +491,8 @@ export default function AdminAttendance() {
       ...filteredAttendance.map((record) => {
         // Calculate isLate if not present (for older records)
         let isLate = record.isLate;
-        if (record.checkIn && (isLate === null || isLate === undefined)) {
-          const checkInTime = new Date(record.checkIn);
-          const expectedCheckInTime = new Date(checkInTime);
-          expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
-          isLate = checkInTime > expectedCheckInTime;
+        if (isLate === null || isLate === undefined) {
+          isLate = isLateCheckInClient(record.checkIn);
         }
 
         // Get employee ID separately
@@ -784,14 +815,8 @@ export default function AdminAttendance() {
                           {(() => {
                             // Calculate isLate if not present (for older records)
                             let isLate = record.isLate;
-                            if (
-                              record.checkIn &&
-                              (isLate === null || isLate === undefined)
-                            ) {
-                              const checkInTime = new Date(record.checkIn);
-                              const expectedCheckInTime = new Date(checkInTime);
-                              expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
-                              isLate = checkInTime > expectedCheckInTime;
+                            if (isLate === null || isLate === undefined) {
+                              isLate = isLateCheckInClient(record.checkIn);
                             }
                             return isLate ? (
                               <Badge variant="destructive" className="text-xs">
@@ -868,14 +893,8 @@ export default function AdminAttendance() {
                       {(() => {
                         // Calculate isLate if not present (for older records)
                         let isLate = record.isLate;
-                        if (
-                          record.checkIn &&
-                          (isLate === null || isLate === undefined)
-                        ) {
-                          const checkInTime = new Date(record.checkIn);
-                          const expectedCheckInTime = new Date(checkInTime);
-                          expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
-                          isLate = checkInTime > expectedCheckInTime;
+                        if (isLate === null || isLate === undefined) {
+                          isLate = isLateCheckInClient(record.checkIn);
                         }
 
                         return isLate ? (
@@ -1004,24 +1023,12 @@ export default function AdminAttendance() {
                                       // Calculate isLate if not present (for older records)
                                       let isLate = record.isLate;
                                       if (
-                                        record.checkIn &&
-                                        (isLate === null ||
-                                          isLate === undefined)
+                                        isLate === null ||
+                                        isLate === undefined
                                       ) {
-                                        const checkInTime = new Date(
+                                        isLate = isLateCheckInClient(
                                           record.checkIn
                                         );
-                                        const expectedCheckInTime = new Date(
-                                          checkInTime
-                                        );
-                                        expectedCheckInTime.setHours(
-                                          10,
-                                          0,
-                                          0,
-                                          0
-                                        ); // 10:00 AM
-                                        isLate =
-                                          checkInTime > expectedCheckInTime;
                                       }
                                       return isLate ? (
                                         <Badge
@@ -1040,22 +1047,16 @@ export default function AdminAttendance() {
                                     // Calculate isLate if not present (for older records)
                                     let isLate = record.isLate;
                                     if (
-                                      record.checkIn &&
-                                      (isLate === null || isLate === undefined)
+                                      isLate === null ||
+                                      isLate === undefined
                                     ) {
-                                      const checkInTime = new Date(
+                                      isLate = isLateCheckInClient(
                                         record.checkIn
                                       );
-                                      const expectedCheckInTime = new Date(
-                                        checkInTime
-                                      );
-                                      expectedCheckInTime.setHours(10, 0, 0, 0); // 10:00 AM
-                                      isLate =
-                                        checkInTime > expectedCheckInTime;
                                     }
                                     return isLate ? (
                                       <p className="text-xs text-red-600 mt-1">
-                                        Expected: 10:00 AM
+                                        Expected: 11:00 AM
                                       </p>
                                     ) : null;
                                   })()}
