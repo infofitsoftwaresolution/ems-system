@@ -102,6 +102,7 @@ export default function Employees() {
     position: "",
     role: "",
     joinDate: "",
+    exitDate: "",
     isActive: true,
   });
 
@@ -117,6 +118,7 @@ export default function Employees() {
     role: "",
     position: "",
     joinDate: "",
+    exitDate: "",
   });
 
   // Delete Employee State
@@ -529,6 +531,13 @@ export default function Employees() {
       employee.createdAt ||
       "";
 
+    // Get exit/leave date value - try multiple sources
+    const exitDateValue = 
+      employee.leaveDate || 
+      employee.exitDate || 
+      employee.dateOfLeaving ||
+      "";
+
     const editData = {
       id: employee.id || "",
       emp_id: employee.emp_id || employee.employeeId || "",
@@ -541,6 +550,7 @@ export default function Employees() {
       position: employee.position || employee.designation || "",
       role: getRoleId(roleValue),
       joinDate: formatDateForInput(dateValue),
+      exitDate: formatDateForInput(exitDateValue),
       isActive: determineActiveStatus(),
     };
 
@@ -596,6 +606,7 @@ export default function Employees() {
         department: departmentName || editingEmployee.location || "", // Send department name to backend
         role: roleName, // Send role name to backend - this will update RBAC in User table
         hireDate: editingEmployee.joinDate || null,
+        leaveDate: !editingEmployee.isActive ? editingEmployee.exitDate || null : null, // Send exit date only if inactive
         status: editingEmployee.isActive ? "Working" : "Not Working",
         is_active: editingEmployee.isActive,
         can_access_system: editingEmployee.isActive,
@@ -821,6 +832,35 @@ export default function Employees() {
     return "";
   };
 
+  const validateExitDate = (exitDate, joinDate) => {
+    if (exitDate) {
+      const exit = new Date(exitDate);
+      const today = new Date();
+
+      // Check if exit date is in the future
+      if (exit > today) {
+        return "Exit date cannot be in the future";
+      }
+
+      // Check if exit date is before join date
+      if (joinDate) {
+        const join = new Date(joinDate);
+        if (exit < join) {
+          return "Exit date cannot be before start date";
+        }
+      }
+
+      // Check if date is too far in the past (e.g., more than 50 years)
+      const fiftyYearsAgo = new Date();
+      fiftyYearsAgo.setFullYear(today.getFullYear() - 50);
+
+      if (exit < fiftyYearsAgo) {
+        return "Exit date cannot be more than 50 years ago";
+      }
+    }
+    return "";
+  };
+
   // Validate all fields
   const validateForm = () => {
     const errors = {
@@ -830,6 +870,9 @@ export default function Employees() {
       role: validateRole(newEmployee.role),
       position: validatePosition(newEmployee.position),
       joinDate: validateJoinDate(newEmployee.joinDate),
+      exitDate: !newEmployee.isActive
+        ? validateExitDate(newEmployee.exitDate, newEmployee.joinDate)
+        : "",
     };
 
     setValidationErrors(errors);
@@ -867,6 +910,7 @@ export default function Employees() {
         department: newEmployee.department, // Send the department ID, backend will handle mapping
         role: newEmployee.role, // Send the role ID, backend will handle mapping
         hireDate: newEmployee.joinDate,
+        leaveDate: !newEmployee.isActive ? newEmployee.exitDate : null, // Send exit date only if inactive
         status: newEmployee.isActive ? "Working" : "Not Working",
         is_active: newEmployee.isActive, // Send is_active field
         can_access_system: newEmployee.isActive, // Send can_access_system field (same as isActive toggle)
@@ -894,6 +938,7 @@ export default function Employees() {
         position: "",
         role: "",
         joinDate: "",
+        exitDate: "",
         isActive: true,
       });
       setValidationErrors({
@@ -907,6 +952,7 @@ export default function Employees() {
         role: "",
         position: "",
         joinDate: "",
+        exitDate: "",
       });
 
       toast.success("Employee added successfully!");
@@ -1260,6 +1306,12 @@ export default function Employees() {
                           setValidationErrors({
                             ...validationErrors,
                             joinDate: validateJoinDate(newEmployee.joinDate),
+                            exitDate: !newEmployee.isActive
+                              ? validateExitDate(
+                                  newEmployee.exitDate,
+                                  newEmployee.joinDate
+                                )
+                              : "",
                           });
                         }}
                         className={
@@ -1272,13 +1324,54 @@ export default function Employees() {
                         </p>
                       )}
                     </div>
+                    {!newEmployee.isActive && (
+                      <div className="space-y-2">
+                        <Label htmlFor="exit-date">Exit Date</Label>
+                        <Input
+                          id="exit-date"
+                          type="date"
+                          value={newEmployee.exitDate}
+                          onChange={(e) =>
+                            handleFieldChange("exitDate", e.target.value)
+                          }
+                          onBlur={() => {
+                            setValidationErrors({
+                              ...validationErrors,
+                              exitDate: validateExitDate(
+                                newEmployee.exitDate,
+                                newEmployee.joinDate
+                              ),
+                            });
+                          }}
+                          className={
+                            validationErrors.exitDate ? "border-red-500" : ""
+                          }
+                        />
+                        {validationErrors.exitDate && (
+                          <p className="text-sm text-red-500">
+                            {validationErrors.exitDate}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div className="col-span-2 flex items-center space-x-2">
                       <Switch
                         id="active"
                         checked={newEmployee.isActive}
-                        onCheckedChange={(checked) =>
-                          setNewEmployee({ ...newEmployee, isActive: checked })
-                        }
+                        onCheckedChange={(checked) => {
+                          setNewEmployee({
+                            ...newEmployee,
+                            isActive: checked,
+                            exitDate: checked ? "" : newEmployee.exitDate, // Clear exit date when activated
+                          });
+                          // Clear exit date validation error when activated
+                          if (checked) {
+                            setValidationErrors({
+                              ...validationErrors,
+                              exitDate: "",
+                            });
+                          }
+                        }}
                       />
                       <Label htmlFor="active">
                         Employee is active and can access the system
@@ -1508,6 +1601,22 @@ export default function Employees() {
                           }
                         />
                       </div>
+                      {!editingEmployee.isActive && (
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-exit-date">Exit Date</Label>
+                          <Input
+                            id="edit-exit-date"
+                            type="date"
+                            value={editingEmployee.exitDate || ""}
+                            onChange={(e) =>
+                              setEditingEmployee({
+                                ...editingEmployee,
+                                exitDate: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      )}
                       <div className="col-span-2 flex items-center space-x-2">
                         <Switch
                           id="edit-active"
@@ -1516,6 +1625,7 @@ export default function Employees() {
                             setEditingEmployee({
                               ...editingEmployee,
                               isActive: checked,
+                              exitDate: checked ? "" : editingEmployee.exitDate, // Clear exit date when activated
                             })
                           }
                         />
