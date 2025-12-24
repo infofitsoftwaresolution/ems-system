@@ -25,10 +25,14 @@ router.get(
         return res.json([]);
       }
 
-      const { filter } = req.query;
+      const { filter, search, date } = req.query;
       let whereClause = {};
 
-      if (filter === "today") {
+      // Handle specific date filter (takes priority over range filter)
+      if (date) {
+        const dateStr = date.slice(0, 10); // Ensure YYYY-MM-DD format
+        whereClause.date = dateStr;
+      } else if (filter === "today") {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const todayStr = today.toISOString().slice(0, 10);
@@ -164,6 +168,9 @@ router.get(
         console.log("📭 No attendance records found, returning empty array");
         return res.json([]);
       }
+
+      // Note: Search will be applied after employee data is joined
+      // to include employeeId in the search
 
       // Join employee info by email to include employeeId
       const emails = [
@@ -415,10 +422,26 @@ router.get(
         }
       });
 
+      // Apply search filter if provided (search by name, email, or employeeId)
+      let filteredResults = enriched;
+      if (search && search.trim()) {
+        const searchTerm = search.trim().toLowerCase();
+        filteredResults = enriched.filter((record) => {
+          const name = (record.name || "").toLowerCase();
+          const email = (record.email || "").toLowerCase();
+          const employeeId = (record.employeeId || "").toLowerCase();
+          return (
+            name.includes(searchTerm) ||
+            email.includes(searchTerm) ||
+            employeeId.includes(searchTerm)
+          );
+        });
+      }
+
       console.log(
-        `✅ Returning ${enriched.length} enriched attendance records`
+        `✅ Returning ${filteredResults.length} filtered attendance records (from ${enriched.length} total)`
       );
-      res.json(enriched);
+      res.json(filteredResults);
     } catch (error) {
       console.error("========================================");
       console.error("ERROR FETCHING ATTENDANCE LIST");

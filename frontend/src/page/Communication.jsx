@@ -269,115 +269,159 @@ export default function Communication() {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Handle real-time direct messages
+  // Handle real-time direct messages - optimized for performance
   const handleNewDirectMessage = useCallback(
     (newMessage) => {
-      // Only add if it's for the current conversation
-      if (
-        activeConversation?.type === "direct" &&
-        (newMessage.senderEmail === activeConversation.email ||
-          newMessage.recipientEmail === activeConversation.email)
-      ) {
-        const transformedMessage = {
-          id: newMessage.id.toString(),
-          senderId: newMessage.senderEmail,
-          senderEmail: newMessage.senderEmail,
-          senderName: newMessage.senderName,
-          recipientId: newMessage.recipientEmail,
-          recipientEmail: newMessage.recipientEmail,
-          content: newMessage.content,
-          timestamp: newMessage.createdAt || new Date().toISOString(),
-          read: newMessage.read,
-          attachments: newMessage.attachments
-            ? JSON.parse(newMessage.attachments)
-            : [],
-        };
-
-        // Check if message already exists to prevent duplicates
-        setMessages((prev) => {
-          const messageExists = prev.some(
-            (msg) => msg.id === transformedMessage.id
-          );
-          if (messageExists) {
-            return prev; // Don't add duplicate
+      // Use setTimeout to push to next event loop tick for better performance
+      setTimeout(() => {
+        // Only add if it's for the current conversation
+        if (
+          activeConversation?.type === "direct" &&
+          (newMessage.senderEmail === activeConversation.email ||
+            newMessage.recipientEmail === activeConversation.email)
+        ) {
+          // Parse attachments safely
+          let attachments = [];
+          if (newMessage.attachments) {
+            try {
+              attachments = JSON.parse(newMessage.attachments);
+            } catch (e) {
+              console.warn("Failed to parse attachments:", e);
+            }
           }
-          return [...prev, transformedMessage];
-        });
-        scrollToBottom();
-      }
 
-      // Update conversations list
-      setConversations((prevConversations) => {
-        const existing = prevConversations.find(
-          (c) =>
-            c.email === newMessage.senderEmail ||
-            c.email === newMessage.recipientEmail
-        );
-        if (existing) {
-          return prevConversations.map((conv) =>
-            conv.email === newMessage.senderEmail ||
-            conv.email === newMessage.recipientEmail
-              ? {
-                  ...conv,
-                  lastMessage: newMessage.content,
-                  timestamp: newMessage.createdAt,
-                }
-              : conv
-          );
+          const transformedMessage = {
+            id: newMessage.id.toString(),
+            senderId: newMessage.senderEmail,
+            senderEmail: newMessage.senderEmail,
+            senderName: newMessage.senderName,
+            recipientId: newMessage.recipientEmail,
+            recipientEmail: newMessage.recipientEmail,
+            content: newMessage.content,
+            timestamp: newMessage.createdAt || new Date().toISOString(),
+            read: newMessage.read,
+            attachments,
+          };
+
+          // Check if message already exists to prevent duplicates - optimized
+          setMessages((prev) => {
+            // Fast path: check last message first (most common case)
+            if (prev.length > 0 && prev[prev.length - 1].id === transformedMessage.id) {
+              return prev;
+            }
+            // Check all messages only if needed
+            const messageExists = prev.some(
+              (msg) => msg.id === transformedMessage.id
+            );
+            if (messageExists) {
+              return prev; // Don't add duplicate
+            }
+            return [...prev, transformedMessage];
+          });
+          
+          // Defer scroll to avoid blocking
+          setTimeout(() => scrollToBottom(), 0);
         }
-        return prevConversations;
+
+        // Update conversations list - optimized
+        setConversations((prevConversations) => {
+          const senderEmail = newMessage.senderEmail;
+          const recipientEmail = newMessage.recipientEmail;
+          
+          // Fast path: find existing conversation
+          const existingIndex = prevConversations.findIndex(
+            (c) => c.email === senderEmail || c.email === recipientEmail
+          );
+          
+          if (existingIndex !== -1) {
+            // Update in place without full array map
+            const updated = [...prevConversations];
+            updated[existingIndex] = {
+              ...updated[existingIndex],
+              lastMessage: newMessage.content,
+              timestamp: newMessage.createdAt,
+            };
+            return updated;
+          }
+          return prevConversations;
+        });
       });
     },
     [activeConversation]
   );
 
-  // Handle real-time channel messages
+  // Handle real-time channel messages - optimized for performance
   const handleNewChannelMessage = useCallback(
     (channelId, newMessage) => {
-      // Only add if it's for the current channel
-      if (
-        activeConversation?.type === "channel" &&
-        activeConversation.id === channelId
-      ) {
-        const transformedMessage = {
-          id: newMessage.id.toString(),
-          senderId: newMessage.senderEmail,
-          senderEmail: newMessage.senderEmail,
-          senderName: newMessage.senderName,
-          recipientId: null,
-          channelId: newMessage.channelId,
-          content: newMessage.content,
-          timestamp: newMessage.createdAt || new Date().toISOString(),
-          read: newMessage.read,
-          attachments: newMessage.attachments
-            ? JSON.parse(newMessage.attachments)
-            : [],
-        };
-
-        // Check if message already exists to prevent duplicates
-        setMessages((prev) => {
-          const messageExists = prev.some(
-            (msg) => msg.id === transformedMessage.id
-          );
-          if (messageExists) {
-            return prev; // Don't add duplicate
+      // Use setTimeout to push to next event loop tick for better performance
+      setTimeout(() => {
+        // Only add if it's for the current channel
+        if (
+          activeConversation?.type === "channel" &&
+          activeConversation.id === channelId
+        ) {
+          // Parse attachments safely
+          let attachments = [];
+          if (newMessage.attachments) {
+            try {
+              attachments = JSON.parse(newMessage.attachments);
+            } catch (e) {
+              console.warn("Failed to parse attachments:", e);
+            }
           }
-          return [...prev, transformedMessage];
-        });
-        scrollToBottom();
-      }
 
-      // Update channels list
-      setConversations((prevConversations) => {
-        return prevConversations.map((conv) =>
-          conv.id === channelId
-            ? {
-                ...conv,
-                lastMessage: newMessage.content,
-                timestamp: newMessage.createdAt,
-              }
-            : conv
-        );
+          const transformedMessage = {
+            id: newMessage.id.toString(),
+            senderId: newMessage.senderEmail,
+            senderEmail: newMessage.senderEmail,
+            senderName: newMessage.senderName,
+            recipientId: null,
+            channelId: newMessage.channelId,
+            content: newMessage.content,
+            timestamp: newMessage.createdAt || new Date().toISOString(),
+            read: newMessage.read,
+            attachments,
+          };
+
+          // Check if message already exists to prevent duplicates - optimized
+          setMessages((prev) => {
+            // Fast path: check last message first (most common case)
+            if (prev.length > 0 && prev[prev.length - 1].id === transformedMessage.id) {
+              return prev;
+            }
+            // Check all messages only if needed
+            const messageExists = prev.some(
+              (msg) => msg.id === transformedMessage.id
+            );
+            if (messageExists) {
+              return prev; // Don't add duplicate
+            }
+            return [...prev, transformedMessage];
+          });
+          
+          // Defer scroll to avoid blocking
+          setTimeout(() => scrollToBottom(), 0);
+        }
+
+        // Update channels list - optimized
+        setConversations((prevConversations) => {
+          // Fast path: find existing channel
+          const channelIndex = prevConversations.findIndex(
+            (conv) => conv.id === channelId
+          );
+          
+          if (channelIndex !== -1) {
+            // Update in place without full array map
+            const updated = [...prevConversations];
+            updated[channelIndex] = {
+              ...updated[channelIndex],
+              lastMessage: newMessage.content,
+              timestamp: newMessage.createdAt,
+            };
+            return updated;
+          }
+          return prevConversations;
+        });
       });
     },
     [activeConversation]

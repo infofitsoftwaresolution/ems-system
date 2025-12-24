@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, startTransition } from "react";
 import {
   Card,
   CardContent,
@@ -95,24 +95,36 @@ export default function AdminAttendance() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateFilter, setDateFilter] = useState("all"); // Default to "all" to show all records
+  const [dateFilter, setDateFilter] = useState("today"); // Default to "today" to show only today's records
+  const [selectedDate, setSelectedDate] = useState(""); // For specific date filter
   const [selectedAttendance, setSelectedAttendance] = useState(null);
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [selectedImage, setSelectedImage] = useState(null); // For image lightbox
   const [imageModalOpen, setImageModalOpen] = useState(false);
 
-  // Load attendance data
+  // Load attendance data - now includes search and date filters from backend
   useEffect(() => {
     const loadAttendanceData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        console.log("Loading attendance data with filter:", dateFilter);
+        console.log("Loading attendance data with filters:", {
+          dateFilter,
+          search: appliedSearchTerm,
+          date: selectedDate,
+        });
         // Get all attendance data with error handling
         let data = [];
         try {
-          data = await apiService.getAllAttendance(dateFilter);
+          // Determine which date filter to use: specific date takes priority
+          const dateFilterToUse = selectedDate ? "all" : dateFilter;
+          const dateToUse = selectedDate || "";
+          data = await apiService.getAllAttendance(
+            dateFilterToUse,
+            appliedSearchTerm,
+            dateToUse
+          );
           console.log("Attendance data received:", data);
           console.log("Number of records:", data?.length || 0);
         } catch (apiError) {
@@ -128,9 +140,16 @@ export default function AdminAttendance() {
           data = []; // Default to empty array
         }
 
-        // Ensure data is an array
+        // Ensure data is an array - use startTransition for large datasets
         if (Array.isArray(data)) {
-          setAttendanceData(data);
+          // Use startTransition for large datasets to avoid blocking
+          if (data.length > 50) {
+            startTransition(() => {
+              setAttendanceData(data);
+            });
+          } else {
+            setAttendanceData(data);
+          }
         } else {
           console.warn("Received non-array data:", data);
           setAttendanceData([]);
@@ -147,30 +166,55 @@ export default function AdminAttendance() {
     };
 
     loadAttendanceData();
-  }, [dateFilter]);
+  }, [dateFilter, appliedSearchTerm, selectedDate]);
 
-  // Handle search
-  const handleSearch = () => {
+  // Debounce search input to improve performance
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setAppliedSearchTerm(searchTerm);
+    }, 300); // 300ms debounce delay
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // Handle search - memoized (for button click)
+  const handleSearch = useCallback(() => {
     setAppliedSearchTerm(searchTerm);
-  };
+  }, [searchTerm]);
 
-  // Handle clear search
-  const handleClearSearch = () => {
+  // Handle clear search - memoized
+  const handleClearSearch = useCallback(() => {
     setSearchTerm("");
     setAppliedSearchTerm("");
-  };
+  }, []);
 
-  // Format time
-  const formatTime = (timeString) => {
+  // Handle refresh - memoized
+  const handleRefresh = useCallback(() => {
+    setDateFilter("today");
+    setSelectedDate("");
+    setSearchTerm("");
+    setAppliedSearchTerm("");
+  }, []);
+
+  // Format time - memoized
+  const formatTime = useCallback((timeString) => {
     if (!timeString) return "N/A";
-    return new Date(timeString).toLocaleTimeString();
-  };
+    try {
+      return new Date(timeString).toLocaleTimeString();
+    } catch (e) {
+      return "N/A";
+    }
+  }, []);
 
-  // Format date for display
-  const formatDate = (dateString) => {
+  // Format date for display - memoized
+  const formatDate = useCallback((dateString) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString();
-  };
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch (e) {
+      return "N/A";
+    }
+  }, []);
 
   // Format date for CSV (date only, YYYY-MM-DD format)
   const formatDateForCSV = (dateString) => {
@@ -221,42 +265,9 @@ export default function AdminAttendance() {
     }
   };
 
-  // Filter attendance data
-  const filteredAttendance = attendanceData.filter((record) => {
-    if (!appliedSearchTerm) return true;
-
-    const searchTerm = appliedSearchTerm.toLowerCase().trim();
-
-    // Format dates and times for searching
-    const formattedDate = record.date ? formatDate(record.date) : "";
-    const formattedCheckIn = record.checkIn ? formatTime(record.checkIn) : "";
-    const formattedCheckOut = record.checkOut
-      ? formatTime(record.checkOut)
-      : "";
-
-    // Search across all table fields
-    const searchableFields = [
-      record.name || "",
-      record.email || "",
-      record.employeeId || "",
-      record.date || "",
-      formattedDate,
-      formattedCheckIn,
-      formattedCheckOut,
-      record.status || "",
-      record.checkInAddress || record.checkInLocation || "",
-      record.checkOutAddress || record.checkOutLocation || "",
-      record.isLate ? "late" : "on time",
-      record.checkoutType || "",
-    ];
-
-    // Check if search term matches any field
-    const matchesSearch = searchableFields.some((field) =>
-      field.toLowerCase().includes(searchTerm)
-    );
-
-    return matchesSearch;
-  });
+  // No client-side filtering needed - backend handles all filtering
+  // filteredAttendance is just attendanceData since filtering is done server-side
+  const filteredAttendance = attendanceData;
 
   // Get status badge
   const getStatusBadge = (status) => {
@@ -668,11 +679,7 @@ export default function AdminAttendance() {
         </div>
         <div className="flex items-center space-x-2">
           <Button
-            onClick={() => {
-              setDateFilter("all");
-              setSearchTerm("");
-              setAppliedSearchTerm("");
-            }}
+            onClick={handleRefresh}
             variant="outline"
             title="Refresh data">
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -697,29 +704,33 @@ export default function AdminAttendance() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
+            <div className="space-y-2 md:col-span-2 lg:col-span-6">
               <Label htmlFor="search">Search</Label>
               <div className="flex gap-2">
-                <div className="relative flex-1">
+                <div className="relative flex-1 min-w-0">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
                     id="search"
                     placeholder="Search by name, email, or ID..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      // Immediate update for controlled input, filtering is debounced
+                      setSearchTerm(e.target.value);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
+                        e.preventDefault();
                         handleSearch();
                       }
                     }}
-                    className="pl-10"
+                    className="pl-10 w-full"
                   />
                 </div>
                 <Button
                   onClick={handleSearch}
                   variant="default"
-                  className="px-4">
+                  className="px-4 flex-shrink-0">
                   <Search className="h-4 w-4 mr-2" />
                   Search
                 </Button>
@@ -728,7 +739,8 @@ export default function AdminAttendance() {
                     onClick={handleClearSearch}
                     variant="outline"
                     size="icon"
-                    title="Clear search">
+                    title="Clear search"
+                    className="flex-shrink-0">
                     <XCircle className="h-4 w-4" />
                   </Button>
                 )}
@@ -739,12 +751,19 @@ export default function AdminAttendance() {
                 </p>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 lg:col-span-2">
               <Label htmlFor="dateFilter">Date Range</Label>
               <select
                 id="dateFilter"
                 value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
+                onChange={(e) => {
+                  // Use startTransition to mark as non-urgent update
+                  const value = e.target.value;
+                  startTransition(() => {
+                    setDateFilter(value);
+                    setSelectedDate(""); // Clear specific date when changing range filter
+                  });
+                }}
                 className="w-full p-2 border rounded-md">
                 <option value="all">All Time</option>
                 <option value="today">Today</option>
@@ -752,7 +771,35 @@ export default function AdminAttendance() {
                 <option value="month">This Month</option>
               </select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 lg:col-span-2">
+              <Label htmlFor="specificDate">Specific Date</Label>
+              <Input
+                id="specificDate"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => {
+                  // Use startTransition to mark as non-urgent update
+                  const value = e.target.value;
+                  startTransition(() => {
+                    setSelectedDate(value);
+                    if (value) {
+                      setDateFilter("all"); // Switch to "all" when specific date is selected
+                    }
+                  });
+                }}
+                className="w-full"
+              />
+              {selectedDate && (
+                <Button
+                  onClick={() => setSelectedDate("")}
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground">
+                  Clear
+                </Button>
+              )}
+            </div>
+            <div className="space-y-2 lg:col-span-2">
               <Label>Total Records</Label>
               <div className="text-2xl font-bold">
                 {filteredAttendance.length}
@@ -1273,7 +1320,10 @@ export default function AdminAttendance() {
                 )}
                 {dateFilter !== "all" && (
                   <Button
-                    onClick={() => setDateFilter("all")}
+                    onClick={() => {
+                      setDateFilter("all");
+                      setSelectedDate("");
+                    }}
                     variant="outline"
                     size="sm">
                     Show All Records
@@ -1281,7 +1331,8 @@ export default function AdminAttendance() {
                 )}
                 <Button
                   onClick={() => {
-                    setDateFilter("all");
+                    setDateFilter("today");
+                    setSelectedDate("");
                     setSearchTerm("");
                     setAppliedSearchTerm("");
                   }}

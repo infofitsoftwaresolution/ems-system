@@ -195,13 +195,17 @@ export default function Notifications() {
     }
   }, [user?.id, filter]);
 
-  // Handle new notification from socket
+  // Handle new notification from socket - optimized for performance
   const handleNewNotification = useCallback(
     (data) => {
-      if (data.userId === user?.id) {
-        console.log("New notification received via socket:", data);
-        loadNotifications();
-      }
+      // Use setTimeout to push to next event loop tick for better performance
+      setTimeout(() => {
+        if (data.userId === user?.id) {
+          console.log("New notification received via socket:", data);
+          // Defer API call further to avoid blocking
+          setTimeout(() => loadNotifications(), 10);
+        }
+      }, 0);
     },
     [user?.id, loadNotifications]
   );

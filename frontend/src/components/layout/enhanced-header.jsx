@@ -223,14 +223,18 @@ export function EnhancedHeader({ toggleSidebar }) {
     };
   }, [loadNotifications]);
 
-  // Handle real-time notifications via Socket.io
+  // Handle real-time notifications via Socket.io - optimized for performance
   const handleNewNotification = useCallback(
     (data) => {
-      // Only reload if notification is for current user
-      if (data.userId === user?.id) {
-        console.log("New notification received:", data);
-        loadNotifications();
-      }
+      // Use setTimeout to push to next event loop tick for better performance
+      setTimeout(() => {
+        // Only reload if notification is for current user
+        if (data.userId === user?.id) {
+          console.log("New notification received:", data);
+          // Defer API call further to avoid blocking
+          setTimeout(() => loadNotifications(), 10);
+        }
+      }, 0);
     },
     [user?.id, loadNotifications]
   );

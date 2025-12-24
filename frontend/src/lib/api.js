@@ -408,8 +408,12 @@ class ApiService {
     );
   }
 
-  async getAllAttendance(filter = "today") {
-    return this.request(`/api/attendance?filter=${filter}`);
+  async getAllAttendance(filter = "today", search = "", date = "") {
+    const params = new URLSearchParams();
+    if (filter) params.append("filter", filter);
+    if (search) params.append("search", search);
+    if (date) params.append("date", date);
+    return this.request(`/api/attendance?${params.toString()}`);
   }
 
   // Get employee's own attendance history

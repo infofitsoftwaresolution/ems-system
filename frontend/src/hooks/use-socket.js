@@ -149,32 +149,41 @@ export function useSocket(onMessage, onChannelMessage, onNotification) {
 
     const socket = socketRef.current;
 
-    // Listen for direct messages
+    // Listen for direct messages - optimized with deferred execution
     const handleDirectMessage = (data) => {
-      const { onMessage: handleMessage } = callbacksRef.current;
-      if (
-        handleMessage &&
-        (data.recipientEmail === user.email || data.senderEmail === user.email)
-      ) {
-        handleMessage(data.message);
-      }
+      // Use setTimeout to push to next event loop tick for better performance
+      setTimeout(() => {
+        const { onMessage: handleMessage } = callbacksRef.current;
+        if (
+          handleMessage &&
+          (data.recipientEmail === user.email || data.senderEmail === user.email)
+        ) {
+          handleMessage(data.message);
+        }
+      }, 0);
     };
 
-    // Listen for channel messages
+    // Listen for channel messages - optimized with deferred execution
     const handleChannelMessage = (data) => {
-      const { onChannelMessage: handleChannelMessage } = callbacksRef.current;
-      if (handleChannelMessage) {
-        handleChannelMessage(data.channelId, data.message);
-      }
+      // Use setTimeout to push to next event loop tick for better performance
+      setTimeout(() => {
+        const { onChannelMessage: handleChannelMessage } = callbacksRef.current;
+        if (handleChannelMessage) {
+          handleChannelMessage(data.channelId, data.message);
+        }
+      }, 0);
     };
 
-    // Listen for notifications
+    // Listen for notifications - optimized with deferred execution
     const handleNotification = (data) => {
-      const { onNotification: handleNotificationCallback } =
-        callbacksRef.current;
-      if (handleNotificationCallback) {
-        handleNotificationCallback(data);
-      }
+      // Use setTimeout to push to next event loop tick for better performance
+      setTimeout(() => {
+        const { onNotification: handleNotificationCallback } =
+          callbacksRef.current;
+        if (handleNotificationCallback) {
+          handleNotificationCallback(data);
+        }
+      }, 0);
     };
 
     socket.on("new-direct-message", handleDirectMessage);
