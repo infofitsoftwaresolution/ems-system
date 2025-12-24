@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, startTransition } from "react";
 import {
   Card,
   CardContent,
@@ -879,15 +879,46 @@ export default function Employees() {
     return !Object.values(errors).some((error) => error !== "");
   };
 
-  // Handle field validation on change
-  const handleFieldChange = (field, value) => {
-    setNewEmployee({ ...newEmployee, [field]: value });
+  // Handle field validation on change - optimized for performance
+  const handleFieldChange = useCallback((field, value) => {
+    // Use startTransition for non-urgent updates
+    startTransition(() => {
+      setNewEmployee((prev) => ({ ...prev, [field]: value }));
 
-    // Clear error for this field when user starts typing
-    if (validationErrors[field]) {
-      setValidationErrors({ ...validationErrors, [field]: "" });
-    }
-  };
+      // Clear error for this field when user starts typing - defer to avoid blocking
+      setValidationErrors((prev) => {
+        if (prev[field]) {
+          return { ...prev, [field]: "" };
+        }
+        return prev;
+      });
+    });
+  }, []);
+
+  // Handle field validation on blur - optimized to avoid blocking focusout
+  const handleFieldBlur = useCallback((field, value, additionalData = {}) => {
+    // Defer validation to avoid blocking focusout handler
+    setTimeout(() => {
+      let error = "";
+      switch (field) {
+        case "name":
+          error = validateName(value);
+          break;
+        case "email":
+          error = validateEmail(value);
+          break;
+        case "joinDate":
+          error = validateJoinDate(value);
+          break;
+        case "exitDate":
+          error = validateExitDate(value, additionalData.joinDate || newEmployee.joinDate);
+          break;
+        default:
+          break;
+      }
+      setValidationErrors((prev) => ({ ...prev, [field]: error }));
+    }, 0);
+  }, []);
 
   // Handle adding new employee
   const handleAddEmployee = async () => {
@@ -1053,7 +1084,11 @@ export default function Employees() {
               <DialogTrigger asChild>
                 <Button
                   className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4"
-                  onClick={() => setShowAddEmployeeDialog(true)}>
+                  onClick={() => {
+                    startTransition(() => {
+                      setShowAddEmployeeDialog(true);
+                    });
+                  }}>
                   <UserPlus className="h-3 w-3 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Add Employee</span>
                   <span className="sm:hidden">Add</span>
@@ -1105,10 +1140,7 @@ export default function Employees() {
                           handleFieldChange("name", e.target.value)
                         }
                         onBlur={() => {
-                          setValidationErrors({
-                            ...validationErrors,
-                            name: validateName(newEmployee.name),
-                          });
+                          handleFieldBlur("name", newEmployee.name);
                         }}
                         required
                         className={
@@ -1132,10 +1164,7 @@ export default function Employees() {
                           handleFieldChange("email", e.target.value)
                         }
                         onBlur={() => {
-                          setValidationErrors({
-                            ...validationErrors,
-                            email: validateEmail(newEmployee.email),
-                          });
+                          handleFieldBlur("email", newEmployee.email);
                         }}
                         required
                         className={
@@ -1247,10 +1276,13 @@ export default function Employees() {
                           handleFieldChange("position", e.target.value)
                         }
                         onBlur={() => {
-                          setValidationErrors({
-                            ...validationErrors,
-                            position: validatePosition(newEmployee.position),
-                          });
+                          // Defer position validation
+                          setTimeout(() => {
+                            setValidationErrors((prev) => ({
+                              ...prev,
+                              position: validatePosition(newEmployee.position),
+                            }));
+                          }, 0);
                         }}
                         className={
                           validationErrors.position ? "border-red-500" : ""
@@ -1268,10 +1300,13 @@ export default function Employees() {
                         value={newEmployee.role}
                         onValueChange={(value) => {
                           handleFieldChange("role", value);
-                          setValidationErrors({
-                            ...validationErrors,
-                            role: validateRole(value),
-                          });
+                          // Defer validation to avoid blocking
+                          setTimeout(() => {
+                            setValidationErrors((prev) => ({
+                              ...prev,
+                              role: validateRole(value),
+                            }));
+                          }, 0);
                         }}>
                         <SelectTrigger
                           className={
@@ -1303,16 +1338,11 @@ export default function Employees() {
                           handleFieldChange("joinDate", e.target.value)
                         }
                         onBlur={() => {
-                          setValidationErrors({
-                            ...validationErrors,
-                            joinDate: validateJoinDate(newEmployee.joinDate),
-                            exitDate: !newEmployee.isActive
-                              ? validateExitDate(
-                                  newEmployee.exitDate,
-                                  newEmployee.joinDate
-                                )
-                              : "",
-                          });
+                          handleFieldBlur("joinDate", newEmployee.joinDate);
+                          // Also validate exit date if active status changed
+                          if (!newEmployee.isActive) {
+                            handleFieldBlur("exitDate", newEmployee.exitDate);
+                          }
                         }}
                         className={
                           validationErrors.joinDate ? "border-red-500" : ""
@@ -1335,12 +1365,8 @@ export default function Employees() {
                             handleFieldChange("exitDate", e.target.value)
                           }
                           onBlur={() => {
-                            setValidationErrors({
-                              ...validationErrors,
-                              exitDate: validateExitDate(
-                                newEmployee.exitDate,
-                                newEmployee.joinDate
-                              ),
+                            handleFieldBlur("exitDate", newEmployee.exitDate, {
+                              joinDate: newEmployee.joinDate,
                             });
                           }}
                           className={
@@ -2094,7 +2120,11 @@ export default function Employees() {
                           <DropdownMenuLabel className="text-xs sm:text-sm">Actions</DropdownMenuLabel>
                           <DropdownMenuItem
                             className="gap-2 text-xs sm:text-sm"
-                            onClick={() => handleEditClick(employee)}>
+                            onClick={() => {
+                              startTransition(() => {
+                                handleEditClick(employee);
+                              });
+                            }}>
                             <PencilLine className="h-3 w-3 sm:h-4 sm:w-4" /> Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
